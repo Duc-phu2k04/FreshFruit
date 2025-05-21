@@ -1,0 +1,15 @@
+# Bỏ qua thư mục node_modules
+node_modules/
+
+# Bỏ qua file môi trường
+.env
+
+# Bỏ qua file log
+*.log
+
+# Bỏ qua thư mục build
+dist/
+build/
+
+# Bỏ qua file hệ thống MacOS
+.DS_Store
