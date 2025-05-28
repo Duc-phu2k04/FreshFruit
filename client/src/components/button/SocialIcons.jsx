@@ -3,7 +3,7 @@ import { faFacebook, faTwitter, faYoutube } from "@fortawesome/free-brands-svg-i
 
 const SocialIcons = () => {
     return (
-        <div className="flex gap-3 p-4 ml-6 rounded-lg items-center">
+        <div className="flex gap-3 p-4 rounded-lg items-center">
             <a href="https://facebook.com" target="_blank" rel="noopener noreferrer"
                 className="bg-white w-[50px] h-[50px] rounded-full flex items-center justify-center hover:scale-110 transition">
                 <FontAwesomeIcon icon={faFacebook} className="text-[#0DAD4D] text-2xl" />

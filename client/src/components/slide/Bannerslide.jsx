@@ -42,7 +42,7 @@ const BannerSlider = () => {
                         <img
                             src={banner.image}
                             alt={banner.alt}
-                            className="w-full object-cover h-[450px]"
+                            className="w-full object-cover h-[200px] sm:h-[300px] md:h-[450px]"
                         />
                     </SwiperSlide>
                 ))}

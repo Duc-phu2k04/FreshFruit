@@ -45,23 +45,22 @@
 }
 
 .swiper-pagination-bullet {
-  background-color: #d1d5db !important; /* Màu xám nhẹ cho thanh không hoạt động */
-  opacity: 1 !important; /* Đảm bảo độ mờ không bị ảnh hưởng */
-  width: 18px !important; /* Chiều rộng của gạch ngang */
-  height: 4px !important; /* Chiều cao của gạch ngang */
-  border-radius: 2px !important; /* Bo góc nhẹ để trông mềm mại hơn */
-  margin: 0 4px !important; /* Khoảng cách giữa các gạch ngang */
-  transition: all 0.3s ease; /* Thêm hiệu ứng chuyển động mượt mà */
+  background-color: #d1d5db !important; 
+  opacity: 1 !important; 
+  width: 18px !important; 
+  height: 4px !important; 
+  border-radius: 2px !important; 
+  margin: 0 4px !important; 
+  transition: all 0.3s ease; 
 }
 
 .swiper-pagination-bullet-active {
-  background-color: #F67010 !important; /* Màu xanh Indigo cho thanh đang hoạt động */
-  width: 30px !important; /* Chiều rộng lớn hơn cho thanh đang hoạt động */
+  background-color: #F67010 !important; 
+  width: 30px !important; 
 }
 
-/* Tùy chỉnh vị trí của pagination (nếu cần) */
 .swiper-pagination {
-  bottom: 20px !important; /* Đẩy pagination xuống dưới một chút */
+  bottom: 20px !important; 
 }
 @keyframes switchTextSlide {
   0%, 40% {
@@ -91,6 +90,7 @@
 
 .switchtext::after {
   width: 240px;
+  text-align: left;
   content: "Thương Hiệu";
   animation: switchTextSlide 4s infinite;
   position: absolute;

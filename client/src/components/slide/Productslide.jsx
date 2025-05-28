@@ -1,4 +1,4 @@
-
+// components/ProductCarousel.jsx
 import { Swiper, SwiperSlide } from 'swiper/react';
 import 'swiper/css';
 import 'swiper/css/pagination';
@@ -37,7 +37,6 @@ const productList = [
 const ProductCarousel = () => {
     return (
         <div className="w-full mx-auto">
-
             <Swiper
                 spaceBetween={20}
                 slidesPerView={1}
@@ -56,6 +55,7 @@ const ProductCarousel = () => {
                         slidesPerView: 3,
                         spaceBetween: 30,
                     },
+
                     1280: {
                         slidesPerView: 4,
                         spaceBetween: 40,
