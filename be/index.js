@@ -3,7 +3,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import authRoutes from './src/routes/auth.route.js';
 import productRoutes from './src/routes/product.route.js';
-
+import categoryRoutes from './src/routes/category.route.js';
 
 const app = express();
 app.use(express.urlencoded({ extended: true }));
@@ -15,7 +15,9 @@ app.get('/', (req, res) => {
 
 app.use('/auth', authRoutes);
 
-app.use("/api", productRoutes);
+app.use("/api/product", productRoutes);
+
+app.use("/api/category", categoryRoutes);
 
 mongoose.connect('mongodb://localhost:27017/freshfruit')
 
