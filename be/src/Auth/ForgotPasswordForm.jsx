@@ -28,4 +28,5 @@ const ForgotPasswordForm = ({ onSubmit }) => {
   );
 };
 
+
 export default ForgotPasswordForm;

@@ -46,4 +46,5 @@ const RegisterForm = ({ onRegister }) => {
   );
 };
 
+
 export default RegisterForm;
