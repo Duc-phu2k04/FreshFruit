@@ -1,4 +1,3 @@
-// src/Auth/LoginForm.jsx
 import React, { useState } from 'react';
 import { login } from '../utils/auth';
 
@@ -20,7 +19,7 @@ const LoginForm = ({ onLoginSuccess }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ maxWidth: 400, margin: 'auto' }}>
+    <form onSubmit={handleSubmit}>
       <h2>Đăng nhập</h2>
       <input
         type="email"
@@ -28,30 +27,27 @@ const LoginForm = ({ onLoginSuccess }) => {
         value={email}
         onChange={e => setEmail(e.target.value)}
         required
-        style={{ width: '100%', marginBottom: 8 }}
       />
-      <div style={{ position: 'relative', marginBottom: 8 }}>
+      <div className="toggle-password-container">
         <input
           type={showPassword ? 'text' : 'password'}
           placeholder="Mật khẩu"
           value={password}
           onChange={e => setPassword(e.target.value)}
           required
-          style={{ width: '100%' }}
         />
         <button
           type="button"
           onClick={() => setShowPassword(!showPassword)}
-          style={{ position: 'absolute', right: 0, top: 0 }}
+          aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
         >
           {showPassword ? 'Ẩn' : 'Hiện'}
         </button>
       </div>
-      {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
-      <button type="submit" style={{ width: '100%' }}>Đăng nhập</button>
+      {error && <div className="message error">{error}</div>}
+      <button type="submit">Đăng nhập</button>
     </form>
   );
 };
-
 
 export default LoginForm;

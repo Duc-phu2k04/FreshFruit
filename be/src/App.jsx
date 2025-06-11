@@ -5,6 +5,8 @@ import RegisterForm from './Auth/RegisterForm';
 import ForgotPasswordForm from './Auth/ForgotPasswordForm';
 import LogoutButton from './Auth/LogoutButton';
 import { isLoggedIn, getCurrentUser } from './utils/auth';
+import './styles.css'; // hoặc './App.css' tùy bạn đặt tên file
+
 
 const App = () => {
   const [page, setPage] = useState(isLoggedIn() ? 'dashboard' : 'login');
