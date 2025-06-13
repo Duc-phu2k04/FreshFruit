@@ -1,19 +1,25 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom"
-import Layout from "./layouts/Main-layout"
-import Homepage from "./pages/Homepage/Homepage"
-
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import Layout from "./layouts/Main-layout";
+import Homepage from "./pages/Homepage/Homepage";
+import CartPage from "./pages/Homepage/CartPage";
+import { CartProvider } from "./context/CartContext";
+import { AuthProvider } from "./context/AuthContext"; 
 
 function App() {
-
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route path="/" element={<Homepage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter >
-  )
+    <AuthProvider>
+      <CartProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Homepage />} />
+              <Route path="gio-hang" element={<CartPage />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </CartProvider>
+    </AuthProvider>
+  );
 }
 
-export default App
+export default App;
