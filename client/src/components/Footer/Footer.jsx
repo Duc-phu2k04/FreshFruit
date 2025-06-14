@@ -10,7 +10,7 @@ export const Footer = () => {
                     <div className="flex flex-col md:flex-row items-center mt-14 gap-y-8 md:gap-y-0 md:gap-x-6">
                         <div className="md:ml-4">
                             <div className='inline-block'>
-                                <a href="http://"><img src="https://fujifruit.com.vn/wp-content/uploads/2023/10/logo_2.svg" alt="" className='w-[295px] h-[71]' /></a>
+                                <a href="http://"><img src="./public/image/logo2-bg.png" alt="" className='w-[295px] h-[71]' /></a>
                             </div>
                         </div>
                         <div>

@@ -21,7 +21,7 @@ export const Header = () => {
                     </button>
                     <div className='flex-shrink-0'>
                         <a href="http://">
-                            <img src="https://fujifruit.com.vn/wp-content/uploads/2022/10/Logo.svg" alt="Fuji Fruit Logo" className='w-32 h-auto' />
+                            <img src="./public/image/logo2-bg.png" alt="Fuji Fruit Logo" className='w-32 h-auto' />
                         </a>
                     </div>
                     <div className="p-2">
@@ -84,7 +84,7 @@ export const Header = () => {
                             <div><SearchBar /></div>
                         </div>
                         <div className='h-[74px] flex items-center justify-center'>
-                            <div className='inline-block'><a href="http://"><img src="https://fujifruit.com.vn/wp-content/uploads/2022/10/Logo.svg" alt="" className='w-[162px] h-10' /></a></div>
+                            <div className='inline-block'><a href="http://"><img src="./public/image/logo2-bg.png" alt="" className='w-[150px]' /></a></div>
                         </div>
                         <div className='h-[74px] flex items-center justify-end'>
                             <div><AccountButton /></div>
