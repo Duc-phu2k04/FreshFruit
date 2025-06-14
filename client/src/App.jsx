@@ -3,7 +3,8 @@ import Layout from "./layouts/Main-layout";
 import Homepage from "./pages/Homepage/Homepage";
 import CartPage from "./pages/Homepage/CartPage";
 import { CartProvider } from "./context/CartContext";
-import { AuthProvider } from "./context/AuthContext"; 
+import { AuthProvider } from "./context/AuthContext";
+import ProductListPage from "./pages/ProductList/ProductList";
 
 function App() {
   return (
