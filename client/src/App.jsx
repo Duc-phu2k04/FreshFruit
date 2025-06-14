@@ -14,6 +14,7 @@ function App() {
             <Route path="/" element={<Layout />}>
               <Route index element={<Homepage />} />
               <Route path="gio-hang" element={<CartPage />} />
+              <Route path="san-pham" element={<ProductListPage />} />
             </Route>
           </Routes>
         </BrowserRouter>
