@@ -1,0 +1,101 @@
+@import "tailwindcss";
+.swiper-button-next,
+.swiper-button-prev {
+  color: white !important;
+}
+.swiper-button-next::after,
+.swiper-button-prev::after {
+  font-size: 14px !important;
+}
+@keyframes switchTextSlideFade {
+  0%, 40% {
+    content: "Hoa quả";
+    opacity: 1;
+    transform: translateX(0);
+  }
+  45% {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  50%, 90% {
+    content: "Giỏ quả";
+    opacity: 1;
+    transform: translateX(0);
+  }
+  95% {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  100% {
+    content: "Hoa quả";
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.switch-text::after {
+  width: 140px;
+  content: "Hoa quả";
+  animation: switchTextSlideFade 4s infinite;
+  position: absolute;
+  left: 0;
+  top: 0;
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+  display: inline-block;
+}
+
+.swiper-pagination-bullet {
+  background-color: #d1d5db !important; 
+  opacity: 1 !important; 
+  width: 18px !important; 
+  height: 4px !important; 
+  border-radius: 2px !important; 
+  margin: 0 4px !important; 
+  transition: all 0.3s ease; 
+}
+
+.swiper-pagination-bullet-active {
+  background-color: #F67010 !important; 
+  width: 30px !important; 
+}
+
+.swiper-pagination {
+  bottom: 20px !important; 
+}
+@keyframes switchTextSlide {
+  0%, 40% {
+    content: "Thương Hiệu";
+    opacity: 1;
+    transform: translateX(0);
+  }
+  45% {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  50%, 90% {
+    content: "Chất lượng";
+    opacity: 1;
+    transform: translateX(0);
+  }
+  95% {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  100% {
+    content: "Thương Hiệu";
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.switchtext::after {
+  width: 240px;
+  text-align: left;
+  content: "Thương Hiệu";
+  animation: switchTextSlide 4s infinite;
+  position: absolute;
+  left: 0;
+  top: 0;
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+  display: inline-block;
+}
