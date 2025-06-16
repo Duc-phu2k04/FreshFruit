@@ -23,6 +23,7 @@ function App() {
         </BrowserRouter>
       </CartProvider>
     </AuthProvider>
+staging
   );
 }
 
