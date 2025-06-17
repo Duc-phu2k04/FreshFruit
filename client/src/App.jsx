@@ -8,6 +8,7 @@ import { CartProvider } from "./context/CartContext";
 import { AuthProvider } from "./context/AuthContext";
 import RegisterForm from "./pages/RegisterForm";
 import LoginForm from "./pages/LoginForm";
+import ListSanPham from "./pages/Product/ProductSearch";
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
               <Route path="checkout" element={<Checkout />} />
               <Route path="register" element={<RegisterForm />} />
               <Route path="login" element={<LoginForm />} />
+              <Route path="products" element={<ListSanPham />} />
             </Route>
           </Routes>
         </BrowserRouter>
