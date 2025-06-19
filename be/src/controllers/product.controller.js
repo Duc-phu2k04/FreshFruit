@@ -1,11 +1,15 @@
+// src/controllers/product.controller.js
 import Product from "../models/product.model.js";
 import Category from "../models/category.model.js";
+import Location from "../models/location.model.js";
 
 const productController = {
   // GET /products
   getAllProducts: async (req, res) => {
     try {
-      const products = await Product.find().populate("category");
+      const products = await Product.find()
+        .populate("category")
+        .populate("location");
       res.json(products);
     } catch (err) {
       res.status(500).json({ message: "Server error", error: err.message });
@@ -15,7 +19,9 @@ const productController = {
   // GET /products/:id
   getProductById: async (req, res) => {
     try {
-      const product = await Product.findById(req.params.id).populate("category");
+      const product = await Product.findById(req.params.id)
+        .populate("category")
+        .populate("location");
       if (!product) return res.status(404).json({ message: "Not found" });
       res.json(product);
     } catch (err) {
@@ -23,18 +29,22 @@ const productController = {
     }
   },
 
-  // POST /products (Admin)
+  // POST /products/add (Admin only)
   createProduct: async (req, res) => {
     try {
-      const { category } = req.body;
+      const { category, location } = req.body;
+
       const categoryExists = await Category.findById(category);
-      if (!categoryExists) {
-        return res.status(400).json({ message: "Invalid category ID" });
+      const locationExists = await Location.findById(location);
+      if (!categoryExists || !locationExists) {
+        return res.status(400).json({ message: "Invalid category or location ID" });
       }
 
       const newProduct = new Product(req.body);
       const saved = await newProduct.save();
-      const populated = await saved.populate("category");
+      const populated = await Product.findById(saved._id)
+        .populate("category")
+        .populate("location");
 
       res.status(201).json(populated);
     } catch (err) {
@@ -42,13 +52,15 @@ const productController = {
     }
   },
 
-  // PUT /products/:id (Admin)
+  // PUT /products/:id (Admin only)
   updateProduct: async (req, res) => {
     try {
       const updated = await Product.findByIdAndUpdate(req.params.id, req.body, {
         new: true,
         runValidators: true,
-      }).populate("category");
+      })
+        .populate("category")
+        .populate("location");
 
       if (!updated) return res.status(404).json({ message: "Not found" });
       res.json(updated);
@@ -57,7 +69,7 @@ const productController = {
     }
   },
 
-  // DELETE /products/:id (Admin)
+  // DELETE /products/:id (Admin only)
   deleteProduct: async (req, res) => {
     try {
       const deleted = await Product.findByIdAndDelete(req.params.id);
