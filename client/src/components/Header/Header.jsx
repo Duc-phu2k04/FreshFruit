@@ -8,9 +8,18 @@ import CategoryDropdown from '../button/CategoryButton';
 import Navbar from '../button/Navbar';
 import { Link } from 'react-router-dom';
 import CartIcon from '../button/CartButton';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 export const Header = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [products, setProducts] = useState([]);
+
+    useEffect(() => {
+        axios
+            .get("http://localhost:3000/products")
+            .then((res) => setProducts(res.data))
+            .catch((err) => console.error("Lỗi khi fetch sản phẩm:", err));
+    }, []);
     return (
         <header>
             {/* ======================= HEADER CHO THIẾT BỊ DI ĐỘNG ===================== */}
@@ -42,7 +51,7 @@ export const Header = () => {
                                 <FontAwesomeIcon icon={faTimes} className="h-6 w-6 text-gray-700" />
                             </button>
                             <div className="w-full">
-                                <SearchBar />
+                                <SearchBar products={products} />
                             </div>
                             <div className="w-full">
                                 <CategoryDropdown />
@@ -81,7 +90,7 @@ export const Header = () => {
                 <div className='h-[100px] w-full flex flex-row justify-center items-center'>
                     <div className='w-[1300px] h-[100px] flex gap-50 items-center'>
                         <div className='h-[74px] flex items-center'>
-                            <div><SearchBar /></div>
+                            <div><SearchBar products={products} /></div>
                         </div>
                         <div className='h-[74px] flex items-center justify-center'>
                             <div className='inline-block'><a href="http://"><img src="./public/image/logo2-bg.png" alt="" className='w-[150px]' /></a></div>

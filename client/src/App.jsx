@@ -6,6 +6,9 @@ import ProductListPage from "./pages/ProductList/ProductList";
 import Checkout from "./pages/Checkout/Checkout";
 import { CartProvider } from "./context/CartContext";
 import { AuthProvider } from "./context/AuthContext";
+import RegisterForm from "./pages/RegisterForm";
+import LoginForm from "./pages/LoginForm";
+import ListSanPham from "./pages/Product/ProductSearch";
 
 function App() {
   return (
@@ -18,11 +21,15 @@ function App() {
               <Route path="gio-hang" element={<CartPage />} />
               <Route path="san-pham" element={<ProductListPage />} />
               <Route path="checkout" element={<Checkout />} />
+              <Route path="register" element={<RegisterForm />} />
+              <Route path="login" element={<LoginForm />} />
+              <Route path="products" element={<ListSanPham />} />
             </Route>
           </Routes>
         </BrowserRouter>
       </CartProvider>
     </AuthProvider>
+
   );
 }
 
