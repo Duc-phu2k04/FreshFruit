@@ -27,11 +27,11 @@ export async function login(usernameOrEmail, password) {
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) throw new Error('Invalid password');
 
-  const token = jwt.sign(
-    { id: user._id, username: user.username, role: user.role },
-    'secret',
-    { expiresIn: '1h' }
-  );
+ const token = jwt.sign(
+  { _id: user._id, username: user.username, role: user.role }, // dùng _id
+  'secret',
+  { expiresIn: '1h' }
+);
 
   return { token, user };
 }
