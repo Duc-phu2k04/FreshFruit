@@ -4,30 +4,46 @@ import Category from "../models/category.model.js";
 import Location from "../models/location.model.js";
 
 const productController = {
-  // GET /products
-  getAllProducts: async (req, res) => {
-    try {
-      const products = await Product.find()
-        .populate("category")
-        .populate("location");
-      res.json(products);
-    } catch (err) {
-      res.status(500).json({ message: "Server error", error: err.message });
-    }
-  },
+ // GET /products
+getAllProducts: async (req, res) => {
+  try {
+    const products = await Product.find()
+      .populate("category")
+      .populate("location");
 
-  // GET /products/:id
-  getProductById: async (req, res) => {
-    try {
-      const product = await Product.findById(req.params.id)
-        .populate("category")
-        .populate("location");
-      if (!product) return res.status(404).json({ message: "Not found" });
-      res.json(product);
-    } catch (err) {
-      res.status(500).json({ message: "Server error", error: err.message });
-    }
-  },
+    // Thêm trường status dựa trên stock
+    const productsWithStatus = products.map((product) => ({
+      ...product.toObject(),
+      status: product.stock > 0 ? "Còn hàng" : "Hết hàng",
+    }));
+
+    res.json(productsWithStatus);
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+},
+
+
+ // GET /products/:id
+getProductById: async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id)
+      .populate("category")
+      .populate("location");
+
+    if (!product) return res.status(404).json({ message: "Not found" });
+
+    const productWithStatus = {
+      ...product.toObject(),
+      status: product.stock > 0 ? "Còn hàng" : "Hết hàng",
+    };
+
+    res.json(productWithStatus);
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+},
+
 
   // POST /products/add (Admin only)
   createProduct: async (req, res) => {
