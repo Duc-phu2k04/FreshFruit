@@ -5,6 +5,8 @@ import authRoutes from './src/routes/auth.route.js';
 import productRoutes from './src/routes/product.route.js';
 import categoryRoutes from './src/routes/category.route.js';
 import locationRoute from "./src/routes/location.route.js";
+import dotenv from 'dotenv';
+dotenv.config();
 
 const app = express();
 app.use(express.urlencoded({ extended: true }));

@@ -2,7 +2,7 @@
 node_modules/
 
 # # Bỏ qua file môi trường
-# .env
+ .env
 
 # # Bỏ qua file log
 # *.log
