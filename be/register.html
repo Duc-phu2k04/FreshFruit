@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Đăng ký</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 24px; }
+    .container { max-width: 400px; margin: 40px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 24px; }
+    h2 { text-align: center; color: #1976d2; margin-bottom: 24px; }
+    input[type="text"], input[type="email"], input[type="password"] { width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; box-sizing: border-box; }
+    button { width: 100%; padding: 12px; background: #1976d2; color: #fff; border: none; border-radius: 4px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 12px; }
+    button:hover { background: #1565c0; }
+    .message { text-align: center; margin-bottom: 12px; font-weight: bold; color: #388e3c;}
+    .link-buttons { text-align: center; }
+    .link-buttons a { color: #1976d2; text-decoration: none; margin: 0 8px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Đăng ký</h2>
+    <form id="registerForm">
+      <input type="text" id="name" placeholder="Tên" required />
+      <input type="email" id="email" placeholder="Email" required />
+      <input type="password" id="password" placeholder="Mật khẩu" required />
+      <button type="submit">Đăng ký</button>
+      <div id="successMsg" class="message" style="display:none;"></div>
+    </form>
+    <div class="link-buttons">
+      <a href="login.html">Quay lại đăng nhập</a>
+    </div>
+  </div>
+  <script>
+    document.getElementById('registerForm').addEventListener('submit', function(e){
+      e.preventDefault();
+      document.getElementById('successMsg').textContent = 'Đăng ký thành công!';
+      document.getElementById('successMsg').style.display = 'block';
+    });
+  </script>
+</body>
+</html>
