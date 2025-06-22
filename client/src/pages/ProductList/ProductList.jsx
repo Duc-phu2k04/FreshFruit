@@ -5,9 +5,9 @@ import ViewNowButton from "../../components/button/ViewnowButton";
 import { motion } from "framer-motion";
 import { useCart } from "../../context/CartContext";
 import { useNavigate } from "react-router-dom";
+import Pagination from "../../components/common/Pagination";
 
-// Fake data tạm thời - sẽ được thay thế bằng API call tới MongoDB sau này
-const fakeData = [
+const baseProducts = [
   {
     _id: "1",
     name: "Táo đỏ Mỹ",
@@ -42,19 +42,32 @@ const fakeData = [
   },
 ];
 
+// Dữ liệu giả để test nhiều sản phẩm và phân trang. Khi có dữ liệu thật, hãy thay thế fakeData bằng fetch từ API.
+const fakeData = Array.from({ length: 36 }, (_, i) => {
+  const base = baseProducts[i % baseProducts.length];
+  return {
+    ...base,
+    _id: `${i + 1}`,
+  };
+});
+
 export default function ProductListPage() {
   const [products, setProducts] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const productsPerPage = 12; // 3 hàng x 4 cột = 12 sản phẩm mỗi trang
+
   const { addToCart } = useCart();
   const navigate = useNavigate();
 
   useEffect(() => {
-    // 
+    //  Dùng fakeData tạm thời cho đến khi có API thật
+    setProducts(fakeData);
+
+    //  Nếu có API thật, thay bằng đoạn này:
     // fetch("http://localhost:5000/api/products")
     //   .then(res => res.json())
     //   .then(data => setProducts(data))
     //   .catch(error => console.error("Lỗi khi fetch sản phẩm:", error));
-
-    setProducts(fakeData); // Tạm thời sử dụng dữ liệu giả
   }, []);
 
   const handleBuyNow = (product) => {
@@ -66,9 +79,12 @@ export default function ProductListPage() {
     navigate(`/san-pham/${product._id}`, { state: product });
   };
 
+  const indexOfLastProduct = currentPage * productsPerPage;
+  const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
+  const currentProducts = products.slice(indexOfFirstProduct, indexOfLastProduct);
+
   return (
     <div className="product-page-wrapper">
-      {/* Banner */}
       <div className="product-banner">
         <img
           src="https://fujifruit.com.vn/wp-content/uploads/2023/10/1712.png"
@@ -77,7 +93,6 @@ export default function ProductListPage() {
         />
       </div>
 
-      {/* Tiêu đề & Bộ lọc */}
       <div className="product-header">
         <div>
           <h1 className="title">
@@ -87,13 +102,18 @@ export default function ProductListPage() {
         <CategoryFilter />
       </div>
 
-      {/* Danh sách sản phẩm */}
       <div className="product-grid-container">
-        {products.length === 0 ? (
+        {currentProducts.length === 0 ? (
           <p className="text-center text-gray-500">Chưa có sản phẩm nào.</p>
         ) : (
-          <div className="product-grid">
-            {products.map((product) => (
+          <motion.div
+            key={currentPage} // 🔑 để Framer Motion nhận biết khi chuyển trang
+            className="product-grid product-grid-4-cols"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            {currentProducts.map((product) => (
               <motion.div
                 key={product._id}
                 className="product-card"
@@ -137,11 +157,16 @@ export default function ProductListPage() {
                 </div>
               </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
       </div>
 
-      {/* Call to Action */}
+      <Pagination
+        currentPage={currentPage}
+        totalPages={Math.ceil(products.length / productsPerPage)}
+        onPageChange={setCurrentPage}
+      />
+
       <div className="cta-section">
         <h2 className="cta-title">Trái cây sạch, tốt cho sức khỏe mỗi ngày</h2>
         <p className="cta-sub">Chọn FreshFruit - Chất lượng & Niềm tin</p>

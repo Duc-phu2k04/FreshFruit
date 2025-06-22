@@ -24,6 +24,8 @@ function App() {
               <Route path="register" element={<RegisterForm />} />
               <Route path="login" element={<LoginForm />} />
               <Route path="products" element={<ListSanPham />} />
+              <Route path="dang-ky" element={<RegisterForm />} />
+              <Route path="dang-nhap" element={<LoginForm />} />
             </Route>
           </Routes>
         </BrowserRouter>
