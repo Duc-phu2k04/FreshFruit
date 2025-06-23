@@ -6,6 +6,7 @@ import productRoutes from './src/routes/product.route.js';
 import categoryRoutes from './src/routes/category.route.js';
 import locationRoute from "./src/routes/location.route.js";
 import cartRoute from './src/routes/cart.route.js';
+import orderRoute from './src/routes/order.route.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -26,6 +27,8 @@ app.use("/api/category", categoryRoutes);
 app.use("/api/locations", locationRoute);
 
 app.use("/api/cart", cartRoute);
+
+app.use("/api/order", orderRoute);
 
 mongoose.connect('mongodb://localhost:27017/freshfruit')
 
