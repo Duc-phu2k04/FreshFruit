@@ -7,10 +7,12 @@ import categoryRoutes from './src/routes/category.route.js';
 import locationRoute from "./src/routes/location.route.js";
 import cartRoute from './src/routes/cart.route.js';
 import orderRoute from './src/routes/order.route.js';
+import cors from 'cors';
 import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
+app.use(cors());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
