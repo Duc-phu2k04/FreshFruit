@@ -35,14 +35,14 @@ const SearchBar = ({ products = [] }) => {
     const handleSelect = (product) => {
         setQuery('');
         setResults([]);
-        navigate(`/product/${product.id}`);
+        navigate(`/product/${product._id}`);
     };
 
     const handleSearch = () => {
         const trimmedQuery = query.trim();
         if (trimmedQuery) {
             setResults([]);
-            navigate(`/products?search=${encodeURIComponent(trimmedQuery)}`);
+            navigate(`/product?search=${encodeURIComponent(trimmedQuery)}`);
         }
     };
 

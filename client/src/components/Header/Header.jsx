@@ -20,7 +20,7 @@ export const Header = () => {
 
   useEffect(() => {
     axios
-      .get("http://localhost:3000/products")
+      .get("http://localhost:3000/api/product")
       .then((res) => setProducts(res.data))
       .catch((err) => console.error("Lỗi khi fetch sản phẩm:", err));
   }, []);

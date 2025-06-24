@@ -18,7 +18,7 @@ export default function ProductListPage() {
   useEffect(() => {
     async function fetchProducts() {
       try {
-        const response = await fetch("/api/products");
+        const response = await fetch("http://localhost:3000/api/product");
         if (!response.ok) throw new Error("Lỗi khi lấy danh sách sản phẩm");
         const data = await response.json();
         setProducts(data);

@@ -8,9 +8,11 @@ import locationRoute from "./src/routes/location.route.js";
 import cartRoute from './src/routes/cart.route.js';
 import orderRoute from './src/routes/order.route.js';
 import dotenv from 'dotenv';
+import cors from 'cors';
 dotenv.config();
 
 const app = express();
+app.use(cors());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
