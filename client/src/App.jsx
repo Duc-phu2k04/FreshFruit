@@ -9,6 +9,7 @@ import { AuthProvider } from "./context/AuthContext";
 import RegisterForm from "./pages/RegisterForm";
 import LoginForm from "./pages/LoginForm";
 import ListSanPham from "./pages/Product/ProductSearch";
+import Dashboard from "./pages/Admin/Dashboard";
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
               <Route path="dang-ky" element={<RegisterForm />} />
               <Route path="dang-nhap" element={<LoginForm />} />
             </Route>
+            <Route path="/dashboard" element={<Dashboard />} />
           </Routes>
         </BrowserRouter>
       </CartProvider>

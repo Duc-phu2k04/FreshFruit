@@ -16,7 +16,7 @@ const ListSanPham = () => {
     useEffect(() => {
         const fetchProducts = async () => {
             try {
-                const res = await axios.get('http://localhost:3000/products');
+                const res = await axios.get('http://localhost:3000/api/product');
                 const allProducts = res.data;
                 const filtered = allProducts.filter(product =>
                     product.name.toLowerCase().includes(keyword)
