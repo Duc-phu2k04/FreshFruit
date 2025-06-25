@@ -34,7 +34,7 @@ const CategoryCreateForm = () => {
         setSuccess(null);
 
         try {
-            await axiosInstance.post('/category/add', formData); // Endpoint để tạo category
+            await axiosInstance.post('category/add', formData); // Endpoint để tạo category
             setSuccess('Thêm danh mục thành công! Đang chuyển hướng...');
 
             // Xóa form và chuyển hướng sau 2 giây
