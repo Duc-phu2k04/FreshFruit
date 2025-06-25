@@ -10,7 +10,6 @@ import orderRoute from './src/routes/order.route.js';
 import reviewRoute from './src/routes/review.route.js';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import cors from 'cors';
 dotenv.config();
 
 const app = express();

@@ -1,10 +1,12 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
-// Import các icon cần thiết từ Heroicons (style 'solid' cho sắc nét)
+// Import các icon cần thiết, bao gồm cả icon mới
 import {
     HomeIcon,
     CubeIcon,
+    TagIcon, // Icon mới cho Danh mục
+    MapPinIcon, // Icon mới cho Vị trí
     ShoppingBagIcon,
     UsersIcon,
     StarIcon
@@ -13,11 +15,12 @@ import {
 const Sidebar = () => {
     const location = useLocation();
 
-    // Helper function để kiểm tra link có active không
+    // Helper function để kiểm tra link có active không (giữ nguyên)
     const isLinkActive = (path) => {
         return location.pathname === path;
     };
 
+    // Các lớp CSS của Tailwind (giữ nguyên)
     const linkClasses = "flex items-center px-4 py-3 text-gray-300 rounded-lg transition-colors duration-200";
     const activeLinkClasses = "bg-gray-700 text-white";
     const hoverClasses = "hover:bg-gray-700 hover:text-white";
@@ -26,7 +29,7 @@ const Sidebar = () => {
     return (
         <div className="flex h-screen flex-col justify-between bg-gray-800 text-white w-64 p-4">
             <div className="flex flex-col space-y-2">
-                {/* Logo hoặc tên trang web có thể đặt ở đây */}
+                {/* Logo hoặc tên trang web */}
                 <div className="text-center py-4">
                     <h2 className="text-2xl font-bold">Admin Panel</h2>
                 </div>
@@ -35,8 +38,8 @@ const Sidebar = () => {
                     <ul>
                         <li>
                             <Link
-                                to="/dashboard"
-                                className={`${linkClasses} ${isLinkActive('/dashboard') ? activeLinkClasses : hoverClasses}`}
+                                to="/admin"
+                                className={`${linkClasses} ${isLinkActive('/admin') ? activeLinkClasses : hoverClasses}`}
                             >
                                 <HomeIcon className={iconClasses} />
                                 Tổng quan
@@ -49,6 +52,26 @@ const Sidebar = () => {
                             >
                                 <CubeIcon className={iconClasses} />
                                 Quản lý sản phẩm
+                            </Link>
+                        </li>
+                        {/* --- MỤC MỚI: QUẢN LÝ DANH MỤC --- */}
+                        <li>
+                            <Link
+                                to="/admin/category"
+                                className={`${linkClasses} ${isLinkActive('/admin/category') ? activeLinkClasses : hoverClasses}`}
+                            >
+                                <TagIcon className={iconClasses} />
+                                Quản lý danh mục
+                            </Link>
+                        </li>
+                        {/* --- MỤC MỚI: QUẢN LÝ VỊ TRÍ --- */}
+                        <li>
+                            <Link
+                                to="/admin/locations"
+                                className={`${linkClasses} ${isLinkActive('/admin/locations') ? activeLinkClasses : hoverClasses}`}
+                            >
+                                <MapPinIcon className={iconClasses} />
+                                Quản lý vị trí
                             </Link>
                         </li>
                         <li>
@@ -81,7 +104,7 @@ const Sidebar = () => {
                     </ul>
                 </nav>
             </div>
-            {/* Có thể thêm phần footer cho sidebar ở đây, ví dụ: thông tin người dùng đang đăng nhập */}
+            {/* Footer của sidebar */}
         </div>
     );
 };

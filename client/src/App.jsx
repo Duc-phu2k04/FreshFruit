@@ -10,6 +10,10 @@ import RegisterForm from "./pages/RegisterForm";
 import LoginForm from "./pages/LoginForm";
 import ListSanPham from "./pages/Product/ProductSearch";
 import Dashboard from "./pages/Admin/Dashboard";
+import CategoryList from "./pages/Admin/Category/List";
+import AdminLayout from "./layouts/Admin-layout";
+import CategoryCreateForm from "./pages/Admin/Category/Add";
+import CategoryEditForm from "./pages/Admin/Category/Edit";
 
 function App() {
   return (
@@ -28,7 +32,13 @@ function App() {
               <Route path="dang-ky" element={<RegisterForm />} />
               <Route path="dang-nhap" element={<LoginForm />} />
             </Route>
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="/admin/category" element={<CategoryList />} />
+              <Route path="/admin/category/add" element={<CategoryCreateForm />} />
+              <Route path="/admin/category/edit/:id" element={<CategoryEditForm />} />
+
+            </Route >
           </Routes>
         </BrowserRouter>
       </CartProvider>
