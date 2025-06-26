@@ -23,6 +23,8 @@ import ProductList from "./pages/Admin/Product/List";
 import AddProductForm from "./pages/Admin/Product/Add";
 import EditProductForm from "./pages/Admin/Product/Edit";
 
+import ProductDetail from "./pages/Product/ProductDetail";  // Thêm import trang chi tiết sản phẩm
+
 function App() {
   return (
     <AuthProvider>
@@ -33,6 +35,7 @@ function App() {
               <Route index element={<Homepage />} />
               <Route path="gio-hang" element={<CartPage />} />
               <Route path="san-pham" element={<ProductListPage />} />
+              <Route path="san-pham/:id" element={<ProductDetail />} />   {/* Thêm route chi tiết sản phẩm */}
               <Route path="checkout" element={<Checkout />} />
               <Route path="register" element={<RegisterForm />} />
               <Route path="login" element={<LoginForm />} />
@@ -52,13 +55,11 @@ function App() {
               <Route path="/admin/products" element={<ProductList />} />
               <Route path="/admin/products/add" element={<AddProductForm />} />
               <Route path="/admin/products/edit/:id" element={<EditProductForm />} />
-
-            </Route >
+            </Route>
           </Routes>
         </BrowserRouter>
       </CartProvider>
     </AuthProvider>
-
   );
 }
 

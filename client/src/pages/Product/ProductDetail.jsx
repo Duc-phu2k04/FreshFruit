@@ -1,46 +1,92 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-
-// Dữ liệu mẫu, thực tế nên lấy từ API hoặc props
-const sampleProducts = [
-  {
-    id: "1",
-    name: "Táo Mỹ",
-    image: "https://via.placeholder.com/400x280?text=Táo+Mỹ",
-    price: 50000,
-    description: "Táo Mỹ tươi ngon, nhập khẩu chính ngạch, giàu vitamin và tốt cho sức khỏe.",
-    quantity: 100,
-    category: "Trái cây nhập khẩu",
-  },
-  {
-    id: "2",
-    name: "Cam Úc",
-    image: "https://via.placeholder.com/400x280?text=Cam+Úc",
-    price: 70000,
-    description: "Cam Úc mọng nước, vị ngọt thanh, bổ sung vitamin C tự nhiên.",
-    quantity: 50,
-    category: "Trái cây nhập khẩu",
-  },
-  {
-    id: "3",
-    name: "Nho Mỹ",
-    image: "https://via.placeholder.com/400x280?text=Nho+Mỹ",
-    price: 90000,
-    description: "Nho Mỹ tươi sạch, vị ngọt đậm, giàu chất chống oxy hóa.",
-    quantity: 30,
-    category: "Trái cây nhập khẩu",
-  },
-];
 
 const ProductDetail = () => {
   const { id } = useParams();
-  const product = sampleProducts.find((p) => p.id === id);
+  const [product, setProduct] = useState(null);
+  const [relatedProducts, setRelatedProducts] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [newReview, setNewReview] = useState({ star: 5, comment: "" });
+  const [loading, setLoading] = useState(true);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
 
-  // Lọc sản phẩm liên quan (cùng category, khác id)
-  const relatedProducts = sampleProducts.filter(
-    (p) => p.category === product?.category && p.id !== id
-  );
+  // Lấy chi tiết sản phẩm
+  useEffect(() => {
+    async function fetchProduct() {
+      try {
+        const res = await fetch(`http://localhost:3000/api/product/${id}`);
+        if (!res.ok) throw new Error("Không tìm thấy sản phẩm");
+        const data = await res.json();
+        setProduct(data);
 
+        // Lấy sản phẩm liên quan (theo category)
+        const relatedRes = await fetch(
+          `http://localhost:3000/api/product?category=${encodeURIComponent(data.category)}`
+        );
+        if (relatedRes.ok) {
+          const relatedData = await relatedRes.json();
+          setRelatedProducts(relatedData.filter((p) => p._id !== id));
+        }
+      } catch (error) {
+        console.error(error);
+        setProduct(null);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchProduct();
+  }, [id]);
+
+  // Lấy đánh giá sản phẩm
+  useEffect(() => {
+    async function fetchReviews() {
+      try {
+        const res = await fetch(`http://localhost:3000/api/reviews?productId=${id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setReviews(data);
+        }
+      } catch (error) {
+        console.error("Lỗi khi lấy đánh giá:", error);
+      }
+    }
+    fetchReviews();
+  }, [id]);
+
+  const handleReviewChange = (e) => {
+    const { name, value } = e.target;
+    setNewReview((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleStarChange = (star) => {
+    setNewReview((prev) => ({ ...prev, star }));
+  };
+
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    if (!newReview.comment.trim()) return alert("Vui lòng nhập bình luận");
+    setReviewSubmitting(true);
+    try {
+      const res = await fetch("http://localhost:3000/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: id, ...newReview }),
+      });
+      if (res.ok) {
+        const createdReview = await res.json();
+        setReviews((prev) => [createdReview, ...prev]);
+        setNewReview({ star: 5, comment: "" });
+      } else {
+        alert("Gửi đánh giá thất bại");
+      }
+    } catch (error) {
+      alert("Lỗi khi gửi đánh giá");
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
+  if (loading) return <div className="text-center mt-20">Đang tải sản phẩm...</div>;
   if (!product)
     return (
       <div className="text-center mt-20 text-xl text-red-500 font-semibold">
@@ -80,6 +126,67 @@ const ProductDetail = () => {
         </div>
       </div>
 
+      {/* Phần đánh giá */}
+      <div className="mt-12">
+        <h3 className="text-2xl font-bold mb-4">Đánh giá sản phẩm</h3>
+
+        {/* Form thêm đánh giá */}
+        <form onSubmit={handleSubmitReview} className="mb-8">
+          <label className="block mb-2 font-semibold">Chọn số sao:</label>
+          <div className="flex gap-2 mb-4">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                type="button"
+                onClick={() => handleStarChange(star)}
+                className={`text-yellow-400 text-3xl ${
+                  newReview.star >= star ? "opacity-100" : "opacity-40"
+                }`}
+              >
+                ★
+              </button>
+            ))}
+          </div>
+          <textarea
+            name="comment"
+            value={newReview.comment}
+            onChange={handleReviewChange}
+            placeholder="Viết bình luận của bạn..."
+            className="w-full p-3 border rounded mb-4"
+            rows={4}
+            required
+          />
+          <button
+            type="submit"
+            disabled={reviewSubmitting}
+            className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-semibold"
+          >
+            {reviewSubmitting ? "Đang gửi..." : "Gửi đánh giá"}
+          </button>
+        </form>
+
+        {/* Danh sách đánh giá */}
+        {reviews.length === 0 ? (
+          <p>Chưa có đánh giá nào.</p>
+        ) : (
+          <ul className="space-y-6">
+            {reviews.map((rev) => (
+              <li key={rev._id} className="border-b pb-4">
+                <div className="flex items-center mb-1">
+                  <div className="text-yellow-400 text-xl">
+                    {'★'.repeat(rev.star) + '☆'.repeat(5 - rev.star)}
+                  </div>
+                </div>
+                <p className="text-gray-700">{rev.comment}</p>
+                <p className="text-gray-400 text-sm mt-1">
+                  {new Date(rev.createdAt).toLocaleDateString()}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {/* Sản phẩm liên quan */}
       {relatedProducts.length > 0 && (
         <div className="mt-12">
@@ -87,7 +194,7 @@ const ProductDetail = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {relatedProducts.map((item) => (
               <div
-                key={item.id}
+                key={item._id}
                 className="bg-gray-50 rounded-xl p-4 shadow hover:shadow-lg transition flex flex-col items-center"
               >
                 <img
@@ -101,7 +208,7 @@ const ProductDetail = () => {
                 </div>
                 <button
                   className="mt-auto bg-blue-500 hover:bg-blue-600 text-white px-4 py-1 rounded font-medium text-sm"
-                  // onClick={() => ...}
+                  // onClick={() => navigate(`/san-pham/${item._id}`)} // nếu muốn chuyển trang
                 >
                   Xem chi tiết
                 </button>
