@@ -16,6 +16,12 @@ import CategoryList from "./pages/Admin/Category/List";
 import AdminLayout from "./layouts/Admin-layout";
 import CategoryCreateForm from "./pages/Admin/Category/Add";
 import CategoryEditForm from "./pages/Admin/Category/Edit";
+import LocationList from "./pages/Admin/Location/List";
+import AddLocationForm from "./pages/Admin/Location/Add";
+import EditLocationForm from "./pages/Admin/Location/Edit";
+import ProductList from "./pages/Admin/Product/List";
+import AddProductForm from "./pages/Admin/Product/Add";
+import EditProductForm from "./pages/Admin/Product/Edit";
 
 function App() {
   return (
@@ -40,6 +46,12 @@ function App() {
               <Route path="/admin/category" element={<CategoryList />} />
               <Route path="/admin/category/add" element={<CategoryCreateForm />} />
               <Route path="/admin/category/edit/:id" element={<CategoryEditForm />} />
+              <Route path="/admin/locations" element={<LocationList />} />
+              <Route path="/admin/locations/add" element={<AddLocationForm />} />
+              <Route path="/admin/locations/edit/:id" element={<EditLocationForm />} />
+              <Route path="/admin/products" element={<ProductList />} />
+              <Route path="/admin/products/add" element={<AddProductForm />} />
+              <Route path="/admin/products/edit/:id" element={<EditProductForm />} />
 
             </Route >
           </Routes>

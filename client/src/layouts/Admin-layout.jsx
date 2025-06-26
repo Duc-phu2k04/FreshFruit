@@ -6,7 +6,7 @@ const AdminLayout = () => {
     return (
         <div className="flex min-h-screen">
             {/* Sidebar trái */}
-            <div className="w-64 bg-gray-100 border-r">
+            <div className="w-64 bg-gray-800 border-r">
                 <Sidebar />
             </div>
 

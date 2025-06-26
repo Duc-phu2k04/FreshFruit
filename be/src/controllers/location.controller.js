@@ -4,7 +4,11 @@ export const getAllLocations = async (req, res) => {
   const locations = await Location.find();
   res.json(locations);
 };
-
+export const getLocationById = async (req, res) => {
+  const location = await Location.findById(req.params.id);
+  if (!location) return res.status(404).json({ message: "Not found" });
+  res.json(location);
+};
 export const createLocation = async (req, res) => {
   const location = new Location(req.body);
   const saved = await location.save();

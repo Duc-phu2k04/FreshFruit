@@ -6,6 +6,7 @@ const router = express.Router();
 
 // Public
 router.get("/", locationController.getAllLocations);
+router.get("/:id", locationController.getLocationById);
 
 // Admin
 router.post("/", verifyToken, isAdmin, locationController.createLocation);
