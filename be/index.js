@@ -8,6 +8,7 @@ import locationRoute from "./src/routes/location.route.js";
 import cartRoute from './src/routes/cart.route.js';
 import orderRoute from './src/routes/order.route.js';
 import reviewRoute from './src/routes/review.route.js';
+import uploadRoute from './src/routes/upload.route.js';
 import cors from 'cors';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -34,6 +35,9 @@ app.use("/api/cart", cartRoute);
 app.use("/api/order", orderRoute);
 
 app.use('/api/review', reviewRoute);
+
+app.use('/api/upload', uploadRoute);
+app.use('/images', express.static('public/images'));
 
 mongoose.connect('mongodb://localhost:27017/freshfruit')
 
