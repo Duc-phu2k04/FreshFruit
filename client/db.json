@@ -1,0 +1,109 @@
+{
+    "product": [
+        {
+            "_id": "1",
+            "name": "Táo đỏ Mỹ",
+            "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcxRKzsmVjdAfylJUpuZsGt8DvjNAuf_FxFQ&s",
+            "price": 35000,
+            "description": "Táo đỏ nhập khẩu từ Mỹ, giòn ngọt, giàu dinh dưỡng, rất tốt cho sức khỏe."
+        },
+        {
+            "_id": "2",
+            "name": "Chuối tiêu hồng",
+            "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ7S6f9B-yP3Z0N3F5b8C7B_pM0zW5g_Q4_A&s",
+            "price": 15000,
+            "description": "Chuối tiêu hồng tươi ngon, cung cấp nhiều năng lượng và kali, phù hợp cho mọi lứa tuổi."
+        },
+        {
+            "_id": "3",
+            "name": "Cam sành Việt Nam",
+            "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRz-8jK_t-wW_q-8bX_y-5iG_jG_g_g_w_Q&s",
+            "price": 20000,
+            "description": "Cam sành nội địa, nhiều nước, chua ngọt hài hòa, giàu vitamin C tăng cường đề kháng."
+        },
+        {
+            "_id": "4",
+            "name": "Dâu tây Đà Lạt",
+            "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ_xW_yK_sX_Q_xW_yK_sX_Q_xW_yK_sX_Q&s",
+            "price": 80000,
+            "description": "Dâu tây tươi ngon từ Đà Lạt, mọng nước và thơm lừng, lý tưởng để làm món tráng miệng."
+        },
+        {
+            "_id": "5",
+            "name": "Xoài Cát Chu",
+            "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR0Z3mK0nQ3o9J3vP2j2vV2j2vV2j2vV2j2vV2j&s",
+            "price": 45000,
+            "description": "Xoài Cát Chu chín vàng ươm, ngọt lịm và thơm nồng, đặc sản miền Nam."
+        },
+        {
+            "_id": "6",
+            "name": "Nho xanh không hạt",
+            "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRC5bE6r_f2Z_f5t_g7s_g9y_h1x_e6v_i5b_c9s&s",
+            "price": 60000,
+            "description": "Nho xanh không hạt nhập khẩu, giòn tan và ngọt mát, rất dễ ăn."
+        },
+        {
+            "_id": "7",
+            "name": "Thanh long ruột đỏ",
+            "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ7O4M5w4x7m8p2n7t3v9y0o1q2r3s4t5u6v7w8x&s",
+            "price": 30000,
+            "description": "Thanh long ruột đỏ tươi ngon, vị ngọt thanh mát, giàu chất xơ và vitamin."
+        },
+        {
+            "_id": "8",
+            "name": "Ổi xá lị",
+            "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ9Y5B4k4m0g1n2o3p4q5r6s7t8u9v0w1x2y3z4&s",
+            "price": 25000,
+            "description": "Ổi xá lị giòn, thơm, vị ngọt nhẹ, rất được ưa chuộng để giải khát."
+        },
+        {
+            "_id": "9",
+            "name": "Bưởi da xanh",
+            "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRZ1C2d3e4f5g6h7i8j9k0l1m2n3o4p5q6r7s8t&s",
+            "price": 55000,
+            "description": "Bưởi da xanh nổi tiếng, múi bưởi mọng nước, vị ngọt thanh không đắng."
+        },
+        {
+            "_id": "10",
+            "name": "Vải thiều Lục Ngạn",
+            "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRB8C_x9M_y0U_Z1A_2B_3C_4D_5E_6F_7G_8H&s",
+            "price": 40000,
+            "description": "Vải thiều Lục Ngạn chính vụ, cùi dày, hạt nhỏ, vị ngọt đậm đà."
+        },
+        {
+            "_id": "11",
+            "name": "Đu đủ ruột vàng",
+            "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR0V1W2X3Y4Z5A6B7C8D9E0F1G2H3I4J5K6L7M&s",
+            "price": 28000,
+            "description": "Đu đủ ruột vàng chín mềm, ngọt mát, rất tốt cho hệ tiêu hóa."
+        },
+        {
+            "_id": "12",
+            "name": "Mít Thái siêu sớm",
+            "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ_rY_sZ_t_u_v_w_x_y_z_a_b_c_d_e_f_g&s",
+            "price": 70000,
+            "description": "Mít Thái múi to, giòn ngọt, thơm lừng đặc trưng, ăn không ngán."
+        },
+        {
+            "_id": "13",
+            "name": "Na dai",
+            "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQwX1Y2Z3A4B5C6D7E8F9G0H1I2J3K4L5M6N7O&s",
+            "price": 38000,
+            "description": "Na dai hạt nhỏ, nhiều thịt, vị ngọt đậm và béo ngậy."
+        },
+        {
+            "_id": "14",
+            "name": "Quýt đường",
+            "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQtB5X_C6D_E7F_G8H_I9J_K0L_M1N_O2P_Q3R_S4T&s",
+            "price": 22000,
+            "description": "Quýt đường vỏ mỏng, mọng nước, vị ngọt thanh mát, dễ bóc vỏ."
+        },
+        {
+            "_id": "15",
+            "name": "Chôm chôm nhãn",
+            "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR3oJ_K4L_M5N_P6Q_R7S_T8U_V9W_X0Y_Z1A_2B&s",
+            "price": 32000,
+            "description": "Chôm chôm nhãn cùi dày, hạt nhỏ, vị ngọt lịm đặc trưng của vùng nhiệt đới."
+        }
+    ]
+}
