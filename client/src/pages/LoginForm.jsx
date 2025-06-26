@@ -2,7 +2,36 @@ import React, { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
-import { Eye, EyeOff } from 'lucide-react'; // icon toggle password
+import { Eye, EyeOff } from 'lucide-react';
+
+const Input = ({ label, type = 'text', name, value, onChange, error, inputRef, toggle, show, setShow }) => (
+  <div className="space-y-1">
+    <label className="block text-sm font-medium text-gray-700">{label}</label>
+    <div className="relative">
+      <input
+        ref={inputRef}
+        type={toggle ? (show ? 'text' : 'password') : type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        className={`w-full border px-3 py-2 rounded-md text-gray-800 focus:outline-none focus:ring-2 ${
+          error ? 'border-red-400 ring-red-200' : 'border-gray-300 ring-blue-200'
+        }`}
+        placeholder={label}
+      />
+      {toggle && (
+        <button
+          type="button"
+          onClick={() => setShow(!show)}
+          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
+        >
+          {show ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
+      )}
+    </div>
+    {error && <p className="text-sm text-red-500">{error}</p>}
+  </div>
+);
 
 const LoginForm = () => {
   const [form, setForm] = useState({ usernameOrEmail: '', password: '' });
@@ -37,16 +66,10 @@ const LoginForm = () => {
     }
 
     try {
-      const res = await axios.post('http://localhost:3000/auth/login', {
-        usernameOrEmail: form.usernameOrEmail,
-        password: form.password,
-      });
-
+      const res = await axios.post('http://localhost:3000/auth/login', form);
       const { token, user } = res.data;
-
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
-
       login(user);
       alert('Đăng nhập thành công!');
       navigate('/');
@@ -56,58 +79,28 @@ const LoginForm = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-16 p-8 bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 rounded-xl shadow-lg text-white">
-      <h2 className="text-3xl font-bold mb-6 text-center">Đăng nhập</h2>
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <label className="block mb-2 font-semibold">Tên đăng nhập hoặc email</label>
-          <input
-            ref={usernameRef}
-            type="text"
-            name="usernameOrEmail"
-            value={form.usernameOrEmail}
-            onChange={handleChange}
-            className={`w-full px-4 py-2 rounded text-black ${errors.usernameOrEmail ? 'border-2 border-yellow-300' : ''}`}
-            placeholder="Tên đăng nhập hoặc email"
-          />
-          {errors.usernameOrEmail && <div className="text-yellow-300 text-sm mt-1">{errors.usernameOrEmail}</div>}
-        </div>
+    <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 bg-gray-50">
+      <div className="hidden md:flex items-center justify-center bg-green-100">
+        <img src="https://images.unsplash.com/photo-1567306226416-28f0efdc88ce" alt="Banner" className="..." />
 
-        <div>
-          <label className="block mb-2 font-semibold">Mật khẩu</label>
-          <div className="relative">
-            <input
-              ref={passwordRef}
-              type={showPassword ? 'text' : 'password'}
-              name="password"
-              value={form.password}
-              onChange={handleChange}
-              className={`w-full px-4 py-2 rounded text-black ${errors.password ? 'border-2 border-yellow-300' : ''}`}
-              placeholder="Nhập mật khẩu"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-600"
-            >
-              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-            </button>
+      </div>
+
+      <div className="flex items-center justify-center p-8">
+        <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-md">
+          <h2 className="text-2xl font-bold text-gray-800 text-center">Đăng nhập</h2>
+          <form onSubmit={handleSubmit} className="space-y-5 mt-6">
+            <Input label="Tên đăng nhập hoặc email" name="usernameOrEmail" value={form.usernameOrEmail} onChange={handleChange} error={errors.usernameOrEmail} inputRef={usernameRef} />
+            <Input label="Mật khẩu" name="password" value={form.password} toggle show={showPassword} setShow={setShowPassword} onChange={handleChange} error={errors.password} inputRef={passwordRef} />
+            <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">Đăng nhập</button>
+          </form>
+
+          <div className="text-center text-sm mt-4">
+            <Link to="/quen-mat-khau" className="text-blue-600 hover:underline">Quên mật khẩu?</Link>
           </div>
-          {errors.password && <div className="text-yellow-300 text-sm mt-1">{errors.password}</div>}
+          <div className="text-center text-sm mt-2">
+            Chưa có tài khoản? <Link to="/dang-ky" className="text-blue-600 hover:underline">Đăng ký ngay</Link>
+          </div>
         </div>
-
-        <button
-          type="submit"
-          className="w-full bg-white text-purple-700 font-bold py-2 rounded hover:bg-gray-200 transition"
-        >
-          Đăng nhập
-        </button>
-      </form>
-
-      <div className="mt-6 text-center">
-        <Link to="/dang-ky" className="underline text-white hover:text-gray-200">
-          Chưa có tài khoản? Đăng ký ngay
-        </Link>
       </div>
     </div>
   );

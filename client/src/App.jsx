@@ -9,6 +9,8 @@ import { AuthProvider } from "./context/AuthContext";
 import RegisterForm from "./pages/RegisterForm";
 import LoginForm from "./pages/LoginForm";
 import ListSanPham from "./pages/Product/ProductSearch";
+import ForgotPassword from './pages/ForgotPassword';
+
 import Dashboard from "./pages/Admin/Dashboard";
 import CategoryList from "./pages/Admin/Category/List";
 import AdminLayout from "./layouts/Admin-layout";
@@ -31,6 +33,7 @@ function App() {
               <Route path="products" element={<ListSanPham />} />
               <Route path="dang-ky" element={<RegisterForm />} />
               <Route path="dang-nhap" element={<LoginForm />} />
+              <Route path="/quen-mat-khau" element={<ForgotPassword />} />
             </Route>
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<Dashboard />} />
