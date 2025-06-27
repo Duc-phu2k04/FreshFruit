@@ -1,27 +1,34 @@
-import React, { useState } from 'react';
+import React from "react";
 
-const categories = ['Best seller', 'Hộp quà', 'Giỏ hoa quả', 'Hoa quả'];
+const CategoryFilter = ({ categories = [], selected, onChange }) => {
+  return (
+    <div className="flex flex-wrap gap-2 sm:gap-3 justify-center">
+      <button
+        onClick={() => onChange("")}
+        className={`px-3 py-1.5 text-sm sm:px-4 sm:py-2 sm:text-base rounded-full font-semibold transition-colors duration-300 ${
+          !selected
+            ? "bg-green-800 text-white"
+            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+        }`}
+      >
+        Tất cả sản phẩm
+      </button>
 
-const CategoryFilter = () => {
-    const [activeCategory, setActiveCategory] = useState('Best seller');
-
-    return (
-        <div className="flex flex-wrap gap-2 sm:gap-3 justify-center">
-            {categories.map((category) => (
-                <button
-                    key={category}
-                    onClick={() => setActiveCategory(category)}
-                    className={`px-3 py-1.5 text-sm sm:px-4 sm:py-2 sm:text-base rounded-full font-semibold transition-colors duration-300
-                    ${activeCategory === category
-                            ? 'bg-green-800 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}
-                `}
-                >
-                    {category}
-                </button>
-            ))}
-        </div>
-    );
+      {categories.map((cat) => (
+        <button
+          key={cat._id}
+          onClick={() => onChange(cat._id)}
+          className={`px-3 py-1.5 text-sm sm:px-4 sm:py-2 sm:text-base rounded-full font-semibold transition-colors duration-300 ${
+            selected === cat._id
+              ? "bg-green-800 text-white"
+              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+          }`}
+        >
+          {cat.name}
+        </button>
+      ))}
+    </div>
+  );
 };
 
 export default CategoryFilter;
