@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 
-
 const ListSanPham = () => {
     const location = useLocation();
+    const navigate = useNavigate();
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -42,7 +42,7 @@ const ListSanPham = () => {
     };
 
     const handleViewDetail = (product) => {
-        console.log('Xem chi tiết:', product);
+        navigate(`/san-pham/${product._id}`)
     };
 
     return (

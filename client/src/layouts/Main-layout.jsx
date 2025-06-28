@@ -8,7 +8,7 @@ import { Footer } from '../components/Footer/Footer';
 export default function Layout() {
     return (
         <>
-            <div className='overflow-x-hidden'>
+            <div className=''>
                 <Header />
                 <Outlet />
                 <Footer />

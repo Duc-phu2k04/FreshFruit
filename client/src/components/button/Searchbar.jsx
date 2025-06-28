@@ -49,7 +49,7 @@ const SearchBar = ({ products = [] }) => {
     return (
         <div
             ref={wrapperRef}
-            className="flex items-center w-full max-w-md mx-auto p-4 sm:p-0 relative"
+            className="flex items-center w-full max-w-md mx-auto sm:p-0 relative"
         >
             <input
                 type="text"
