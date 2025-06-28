@@ -1,32 +1,55 @@
 import React from "react";
+import { FaList } from "react-icons/fa";
 
-const CategoryFilter = ({ categories = [], selected, onChange }) => {
+const CategoryFilter = ({ categories = [], selected = [], onChange }) => {
+  const handleToggle = (id) => {
+    if (selected.includes(id)) {
+      onChange(selected.filter((x) => x !== id));
+    } else {
+      onChange([...selected, id]);
+    }
+  };
+
+  const handleClearAll = () => {
+    onChange([]);
+  };
+
   return (
-    <div className="flex flex-wrap gap-2 sm:gap-3 justify-center">
-      <button
-        onClick={() => onChange("")}
-        className={`px-3 py-1.5 text-sm sm:px-4 sm:py-2 sm:text-base rounded-full font-semibold transition-colors duration-300 ${
-          !selected
-            ? "bg-green-800 text-white"
-            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-        }`}
-      >
-        Tất cả sản phẩm
-      </button>
+    <div className="space-y-3">
+      {/* Tiêu đề */}
+      <div className="flex items-center gap-2 font-semibold text-base text-green-700">
+        <FaList />
+        <span>Danh mục</span>
+      </div>
 
-      {categories.map((cat) => (
+      {/* Nút "Bỏ chọn tất cả" */}
+      {selected.length > 0 && categories.length > 0 && (
         <button
-          key={cat._id}
-          onClick={() => onChange(cat._id)}
-          className={`px-3 py-1.5 text-sm sm:px-4 sm:py-2 sm:text-base rounded-full font-semibold transition-colors duration-300 ${
-            selected === cat._id
-              ? "bg-green-800 text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
+          type="button"
+          onClick={handleClearAll}
+          className="text-sm text-green-700 hover:underline cursor-pointer"
         >
-          {cat.name}
+          Bỏ chọn tất cả
         </button>
-      ))}
+      )}
+
+      {/* Danh sách checkbox */}
+      <div className="space-y-2">
+        {categories.map((cat) => (
+          <label
+            key={cat._id}
+            className="flex items-center gap-2 text-sm cursor-pointer"
+          >
+            <input
+              type="checkbox"
+              className="accent-green-700"
+              checked={selected.includes(cat._id)}
+              onChange={() => handleToggle(cat._id)}
+            />
+            <span>{cat.name}</span>
+          </label>
+        ))}
+      </div>
     </div>
   );
 };

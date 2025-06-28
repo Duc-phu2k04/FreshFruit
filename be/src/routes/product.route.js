@@ -4,14 +4,13 @@ import { verifyToken, isAdmin } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
-// Public
-router.get("/", productController.getAllProducts);
-router.get("/:id", productController.getProductById);
+// PUBLIC
+router.get("/",       productController.getAllProducts);
+router.get("/:id",    productController.getProductById);
 
-// Admin
-router.post("/add", verifyToken, isAdmin, productController.createProduct);
-router.put("/:id", verifyToken, isAdmin, productController.updateProduct);
+// ADMIN (cần token + quyền admin)
+router.post("/add",   verifyToken, isAdmin, productController.createProduct);
+router.put("/:id",    verifyToken, isAdmin, productController.updateProduct);
 router.delete("/:id", verifyToken, isAdmin, productController.deleteProduct);
-router.get("/:id", verifyToken, isAdmin, productController.getProductById);
 
 export default router;

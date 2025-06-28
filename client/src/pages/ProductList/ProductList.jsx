@@ -12,20 +12,19 @@ export default function ProductListPage() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedLocation, setSelectedLocation] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [selectedLocations, setSelectedLocations] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const productsPerPage = 12;
 
   const { addToCart } = useCart();
   const navigate = useNavigate();
 
-  
   const fetchFilters = useCallback(async () => {
     try {
       const [catRes, locRes] = await Promise.all([
-        fetch("http://localhost:3000/api/category"),
-        fetch("http://localhost:3000/api/locations"),
+        fetch("http://localhost:4000/api/category"),
+        fetch("http://localhost:4000/api/locations"),
       ]);
       setCategories(await catRes.json());
       setLocations(await locRes.json());
@@ -34,25 +33,25 @@ export default function ProductListPage() {
     }
   }, []);
 
-
   const fetchProducts = useCallback(async () => {
     try {
-      let url = "http://localhost:3000/api/product";
+      let url = "http://localhost:4000/api/product";
       const params = [];
-      if (selectedCategory) params.push(`category=${selectedCategory}`);
-      if (selectedLocation) params.push(`location=${selectedLocation}`);
+      if (selectedCategories.length)
+        params.push(`category=${selectedCategories.join(",")}`);
+      if (selectedLocations.length)
+        params.push(`location=${selectedLocations.join(",")}`);
       if (params.length) url += `?${params.join("&")}`;
 
       const res = await fetch(url);
       if (!res.ok) throw new Error("Lỗi khi lấy danh sách sản phẩm");
       setProducts(await res.json());
-      setCurrentPage(1); // reset về trang đầu mỗi khi filter đổi
+      setCurrentPage(1);
     } catch (err) {
       console.error("Lỗi khi fetch sản phẩm:", err);
     }
-  }, [selectedCategory, selectedLocation]);
+  }, [selectedCategories, selectedLocations]);
 
- 
   useEffect(() => {
     fetchFilters();
   }, [fetchFilters]);
@@ -61,7 +60,6 @@ export default function ProductListPage() {
     fetchProducts();
   }, [fetchProducts]);
 
-  
   const handleBuyNow = (product) => {
     addToCart(product);
     navigate("/gio-hang");
@@ -71,17 +69,12 @@ export default function ProductListPage() {
     navigate(`/san-pham/${product._id}`, { state: product });
   };
 
- 
   const indexOfLastProduct = currentPage * productsPerPage;
   const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
-  const currentProducts = products.slice(
-    indexOfFirstProduct,
-    indexOfLastProduct
-  );
+  const currentProducts = products.slice(indexOfFirstProduct, indexOfLastProduct);
 
-  
   return (
-    <div className="product-page-wrapper">
+    <div className="product-page-wrapper bg-gray-50 pb-10">
       {/* Banner */}
       <div className="product-banner">
         <img
@@ -91,91 +84,104 @@ export default function ProductListPage() {
         />
       </div>
 
-      {/* Header + Filters */}
-      <div className="product-header">
-        <h1 className="title">
-          Sản Phẩm <span className="highlight">FreshFruit</span>
-        </h1>
-              <div className="filter-bar flex flex-col gap-4 items-center mt-4">
-              <CategoryFilter
-                categories={categories}
-                selected={selectedCategory}
-                onChange={setSelectedCategory}
-              />
-              <LocationFilter
-                locations={locations}
-                selected={selectedLocation}
-                onChange={setSelectedLocation}
-              />
-            </div>
-      </div>
+      {/* Layout */}
+      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6 mt-6 px-4 sm:px-8">
+        {/* Sidebar */}
+        <aside className="bg-white border rounded-xl p-5 h-fit sticky top-4 shadow-md">
+          <CategoryFilter
+            categories={categories}
+            selected={selectedCategories}
+            onChange={setSelectedCategories}
+          />
 
-      {/* Product grid */}
-      <div className="product-grid-container">
-        {currentProducts.length === 0 ? (
-          <p className="text-center text-gray-500">Chưa có sản phẩm nào.</p>
-        ) : (
-          <motion.div
-            key={currentPage}
-            className="product-grid product-grid-4-cols"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            {currentProducts.map((product) => (
+          <hr className="my-5 border-gray-300" />
+
+          <LocationFilter
+            locations={locations}
+            selected={selectedLocations}
+            onChange={setSelectedLocations}
+          />
+        </aside>
+
+        {/* Product Grid */}
+        <main>
+          <h1 className="text-2xl font-bold mb-4">
+            Sản Phẩm <span className="text-green-700">FreshFruit</span>
+          </h1>
+
+          <div className="product-grid-container">
+            {currentProducts.length === 0 ? (
+              <p className="text-center text-gray-500 mt-10">
+                Không tìm thấy sản phẩm phù hợp.
+              </p>
+            ) : (
               <motion.div
-                key={product._id}
-                className="product-card"
-                whileHover={{ scale: 1.05 }}
-                transition={{ duration: 0.3 }}
+                key={currentPage}
+                className="product-grid product-grid-4-cols"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
               >
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="product-image"
-                  onClick={() => handleViewDetail(product)}
-                />
-                <div className="product-info">
-                  <h2 className="product-name">{product.name}</h2>
-                  <p className="product-price">
-                    {product.price.toLocaleString()}đ
-                  </p>
-                  <p className="product-description">
-                    {product.description || "Trái cây sạch chất lượng cao."}
-                  </p>
-                  <div className="product-actions">
-                    <button
-                      className="buy-button"
-                      onClick={() => addToCart(product)}
-                    >
-                      Thêm vào giỏ
-                    </button>
-                    <button
-                      className="buy-button orange"
-                      onClick={() => handleBuyNow(product)}
-                    >
-                      Mua ngay
-                    </button>
-                  </div>
-                </div>
+                {currentProducts.map((product) => (
+                  <motion.div
+                    key={product._id}
+                    className="product-card"
+                    whileHover={{ scale: 1.05 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      className="product-image cursor-pointer"
+                      onClick={() => handleViewDetail(product)}
+                    />
+                    <div className="product-info">
+                      <h2 className="product-name">{product.name}</h2>
+                      <p className="product-price">
+                        {product.price.toLocaleString()}đ
+                      </p>
+                      <p className="product-description line-clamp-2 text-sm text-gray-600">
+                        {product.description || "Trái cây sạch chất lượng cao."}
+                      </p>
+                      <div className="product-actions">
+                        <button
+                          className="buy-button"
+                          onClick={() => addToCart(product)}
+                        >
+                          Thêm vào giỏ
+                        </button>
+                        <button
+                          className="buy-button orange"
+                          onClick={() => handleBuyNow(product)}
+                        >
+                          Mua ngay
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
               </motion.div>
-            ))}
-          </motion.div>
-        )}
-      </div>
+            )}
+          </div>
 
-      {/* Pagination */}
-      <Pagination
-        currentPage={currentPage}
-        totalPages={Math.ceil(products.length / productsPerPage)}
-        onPageChange={setCurrentPage}
-      />
+          {/* Pagination */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={Math.ceil(products.length / productsPerPage)}
+            onPageChange={setCurrentPage}
+          />
 
-      {/* CTA */}
-      <div className="cta-section">
-        <h2 className="cta-title">Trái cây sạch, tốt cho sức khỏe mỗi ngày</h2>
-        <p className="cta-sub">Chọn FreshFruit - Chất lượng & Niềm tin</p>
-        <ViewNowButton />
+          {/* CTA */}
+          <div className="cta-section mt-12 bg-white rounded-xl p-6 shadow-sm text-center">
+            <h2 className="text-xl font-semibold text-green-700">
+              Trái cây sạch, tốt cho sức khỏe mỗi ngày
+            </h2>
+            <p className="text-gray-600 mt-1">Chọn FreshFruit - Chất lượng & Niềm tin</p>
+            <div className="mt-4">
+              <ViewNowButton />
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );

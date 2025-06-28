@@ -1,39 +1,55 @@
 import React from "react";
+import { FaMapMarkerAlt } from "react-icons/fa";
 
-const LocationFilter = ({ locations = [], selected, onChange }) => {
-  // Tránh lỗi khi locations chưa được load đúng
-  if (!Array.isArray(locations)) return null;
+const LocationFilter = ({ locations = [], selected = [], onChange }) => {
+  const handleToggle = (id) => {
+    if (selected.includes(id)) {
+      onChange(selected.filter((x) => x !== id));
+    } else {
+      onChange([...selected, id]);
+    }
+  };
+
+  const handleClearAll = () => {
+    onChange([]);
+  };
 
   return (
-    <div className="flex flex-wrap gap-2 sm:gap-3 justify-center mt-2">
-      {/* Tất cả khu vực */}
-      <button
-        type="button"
-        onClick={() => onChange("")}
-        className={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm sm:text-base rounded-full font-semibold transition-colors duration-300 ${
-          !selected
-            ? "bg-green-800 text-white"
-            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-        }`}
-      >
-        Tất cả khu vực
-      </button>
+    <div className="space-y-3">
+      {/* Tiêu đề */}
+      <div className="flex items-center gap-2 font-semibold text-base text-green-700">
+        <FaMapMarkerAlt />
+        <span>Khu vực</span>
+      </div>
 
-      {/* Danh sách khu vực */}
-      {locations.map((loc) => (
+      {/* Nút "Bỏ chọn tất cả" */}
+      {selected.length > 0 && locations.length > 0 && (
         <button
           type="button"
-          key={loc._id}
-          onClick={() => onChange(loc._id)}
-          className={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm sm:text-base rounded-full font-semibold transition-colors duration-300 ${
-            selected === loc._id
-              ? "bg-green-800 text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
+          onClick={handleClearAll}
+          className="text-sm text-green-700 hover:underline cursor-pointer"
         >
-          {loc.name}
+          Bỏ chọn tất cả
         </button>
-      ))}
+      )}
+
+      {/* Danh sách checkbox */}
+      <div className="space-y-2">
+        {locations.map((loc) => (
+          <label
+            key={loc._id}
+            className="flex items-center gap-2 text-sm cursor-pointer"
+          >
+            <input
+              type="checkbox"
+              className="accent-green-700"
+              checked={selected.includes(loc._id)}
+              onChange={() => handleToggle(loc._id)}
+            />
+            <span>{loc.name}</span>
+          </label>
+        ))}
+      </div>
     </div>
   );
 };
