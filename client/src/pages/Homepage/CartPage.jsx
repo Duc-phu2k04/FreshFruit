@@ -15,7 +15,7 @@ function CartPage() {
   useEffect(() => {
     async function fetchCartItems() {
       try {
-        const response = await fetch(`/api/cart/me`, {
+        const response = await fetch(`http://localhost:3000/api/cart`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`
           }
@@ -93,14 +93,14 @@ function CartPage() {
     }
 
     try {
-      const response = await fetch("/api/orders", {
+      const response = await fetch("http://localhost:3000/api/order/add", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`
         },
         body: JSON.stringify({
-          items: selectedProducts.map((item) => ({
+          cartItems: selectedProducts.map((item) => ({
             productId: item.product._id,
             quantity: item.quantity
           })),

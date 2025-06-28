@@ -23,8 +23,8 @@ export default function ProductListPage() {
   const fetchFilters = useCallback(async () => {
     try {
       const [catRes, locRes] = await Promise.all([
-        fetch("http://localhost:4000/api/category"),
-        fetch("http://localhost:4000/api/locations"),
+        fetch("http://localhost:3000/api/category"),
+        fetch("http://localhost:3000/api/locations"),
       ]);
       setCategories(await catRes.json());
       setLocations(await locRes.json());
@@ -35,7 +35,7 @@ export default function ProductListPage() {
 
   const fetchProducts = useCallback(async () => {
     try {
-      let url = "http://localhost:4000/api/product";
+      let url = "http://localhost:3000/api/product";
       const params = [];
       if (selectedCategories.length)
         params.push(`category=${selectedCategories.join(",")}`);
