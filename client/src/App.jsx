@@ -39,7 +39,7 @@ function App() {
               <Route path="checkout" element={<Checkout />} />
               <Route path="register" element={<RegisterForm />} />
               <Route path="login" element={<LoginForm />} />
-              <Route path="products" element={<ListSanPham />} />
+              <Route path="product" element={<ListSanPham />} />
               <Route path="dang-ky" element={<RegisterForm />} />
               <Route path="dang-nhap" element={<LoginForm />} />
               <Route path="/quen-mat-khau" element={<ForgotPassword />} />
