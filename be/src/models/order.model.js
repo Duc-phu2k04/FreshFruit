@@ -17,6 +17,12 @@ const orderSchema = new mongoose.Schema({
     enum: ["pending", "confirmed", "shipping", "delivered", "cancelled"], 
     default: "pending" 
   },
+  voucher: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Voucher",
+  default: null,
+},
+
 }, { timestamps: true });
 
 export default mongoose.model("Order", orderSchema);

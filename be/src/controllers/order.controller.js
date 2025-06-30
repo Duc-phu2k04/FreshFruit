@@ -1,11 +1,11 @@
 import * as orderService from "../services/order.service.js";
 
 export const checkout = async (req, res) => {
-  try {
-    const { cartItems } = req.body;
+ try {
+    const { cartItems, voucher } = req.body;
     const userId = req.user._id;
 
-    const order = await orderService.createOrder({ userId, cartItems });
+    const order = await orderService.createOrder({ userId, cartItems, voucher });
 
     res.status(201).json({ message: "Đặt hàng thành công", order });
   } catch (err) {
