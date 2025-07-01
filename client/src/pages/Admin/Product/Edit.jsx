@@ -75,6 +75,32 @@ export default function EditProductForm() {
             setLoadingInitialData(false);
         }
     }, [id]); // Chạy lại khi ID thay đổi
+    const handleImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setSubmitting(true);
+        setError('');
+        try {
+            const formData = new FormData();
+            formData.append('image', file);
+
+            const res = await axiosInstance.post('/upload', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+
+            const url = res.data.imagePath;
+            setImage(url);
+
+        } catch (err) {
+            setError(err.response?.data?.message || 'Lỗi khi upload ảnh.');
+            console.error('Upload image error:', err);
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
     // --- Hàm xử lý submit form ---
     const handleSubmit = async (e) => {
@@ -233,16 +259,19 @@ export default function EditProductForm() {
                             URL Hình ảnh:
                         </label>
                         <input
-                            type="text"
-                            id="image"
-                            value={image}
-                            onChange={(e) => setImage(e.target.value)}
+                            type="file"
+                            id="imageFile"
+                            accept="image/*"
+                            onChange={handleImageUpload}
                             className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-500"
-                            placeholder="Dán URL hình ảnh sản phẩm"
                         />
                         {image && (
                             <div className="mt-2">
-                                <img src={image} alt="Xem trước" className="h-24 w-24 object-cover rounded-md" />
+                                <img
+                                    src={`http://localhost:3000${image}`}
+                                    alt="Xem trước"
+                                    className="h-24 w-24 object-cover rounded-md"
+                                />
                             </div>
                         )}
                     </div>

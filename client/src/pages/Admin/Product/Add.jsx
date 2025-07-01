@@ -12,6 +12,7 @@ export default function AddProductForm() {
     const [category, setCategory] = useState(''); // ID của category được chọn
     const [location, setLocation] = useState(''); // ID của location được chọn
 
+
     const [categories, setCategories] = useState([]); // Danh sách categories từ API
     const [locations, setLocations] = useState([]); // Danh sách locations từ API
 
@@ -53,6 +54,33 @@ export default function AddProductForm() {
 
         fetchDataForSelects();
     }, []); // Chạy một lần khi component mount
+    const handleImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setSubmitting(true);
+        setError('');
+        try {
+            const formData = new FormData();
+            formData.append('image', file);
+
+            const res = await axiosInstance.post('/upload', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+
+            const url = res.data.imagePath;
+            setImage(url);
+
+
+        } catch (err) {
+            setError(err.response?.data?.message || 'Lỗi khi upload ảnh.');
+            console.error('Upload image error:', err);
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
     // --- Hàm xử lý submit form ---
     const handleSubmit = async (e) => {
@@ -217,13 +245,21 @@ export default function AddProductForm() {
                             URL Hình ảnh:
                         </label>
                         <input
-                            type="text"
-                            id="image"
-                            value={image}
-                            onChange={(e) => setImage(e.target.value)}
+                            type="file"
+                            id="imageFile"
+                            accept="image/*"
+                            onChange={handleImageUpload}
                             className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-500"
-                            placeholder="Dán URL hình ảnh sản phẩm"
                         />
+                        {image && (
+                            <div className="mt-2">
+                                <img
+                                    src={`http://localhost:3000${image}`}
+                                    alt="Preview"
+                                    className="h-32 object-contain border rounded"
+                                />
+                            </div>
+                        )}
                     </div>
 
                     {/* Trường Tồn kho */}

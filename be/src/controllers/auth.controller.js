@@ -89,3 +89,31 @@ Trân trọng,
     res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
 };
+export const updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username, email, role /*, ...any other fields you want to update */ } = req.body;
+
+    const user = await User.findById(id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'Người dùng không tìm thấy.' });
+    }
+
+    // Cập nhật các trường
+    if (username) user.username = username;
+    if (email) user.email = email;
+    // Chỉ cho phép cập nhật vai trò nếu nó hợp lệ và có quyền
+    if (role && ['user', 'admin'].includes(role)) { // Đảm bảo role hợp lệ
+      // Thêm logic kiểm tra quyền ở đây nếu bạn không muốn admin tự hạ quyền hoặc admin thường thay đổi quyền của super-admin
+      user.role = role;
+    }
+
+    const updatedUser = await user.save(); // Lưu thay đổi
+
+    res.status(200).json({ message: 'Thông tin người dùng đã được cập nhật!', data: updatedUser });
+  } catch (error) {
+    // Xử lý lỗi trùng email hoặc lỗi validation khác
+    res.status(400).json({ message: error.message });
+  }
+};

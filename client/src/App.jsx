@@ -24,6 +24,7 @@ import AddProductForm from "./pages/Admin/Product/Add";
 import EditProductForm from "./pages/Admin/Product/Edit";
 
 import ProductDetail from "./pages/Product/ProductDetail";  // Thêm import trang chi tiết sản phẩm
+import UserList from "./pages/Admin/User/List";
 
 function App() {
   return (
@@ -55,6 +56,8 @@ function App() {
               <Route path="/admin/products" element={<ProductList />} />
               <Route path="/admin/products/add" element={<AddProductForm />} />
               <Route path="/admin/products/edit/:id" element={<EditProductForm />} />
+              <Route path="/admin/users" element={<UserList />} />
+
             </Route>
           </Routes>
         </BrowserRouter>
