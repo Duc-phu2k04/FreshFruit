@@ -11,5 +11,5 @@ router.get('/users', authController.getAllUsers);
 router.delete('/users/:id', authController.deleteUser);
 
 router.post('/forgot-password', authController.forgotPassword);
-
+router.put('/users/:id', authController.updateUser)
 export default router;

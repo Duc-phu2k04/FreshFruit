@@ -27,7 +27,7 @@ const Sidebar = () => {
     const iconClasses = "h-6 w-6 mr-3";
 
     return (
-        <div className="flex h-screen flex-col justify-between bg-gray-800 text-white w-64 p-4">
+        <div className="flex h-screen flex-col justify-between bg-gray-800 text-white w-64 p-4 fixed">
             <div className="flex flex-col space-y-2">
                 {/* Logo hoặc tên trang web */}
                 <div className="text-center py-4">

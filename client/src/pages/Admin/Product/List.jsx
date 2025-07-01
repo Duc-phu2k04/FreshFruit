@@ -166,7 +166,7 @@ export default function ProductList() {
                                 </td>
                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                     {product.image ? (
-                                        <img src={product.image} alt={product.name} className="h-10 w-10 object-cover rounded-md" />
+                                        <img src={`http://localhost:3000${product.image}`} alt={product.name} className="h-10 w-10 object-cover rounded-md" />
                                     ) : (
                                         <span className="text-gray-400">Không ảnh</span>
                                     )}
