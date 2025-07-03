@@ -9,6 +9,7 @@ import cartRoute from './src/routes/cart.route.js';
 import orderRoute from './src/routes/order.route.js';
 import reviewRoute from './src/routes/review.route.js';
 import voucherRoutes from "./src/routes/voucher.route.js";
+import momoRoutes from "./src/routes/momo.route.js";
 import uploadRoute from './src/routes/upload.route.js';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -38,6 +39,8 @@ app.use("/api/order", orderRoute);
 app.use('/api/review', reviewRoute);
 
 app.use("/api/voucher", voucherRoutes);
+
+app.use('/api/momo', momoRoutes);
 
 app.use('/api/upload', uploadRoute);
 app.use('/images', express.static('public/images'));
