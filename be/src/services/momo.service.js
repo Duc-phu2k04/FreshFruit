@@ -19,7 +19,7 @@ export const createMomoPayment = async (orderId) => {
       const orderInfo = 'Thanh toán đơn hàng FreshFruit';
       const redirectUrl = 'https://webhook.site/b3088a6a-2d17-4f8d-a383-71389a6c600b';
       const ipnUrl = 'https://webhook.site/b3088a6a-2d17-4f8d-a383-71389a6c600b';
-      const requestType = 'captureWallet';
+      const requestType = 'payWithMethod';
       const extraData = '';
 
       const requestId = partnerCode + new Date().getTime();
