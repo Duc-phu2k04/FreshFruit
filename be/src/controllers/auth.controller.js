@@ -1,9 +1,11 @@
+// src/controllers/auth.controller.js
 import * as authService from '../services/auth.service.js';
 import bcrypt from 'bcryptjs';
 import User from '../models/user.model.js';
 import crypto from 'crypto';
 import { sendMail } from '../services/mail.service.js';
 
+// Đăng ký tài khoản
 export const register = async (req, res) => {
   try {
     const { username, email, password, role } = req.body;
@@ -14,7 +16,7 @@ export const register = async (req, res) => {
   }
 };
 
-
+// Đăng nhập
 export const login = async (req, res) => {
   try {
     const { usernameOrEmail, password } = req.body;
@@ -25,9 +27,10 @@ export const login = async (req, res) => {
   }
 };
 
+// Lấy toàn bộ người dùng
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find();
+    const users = await User.find().select('-password');
     res.json(users);
   } catch (err) {
     console.error(err);
@@ -35,8 +38,43 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
+// Lấy người dùng theo ID
+export const getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('-password');
+    if (!user) return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi server khi lấy thông tin người dùng', error: error.message });
+  }
+};
 
-// Xóa tài khoản theo ID
+// Cập nhật người dùng theo ID
+export const updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username, email, phone, address, role, fullName } = req.body;
+
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ message: 'Người dùng không tìm thấy.' });
+
+    if (fullName) user.fullName = fullName;
+    if (username) user.username = username;
+    if (email) user.email = email;
+    if (phone) user.phone = phone;
+    if (address) user.address = address;
+    if (role && ['user', 'admin'].includes(role)) {
+      user.role = role;
+    }
+
+    const updatedUser = await user.save();
+    res.status(200).json({ message: 'Thông tin người dùng đã được cập nhật!', data: updatedUser });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Xóa người dùng theo ID
 export const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -50,11 +88,11 @@ export const deleteUser = async (req, res) => {
   }
 };
 
+// Quên mật khẩu
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
     const user = await User.findOne({ email });
-
     if (!user) {
       return res.status(404).json({ message: 'Email không tồn tại trong hệ thống.' });
     }
@@ -87,33 +125,5 @@ Trân trọng,
     res.status(200).json({ message: 'Mật khẩu mới đã được gửi đến email của bạn.' });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
-  }
-};
-export const updateUser = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { username, email, role /*, ...any other fields you want to update */ } = req.body;
-
-    const user = await User.findById(id);
-
-    if (!user) {
-      return res.status(404).json({ message: 'Người dùng không tìm thấy.' });
-    }
-
-    // Cập nhật các trường
-    if (username) user.username = username;
-    if (email) user.email = email;
-    // Chỉ cho phép cập nhật vai trò nếu nó hợp lệ và có quyền
-    if (role && ['user', 'admin'].includes(role)) { // Đảm bảo role hợp lệ
-      // Thêm logic kiểm tra quyền ở đây nếu bạn không muốn admin tự hạ quyền hoặc admin thường thay đổi quyền của super-admin
-      user.role = role;
-    }
-
-    const updatedUser = await user.save(); // Lưu thay đổi
-
-    res.status(200).json({ message: 'Thông tin người dùng đã được cập nhật!', data: updatedUser });
-  } catch (error) {
-    // Xử lý lỗi trùng email hoặc lỗi validation khác
-    res.status(400).json({ message: error.message });
   }
 };
