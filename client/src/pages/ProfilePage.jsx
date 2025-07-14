@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
@@ -9,46 +8,56 @@ export default function ProfilePage() {
   const userId = user?._id;
 
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [profile, setProfile] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    address: "",
-    orders: [],
-  });
+  const [profile, setProfile] = useState({ username: "", email: "" });
+  const [orders, setOrders] = useState([]);
+  const [editMode, setEditMode] = useState(false);
+  const [editData, setEditData] = useState({ username: "", email: "" });
+  const [message, setMessage] = useState("");
 
   const fetchProfile = async () => {
     try {
       const res = await fetch(`http://localhost:3000/auth/users/${userId}`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 401) return logout();
       const data = await res.json();
-      setProfile({
-        fullName: data.fullName || "",
-        email: data.email || "",
-        phone: data.phone || "",
-        address: data.address || "",
-        orders: data.orders || [],
-      });
+      setProfile({ username: data.username || "", email: data.email || "" });
+      setEditData({ username: data.username || "", email: data.email || "" });
     } catch (err) {
       console.error("Fetch profile error:", err);
+    }
+  };
+
+  const fetchOrders = async () => {
+    try {
+      const res = await fetch(`http://localhost:3000/api/orders/user`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Không thể lấy đơn hàng.");
+      const data = await res.json();
+      setOrders(data);
+    } catch (err) {
+      console.error("Fetch orders error:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (token && userId) fetchProfile();
-  }, [token, userId, logout]);
+  const handleCancelOrder = async (orderId) => {
+    if (!window.confirm("Bạn có chắc muốn hủy đơn hàng này?")) return;
+    try {
+      const res = await fetch(`http://localhost:3000/api/orders/${orderId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Hủy đơn hàng thất bại.");
+      fetchOrders();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
 
-  const handleSave = async () => {
-    setSaving(true);
+  const updateProfile = async () => {
     try {
       const res = await fetch(`http://localhost:3000/auth/users/${userId}`, {
         method: "PUT",
@@ -56,146 +65,142 @@ export default function ProfilePage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          fullName: profile.fullName,
-          email: profile.email,
-          phone: profile.phone,
-          address: profile.address,
-        }),
+        body: JSON.stringify(editData),
       });
-      if (!res.ok) throw new Error("Failed to save profile");
-      await fetchProfile();
-      setEditing(false);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Cập nhật thất bại");
+      setMessage(" Cập nhật hồ sơ thành công");
+      setEditMode(false);
+      fetchProfile();
     } catch (err) {
-      console.error("Save profile error:", err);
-    } finally {
-      setSaving(false);
+      setMessage("" + err.message);
+    }
+  };
+
+  useEffect(() => {
+    if (token && userId) {
+      fetchProfile();
+      fetchOrders();
+    }
+  }, [token, userId]);
+
+  const formatStatus = (status) => {
+    switch (status) {
+      case "pending":
+        return "Chờ xác nhận";
+      case "confirmed":
+        return "Đã xác nhận";
+      case "shipping":
+        return "Đang giao";
+      case "delivered":
+        return "Đã giao";
+      case "cancelled":
+        return "Đã hủy";
+      default:
+        return status;
     }
   };
 
   if (loading)
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="loader border-4 border-t-4 border-green-500 rounded-full w-8 h-8 animate-spin"></div>
-      </div>
-    );
+    return <div className="text-center py-10 text-gray-500">Đang tải dữ liệu...</div>;
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="max-w-5xl mx-auto p-6 grid gap-8"
+      className="max-w-4xl mx-auto p-6 grid gap-8"
     >
-      <div className="bg-white shadow-xl rounded-2xl p-8 relative border border-gray-200">
-        <h2 className="text-2xl font-semibold mb-6 text-green-700">Thông tin người dùng</h2>
-        <div className="grid md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Họ và tên</label>
+      {/* Hồ sơ người dùng */}
+      <div className="bg-white shadow-xl rounded-2xl p-8 border border-gray-200">
+        <h2 className="text-2xl font-bold text-green-700 border-b pb-2 mb-4">👤 Hồ sơ người dùng</h2>
+        {message && <div className="mb-4 text-sm text-blue-700">{message}</div>}
+        {editMode ? (
+          <div className="grid gap-4">
             <input
-              className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50"
-              value={profile.fullName}
-              disabled={!editing}
-              onChange={(e) =>
-                setProfile((p) => ({ ...p, fullName: e.target.value }))
-              }
+              className="border p-2 rounded w-full"
+              placeholder="Username"
+              value={editData.username}
+              onChange={(e) => setEditData({ ...editData, username: e.target.value })}
             />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Số điện thoại</label>
             <input
-              className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50"
-              value={profile.phone}
-              disabled={!editing}
-              onChange={(e) =>
-                setProfile((p) => ({ ...p, phone: e.target.value }))
-              }
+              className="border p-2 rounded w-full"
+              placeholder="Email"
+              value={editData.email}
+              onChange={(e) => setEditData({ ...editData, email: e.target.value })}
             />
+            <div className="flex gap-2">
+              <button
+                onClick={updateProfile}
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              >
+                Lưu
+              </button>
+              <button
+                onClick={() => setEditMode(false)}
+                className="text-gray-500 hover:underline"
+              >
+                Hủy
+              </button>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Email</label>
-            <input
-              className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50"
-              value={profile.email}
-              disabled={!editing}
-              onChange={(e) =>
-                setProfile((p) => ({ ...p, email: e.target.value }))
-              }
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Địa chỉ giao hàng</label>
-            <input
-              className="w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50"
-              value={profile.address}
-              disabled={!editing}
-              onChange={(e) =>
-                setProfile((p) => ({ ...p, address: e.target.value }))
-              }
-            />
-          </div>
-        </div>
-
-        <div className="absolute top-6 right-6 flex gap-3">
-          <Link
-            to="/thanh-toan"
-            className="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition"
-          >
-            Phương thức thanh toán
-          </Link>
-          {editing ? (
+        ) : (
+          <>
+            <p><strong>Username:</strong> {profile.username}</p>
+            <p><strong>Email:</strong> {profile.email}</p>
             <button
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
-              onClick={handleSave}
-              disabled={saving}
+              onClick={() => setEditMode(true)}
+              className="text-green-600 mt-3 hover:underline"
             >
-              {saving ? "Đang lưu..." : "Lưu"}
+              ✏️ Chỉnh sửa hồ sơ
             </button>
-          ) : (
-            <button
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-              onClick={() => setEditing(true)}
-            >
-              Cập nhật
-            </button>
-          )}
-        </div>
+          </>
+        )}
       </div>
 
-      {profile.orders && (
-        <div className="bg-white shadow-xl rounded-2xl p-8 border border-gray-200">
-          <h2 className="text-2xl font-semibold mb-6 text-green-700">Lịch sử đơn hàng</h2>
-          {profile.orders.length ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead className="bg-green-100">
-                  <tr className="text-left">
-                    <th className="py-3 px-4 border-b">Mã đơn</th>
-                    <th className="py-3 px-4 border-b">Ngày</th>
-                    <th className="py-3 px-4 border-b">Tổng</th>
-                    <th className="py-3 px-4 border-b">Trạng thái</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {profile.orders.map((o) => (
-                    <tr key={o._id} className="hover:bg-gray-50 transition">
-                      <td className="py-3 px-4 border-b">{o._id}</td>
-                      <td className="py-3 px-4 border-b">
-                        {new Date(o.createdAt).toLocaleDateString("vi-VN")}
-                      </td>
-                      <td className="py-3 px-4 border-b">
-                        {o.total.toLocaleString("vi-VN")} đ
-                      </td>
-                      <td className="py-3 px-4 border-b capitalize">{o.status}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="text-center py-6 text-gray-500">Chưa có đơn hàng.</p>
-          )}
-        </div>
-      )}
+      {/* Lịch sử đơn hàng */}
+      <div className="bg-white shadow-xl rounded-2xl p-8 border border-gray-200">
+        <h2 className="text-2xl font-bold text-green-700 border-b pb-2 mb-4">📦 Lịch sử đơn hàng</h2>
+        {orders.length ? (
+          <div className="space-y-6">
+            {orders.map((order) => (
+              <div key={order._id} className="border rounded-lg p-4 bg-gray-50">
+                <div className="flex justify-between flex-wrap gap-4">
+                  <div>
+                    <p><strong>Mã đơn:</strong> {order.customId || order._id}</p>
+                    <p><strong>Ngày đặt:</strong> {new Date(order.createdAt).toLocaleDateString("vi-VN")}</p>
+                    <p><strong>Trạng thái:</strong> {formatStatus(order.status)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-green-700 font-bold">
+                      Tổng: {order.total.toLocaleString("vi-VN")}đ
+                    </p>
+                    {order.status === "pending" && (
+                      <button
+                        onClick={() => handleCancelOrder(order._id)}
+                        className="text-red-600 mt-2 hover:underline"
+                      >
+                        Hủy đơn
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <h4 className="font-semibold mb-1">🛒 Sản phẩm:</h4>
+                  <ul className="list-disc pl-6 text-sm">
+                    {order.items.map((item) => (
+                      <li key={item.product?._id || item.product}>
+                        {item.product?.name || "Sản phẩm đã xoá"} – {item.quantity} x {item.price.toLocaleString("vi-VN")}đ
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-500">Chưa có đơn hàng nào.</p>
+        )}
+      </div>
     </motion.div>
   );
 }

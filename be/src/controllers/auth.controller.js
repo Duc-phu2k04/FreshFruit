@@ -1,7 +1,7 @@
-// src/controllers/auth.controller.js
 import * as authService from '../services/auth.service.js';
 import bcrypt from 'bcryptjs';
 import User from '../models/user.model.js';
+import Order from '../models/order.model.js'; // Thêm dòng này
 import crypto from 'crypto';
 import { sendMail } from '../services/mail.service.js';
 
@@ -38,18 +38,27 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
-// Lấy người dùng theo ID
+//  Lấy người dùng theo ID + lịch sử đơn hàng
 export const getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
+    const user = await User.findById(req.params.id).select('-password').lean();
     if (!user) return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+
+    //  Lấy đơn hàng của user
+    const orders = await Order.find({ user: req.params.id })
+      .populate('items.product', 'name image price')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    user.orders = orders; // gán vào user để FE dễ hiển thị
+
     res.json(user);
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server khi lấy thông tin người dùng', error: error.message });
   }
 };
 
-// Cập nhật người dùng theo ID
+// Cập nhật người dùng
 export const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -74,7 +83,7 @@ export const updateUser = async (req, res) => {
   }
 };
 
-// Xóa người dùng theo ID
+// Xóa người dùng
 export const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -97,7 +106,7 @@ export const forgotPassword = async (req, res) => {
       return res.status(404).json({ message: 'Email không tồn tại trong hệ thống.' });
     }
 
-    const newPassword = crypto.randomBytes(4).toString('hex'); // 8 ký tự ngẫu nhiên
+    const newPassword = crypto.randomBytes(4).toString('hex');
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     user.password = hashedPassword;
