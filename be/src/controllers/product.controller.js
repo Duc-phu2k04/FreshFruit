@@ -66,7 +66,6 @@ const createProduct = async (req, res) => {
   try {
     const { category, location, name, price } = req.body;
 
-    // Validate required fields
     if (!name || !price || !category) {
       return res.status(400).json({ message: "Thiếu thông tin sản phẩm" });
     }
@@ -119,11 +118,37 @@ const deleteProduct = async (req, res) => {
   }
 };
 
-// Export tất cả controller
+/**
+ * GET /api/product/related/:id
+ */
+const getRelatedProducts = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const current = await Product.findById(id).populate("category");
+
+    if (!current)
+      return res.status(404).json({ message: "Sản phẩm không tồn tại" });
+
+    const related = await Product.find({
+      _id: { $ne: id },
+      category: current.category._id,
+    })
+      .limit(8)
+      .populate("category")
+      .populate("location");
+
+    res.json(related);
+  } catch (err) {
+    console.error("Lỗi khi lấy sản phẩm liên quan:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
 export default {
   getAllProducts,
   getProductById,
   createProduct,
   updateProduct,
   deleteProduct,
+  getRelatedProducts,
 };
