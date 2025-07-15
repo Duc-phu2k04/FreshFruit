@@ -28,37 +28,46 @@ function CartPage() {
         setErrorMsg("Không thể tải giỏ hàng");
       }
     }
+
     if (user?._id) fetchCartItems();
   }, [user]);
 
-  const updateQuantity = (productId, newQuantity) => {
+  const updateQuantity = async (productId, newQuantity) => {
     if (newQuantity < 1) return;
     setCartItems((prevItems) =>
       prevItems.map((item) =>
         item.product._id === productId ? { ...item, quantity: newQuantity } : item
       )
     );
-    fetch(`/api/cart/update`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`
-      },
-      body: JSON.stringify({ productId, quantity: newQuantity })
-    }).catch(console.error);
+    try {
+      await fetch(`http://localhost:3000/api/cart/update`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`
+        },
+        body: JSON.stringify({ productId, quantity: newQuantity })
+      });
+    } catch (err) {
+      console.error("Lỗi cập nhật số lượng:", err);
+    }
   };
 
-  const removeFromCart = (productId) => {
+  const removeFromCart = async (productId) => {
     setCartItems((prevItems) =>
       prevItems.filter((item) => item.product._id !== productId)
     );
     setSelectedItems((prev) => prev.filter((id) => id !== productId));
-    fetch(`/api/cart/${productId}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`
-      }
-    }).catch(console.error);
+    try {
+      await fetch(`http://localhost:3000/api/cart/${productId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`
+        }
+      });
+    } catch (err) {
+      console.error("Lỗi xoá sản phẩm:", err);
+    }
   };
 
   const handleSelectItem = (productId) => {
@@ -78,22 +87,18 @@ function CartPage() {
     setSelectAll(!selectAll);
   };
 
-  const clearCart = () => {
-    setCartItems([]);
-    setSelectedItems([]);
-  };
-
   const handleCheckout = async () => {
     const selectedProducts = cartItems.filter((item) =>
       selectedItems.includes(item.product._id)
     );
+
     if (selectedProducts.length === 0) {
       setErrorMsg("Vui lòng chọn ít nhất 1 sản phẩm để đặt hàng.");
       return;
     }
 
     try {
-      const response = await fetch("http://localhost:3000/api/order/add", {
+      const response = await fetch("http://localhost:3000/api/orders/add", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -108,12 +113,20 @@ function CartPage() {
         })
       });
 
-      if (!response.ok) throw new Error("Đặt hàng thất bại");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Đặt hàng thất bại");
 
-      setSuccessMsg("Đặt hàng thành công! 🎉");
-      clearCart();
+      // ✅ Giữ lại sản phẩm chưa được chọn
+      const selectedIds = selectedProducts.map(item => item.product._id);
+      setCartItems(prev => prev.filter(item => !selectedIds.includes(item.product._id)));
+      setSelectedItems([]);
+      setSuccessMsg("Đặt hàng thành công!");
+      setErrorMsg("");
+      setVoucher("");
     } catch (err) {
-      setErrorMsg("Có lỗi xảy ra khi đặt hàng.");
+      console.error(err);
+      setSuccessMsg("");
+      setErrorMsg(err.message || "Có lỗi xảy ra khi đặt hàng.");
     }
   };
 
@@ -134,7 +147,10 @@ function CartPage() {
 
       {cartItems.length === 0 ? (
         <div className="text-center text-gray-500">
-          Giỏ hàng trống. <Link to="/" className="text-[#00613C] underline">Quay lại trang chủ</Link>
+          Giỏ hàng trống.{" "}
+          <Link to="/" className="text-[#00613C] underline">
+            Quay lại trang chủ
+          </Link>
         </div>
       ) : (
         <>
@@ -173,20 +189,28 @@ function CartPage() {
                         alt={item.product.name}
                         className={styles.productImage}
                       />
-                      <span className={styles.productName}>{item.product.name}</span>
+                      <span className={styles.productName}>
+                        {item.product.name}
+                      </span>
                     </td>
-                    <td className={styles.price}>{item.product.price.toLocaleString()}₫</td>
+                    <td className={styles.price}>
+                      {item.product.price.toLocaleString()}₫
+                    </td>
                     <td>
                       <div className={styles.quantityControl}>
                         <button
-                          onClick={() => updateQuantity(item.product._id, item.quantity - 1)}
+                          onClick={() =>
+                            updateQuantity(item.product._id, item.quantity - 1)
+                          }
                           className={styles.quantityButton}
                         >
                           -
                         </button>
                         <span>{item.quantity}</span>
                         <button
-                          onClick={() => updateQuantity(item.product._id, item.quantity + 1)}
+                          onClick={() =>
+                            updateQuantity(item.product._id, item.quantity + 1)
+                          }
                           className={styles.quantityButton}
                         >
                           +
@@ -216,13 +240,23 @@ function CartPage() {
               className={styles.voucherInput}
             />
             <div className={styles.totalPrice}>
-              Tổng: <span className="font-semibold text-green-700">{totalPrice.toLocaleString()}₫</span>
+              Tổng:{" "}
+              <span className="font-semibold text-green-700">
+                {totalPrice.toLocaleString()}₫
+              </span>
             </div>
-            <button onClick={handleCheckout} className={styles.orderButton}>Đặt hàng</button>
+            <button
+              onClick={handleCheckout}
+              className={styles.orderButton}
+            >
+              Đặt hàng
+            </button>
           </div>
 
           <div>
-            <Link to="/" className={styles.backLink}>← Quay lại trang chủ</Link>
+            <Link to="/" className={styles.backLink}>
+              ← Quay lại trang chủ
+            </Link>
           </div>
         </>
       )}
