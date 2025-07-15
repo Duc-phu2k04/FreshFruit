@@ -1,21 +1,23 @@
-// src/controllers/review.controller.js
 import Review from '../models/review.model.js';
 import * as reviewService from '../services/review.service.js';
 
-// User: viết đánh giá
+// ✅ User gửi đánh giá sản phẩm
 export const addReview = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user._id; // Lấy từ token
     const { productId, rating, comment } = req.body;
+
+    console.log("Thêm đánh giá:", { userId, productId, rating, comment }); // LOG kiểm tra
 
     const review = await reviewService.createReview(userId, productId, rating, comment);
     res.status(201).json({ message: 'Đánh giá thành công', review });
   } catch (err) {
+    console.error("Lỗi khi thêm đánh giá:", err);
     res.status(500).json({ message: 'Lỗi khi đánh giá', error: err.message });
   }
 };
 
-// User: lấy đánh giá theo sản phẩm
+// ✅ User xem đánh giá theo sản phẩm
 export const getProductReviews = async (req, res) => {
   try {
     const { productId } = req.params;
@@ -26,7 +28,7 @@ export const getProductReviews = async (req, res) => {
   }
 };
 
-// Admin: lấy tất cả đánh giá
+// ✅ Admin xem tất cả đánh giá
 export const getAllReviews = async (req, res) => {
   try {
     const reviews = await Review.find()
@@ -40,7 +42,7 @@ export const getAllReviews = async (req, res) => {
   }
 };
 
-// Admin: xoá đánh giá theo ID
+// ✅ Admin xoá đánh giá
 export const deleteReview = async (req, res) => {
   try {
     const { id } = req.params;

@@ -10,7 +10,6 @@ export default function ProductDetail() {
   const [rating, setRating] = useState(0);
   const [hover, setHover] = useState(0);
   const [comment, setComment] = useState("");
-  const [userName, setUserName] = useState("");
   const [comments, setComments] = useState([]);
 
   // Lấy chi tiết sản phẩm
@@ -28,49 +27,54 @@ export default function ProductDetail() {
     if (!product) fetchProduct();
   }, [id, product]);
 
-  // Lấy bình luận từ server
-  useEffect(() => {
-    const fetchComments = async () => {
-      try {
-        const res = await fetch(`http://localhost:3000/api/product/${id}/comments`);
-        const data = await res.json();
-        setComments(data);
-      } catch (err) {
-        console.error("Lỗi khi lấy bình luận:", err);
-      }
-    };
+  // Lấy đánh giá
+  const fetchComments = async () => {
+    try {
+      const res = await fetch(`http://localhost:3000/api/review/${id}`);
+      const data = await res.json();
+      setComments(data);
+    } catch (err) {
+      console.error("Lỗi khi lấy đánh giá:", err);
+    }
+  };
 
+  useEffect(() => {
     fetchComments();
   }, [id]);
 
-  // Gửi bình luận
+  // Gửi đánh giá
   const handleSubmitComment = async (e) => {
     e.preventDefault();
-    if (!userName || !comment) return;
-
-    const newComment = {
-      name: userName,
-      text: comment,
-      rating,
-      date: new Date().toISOString(),
-    };
+    if (!comment || rating === 0) return;
 
     try {
-      const res = await fetch(`http://localhost:3000/api/product/${id}/comments`, {
+      const token = localStorage.getItem("token");
+
+
+      const res = await fetch(`http://localhost:3000/api/review/add`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newComment),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          productId: id,
+          rating,
+          comment,
+        }),
       });
 
-      if (!res.ok) throw new Error("Gửi bình luận thất bại");
+      const result = await res.json();
+      console.log("Kết quả gửi đánh giá:", result);
 
-      const savedComment = await res.json();
-      setComments([savedComment, ...comments]);
+      if (!res.ok) throw new Error(result.message || "Gửi đánh giá thất bại");
+
+      await fetchComments();
+
       setComment("");
-      setUserName("");
       setRating(0);
     } catch (err) {
-      console.error("Lỗi khi gửi bình luận:", err);
+      console.error("Lỗi khi gửi đánh giá:", err);
     }
   };
 
@@ -115,18 +119,11 @@ export default function ProductDetail() {
             </div>
           </div>
 
-          {/* Form bình luận */}
+          {/* Form đánh giá */}
           <form onSubmit={handleSubmitComment}>
-            <h3 className="font-semibold text-lg mb-2">Viết bình luận:</h3>
-            <input
-              type="text"
-              placeholder="Tên của bạn"
-              value={userName}
-              onChange={(e) => setUserName(e.target.value)}
-              className="w-full mb-3 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
+            <h3 className="font-semibold text-lg mb-2">Viết đánh giá:</h3>
             <textarea
-              placeholder="Nội dung bình luận"
+              placeholder="Nội dung đánh giá"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -136,24 +133,28 @@ export default function ProductDetail() {
               type="submit"
               className="mt-3 bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition"
             >
-              Gửi bình luận
+              Gửi đánh giá
             </button>
           </form>
         </div>
       </div>
 
-      {/* Hiển thị bình luận */}
+      {/* Hiển thị đánh giá */}
       <div className="mt-10">
-        <h3 className="text-2xl font-semibold mb-4">Bình luận của khách hàng:</h3>
+        <h3 className="text-2xl font-semibold mb-4">Đánh giá của khách hàng:</h3>
         {comments.length === 0 ? (
-          <p className="text-gray-500">Chưa có bình luận nào.</p>
+          <p className="text-gray-500">Chưa có đánh giá nào.</p>
         ) : (
           <div className="space-y-6">
             {comments.map((cmt, idx) => (
               <div key={idx} className="bg-gray-100 p-4 rounded-lg shadow-sm">
                 <div className="flex items-center justify-between mb-1">
-                  <p className="font-semibold text-gray-800">{cmt.name}</p>
-                  <span className="text-sm text-gray-500">{new Date(cmt.date).toLocaleString()}</span>
+                  <p className="font-semibold text-gray-800">
+                    {cmt.user?.username || "Người dùng ẩn danh"}
+                  </p>
+                  <span className="text-sm text-gray-500">
+                    {new Date(cmt.createdAt).toLocaleString()}
+                  </span>
                 </div>
                 <div className="flex mb-2">
                   {[...Array(5)].map((_, i) => (
@@ -164,7 +165,7 @@ export default function ProductDetail() {
                     />
                   ))}
                 </div>
-                <p className="text-gray-700">{cmt.text}</p>
+                <p className="text-gray-700">{cmt.comment}</p>
               </div>
             ))}
           </div>
