@@ -23,9 +23,11 @@ import EditLocationForm from "./pages/Admin/Location/Edit";
 import ProductList from "./pages/Admin/Product/List";
 import AddProductForm from "./pages/Admin/Product/Add";
 import EditProductForm from "./pages/Admin/Product/Edit";
-
 import ProductDetail from "./pages/Product/ProductDetail";  // Thêm import trang chi tiết sản phẩm
 import UserList from "./pages/Admin/User/List";
+import ReviewList from "./pages/Admin/Reviews/List";
+import VoucherList from "./pages/Admin/Voucher/List";
+import AddVoucherForm from "./pages/Admin/Voucher/Add";
 
 function App() {
   return (
@@ -59,6 +61,9 @@ function App() {
               <Route path="/admin/products/add" element={<AddProductForm />} />
               <Route path="/admin/products/edit/:id" element={<EditProductForm />} />
               <Route path="/admin/users" element={<UserList />} />
+              <Route path="/admin/reviews" element={<ReviewList />} />
+              <Route path="/admin/vouchers" element={<VoucherList />} />
+              <Route path="/admin/vouchers/add" element={<AddVoucherForm />} />
 
             </Route>
           </Routes>

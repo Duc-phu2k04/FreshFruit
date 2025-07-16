@@ -5,11 +5,13 @@ import { Link, useLocation } from 'react-router-dom';
 import {
     HomeIcon,
     CubeIcon,
-    TagIcon, // Icon mới cho Danh mục
-    MapPinIcon, // Icon mới cho Vị trí
+    TagIcon, // Icon cho Danh mục
+    MapPinIcon, // Icon cho Vị trí
     ShoppingBagIcon,
     UsersIcon,
-    StarIcon
+    StarIcon,
+    TicketIcon, // Icon mới cho Vouchers
+    ArrowLeftOnRectangleIcon
 } from '@heroicons/react/24/solid';
 
 const Sidebar = () => {
@@ -54,7 +56,7 @@ const Sidebar = () => {
                                 Quản lý sản phẩm
                             </Link>
                         </li>
-                        {/* --- MỤC MỚI: QUẢN LÝ DANH MỤC --- */}
+                        {/* --- MỤC: QUẢN LÝ DANH MỤC --- */}
                         <li>
                             <Link
                                 to="/admin/category"
@@ -64,7 +66,7 @@ const Sidebar = () => {
                                 Quản lý danh mục
                             </Link>
                         </li>
-                        {/* --- MỤC MỚI: QUẢN LÝ VỊ TRÍ --- */}
+                        {/* --- MỤC: QUẢN LÝ VỊ TRÍ --- */}
                         <li>
                             <Link
                                 to="/admin/locations"
@@ -101,10 +103,32 @@ const Sidebar = () => {
                                 Quản lý bình luận
                             </Link>
                         </li>
+                        {/* --- MỤC MỚI: QUẢN LÝ VOUCHERS --- */}
+                        <li>
+                            <Link
+                                to="/admin/vouchers"
+                                className={`${linkClasses} ${isLinkActive('/admin/vouchers') ? activeLinkClasses : hoverClasses}`}
+                            >
+                                <TicketIcon className={iconClasses} />
+                                Quản lý Voucher
+                            </Link>
+                        </li>
                     </ul>
                 </nav>
             </div>
-            {/* Footer của sidebar */}
+
+            {/* Footer của sidebar: Homepage */}
+            <div className="flex flex-col space-y-2 mb-4">
+                <hr className="border-gray-700 my-2" />
+                {/* Link quay lại trang Homepage */}
+                <Link
+                    to="/" // Đường dẫn đến trang chủ của ứng dụng (không phải admin)
+                    className={`${linkClasses} ${hoverClasses}`}
+                >
+                    <ArrowLeftOnRectangleIcon className={iconClasses} />
+                    Quay lại Homepage
+                </Link>
+            </div>
         </div>
     );
 };
