@@ -50,7 +50,7 @@ export default function ProductListPage() {
       setProducts(data);
       setCurrentPage(1);
     } catch (err) {
-      console.error(" Lỗi khi fetch sản phẩm:", err);
+      console.error("Lỗi khi fetch sản phẩm:", err);
     }
   }, [selectedCategories, selectedLocations]);
 
@@ -63,13 +63,7 @@ export default function ProductListPage() {
   }, [fetchProducts]);
 
   const addToCartServer = async (product, e) => {
-    if (!product || !product._id) {
-      console.error(" Thiếu product hoặc product._id:", product);
-      alert("Không tìm thấy sản phẩm hợp lệ để thêm vào giỏ.");
-      return;
-    }
-
-    //  Hiệu ứng bay tới góc phải trên 
+    if (!product || !product._id) return;
     const img = e?.currentTarget?.closest(".product-card")?.querySelector("img");
     if (img) {
       const flyImg = img.cloneNode(true);
@@ -106,35 +100,48 @@ export default function ProductListPage() {
         return;
       }
 
-      const payload = { productId: product._id, quantity: 1 };
-      console.log(" Gửi request addToCart:", payload);
-
       const res = await fetch("http://localhost:3000/api/cart/add", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ productId: product._id, quantity: 1 }),
       });
 
       const data = await res.json();
-      console.log("Phản hồi từ API addToCart:", data);
-
       if (!res.ok) throw new Error(data.message || "Lỗi khi thêm vào giỏ hàng");
 
       setSuccessMessage("Đã thêm vào giỏ hàng ✔️");
       setTimeout(() => setSuccessMessage(""), 2500);
     } catch (error) {
-      console.error(" Lỗi thêm vào giỏ hàng:", error.message);
+      console.error("Lỗi thêm vào giỏ hàng:", error.message);
       alert("Lỗi: " + error.message);
     }
   };
 
-  const handleBuyNow = async (product, e) => {
-    await addToCartServer(product, e);
-    navigate("/gio-hang");
+  const handleBuyNow = (product) => {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    alert("Bạn cần đăng nhập để mua sản phẩm.");
+    return;
+  }
+
+  const cartData = {
+    products: [
+      {
+        _id: product._id,
+        nameProduct: product.name,
+        quantity: 1,
+        price: product.price,
+      },
+    ],
+    sumPrice: product.price,
   };
+
+  navigate("/checkout", { state: { cartData } });
+};
+
 
   const handleViewDetail = (product) => {
     navigate(`/san-pham/${product._id}`, { state: product });
@@ -146,14 +153,12 @@ export default function ProductListPage() {
 
   return (
     <div className="product-page-wrapper bg-gray-50 pb-10 relative">
-      {/*Thông báo nổi đầu trang */}
       {successMessage && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-green-600 text-white px-6 py-2 rounded-full shadow-lg">
           {successMessage}
         </div>
       )}
 
-      {/* Banner */}
       <div className="product-banner">
         <img
           src="https://fujifruit.com.vn/wp-content/uploads/2023/10/1712.png"
@@ -162,7 +167,6 @@ export default function ProductListPage() {
         />
       </div>
 
-      {/* Layout */}
       <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6 mt-6 px-4 sm:px-8">
         <aside className="bg-white border rounded-xl p-5 h-fit sticky top-4 shadow-md">
           <CategoryFilter

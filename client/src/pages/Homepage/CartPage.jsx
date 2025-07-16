@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import styles from "./CartPage.module.css";
 
@@ -8,17 +8,17 @@ function CartPage() {
   const [cartItems, setCartItems] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
-  const [voucher, setVoucher] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const navigate = useNavigate();
 
   useEffect(() => {
     async function fetchCartItems() {
       try {
         const response = await fetch(`http://localhost:3000/api/cart`, {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`
-          }
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
         });
         if (!response.ok) throw new Error("Lấy giỏ hàng thất bại");
         const data = await response.json();
@@ -44,9 +44,9 @@ function CartPage() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
-        body: JSON.stringify({ productId, quantity: newQuantity })
+        body: JSON.stringify({ productId, quantity: newQuantity }),
       });
     } catch (err) {
       console.error("Lỗi cập nhật số lượng:", err);
@@ -62,8 +62,8 @@ function CartPage() {
       await fetch(`http://localhost:3000/api/cart/${productId}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`
-        }
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
       });
     } catch (err) {
       console.error("Lỗi xoá sản phẩm:", err);
@@ -87,48 +87,34 @@ function CartPage() {
     setSelectAll(!selectAll);
   };
 
-  const handleCheckout = async () => {
-    const selectedProducts = cartItems.filter((item) =>
-      selectedItems.includes(item.product._id)
-    );
+  const handleCheckout = () => {
+  const selectedProducts = cartItems.filter((item) =>
+    selectedItems.includes(item.product._id)
+  );
 
-    if (selectedProducts.length === 0) {
-      setErrorMsg("Vui lòng chọn ít nhất 1 sản phẩm để đặt hàng.");
-      return;
-    }
+  if (selectedProducts.length === 0) {
+    setErrorMsg("Vui lòng chọn ít nhất 1 sản phẩm để đặt hàng.");
+    return;
+  }
 
-    try {
-      const response = await fetch("http://localhost:3000/api/orders/add", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`
-        },
-        body: JSON.stringify({
-          cartItems: selectedProducts.map((item) => ({
-            productId: item.product._id,
-            quantity: item.quantity
-          })),
-          voucher
-        })
-      });
+  const sumPrice = selectedProducts.reduce(
+    (total, item) => total + item.product.price * item.quantity,
+    0
+  );
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Đặt hàng thất bại");
-
-      // ✅ Giữ lại sản phẩm chưa được chọn
-      const selectedIds = selectedProducts.map(item => item.product._id);
-      setCartItems(prev => prev.filter(item => !selectedIds.includes(item.product._id)));
-      setSelectedItems([]);
-      setSuccessMsg("Đặt hàng thành công!");
-      setErrorMsg("");
-      setVoucher("");
-    } catch (err) {
-      console.error(err);
-      setSuccessMsg("");
-      setErrorMsg(err.message || "Có lỗi xảy ra khi đặt hàng.");
-    }
+  // Dữ liệu bạn cần gửi sang trang checkout
+  const payload = {
+    products: selectedProducts.map(item => ({
+      _id: item.product._id,
+      nameProduct: item.product.name,
+      quantity: item.quantity,
+      price: item.product.price,
+    })),
+    sumPrice,
   };
+
+  navigate("/checkout", { state: { cartData: payload } });
+};
 
   const totalPrice = cartItems.reduce(
     (acc, item) =>
@@ -232,23 +218,13 @@ function CartPage() {
           </div>
 
           <div className={styles.checkoutSection}>
-            <input
-              type="text"
-              placeholder="Nhập mã voucher..."
-              value={voucher}
-              onChange={(e) => setVoucher(e.target.value)}
-              className={styles.voucherInput}
-            />
             <div className={styles.totalPrice}>
               Tổng:{" "}
               <span className="font-semibold text-green-700">
                 {totalPrice.toLocaleString()}₫
               </span>
             </div>
-            <button
-              onClick={handleCheckout}
-              className={styles.orderButton}
-            >
+            <button onClick={handleCheckout} className={styles.orderButton}>
               Đặt hàng
             </button>
           </div>
