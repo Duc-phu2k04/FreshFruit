@@ -8,7 +8,7 @@ export default function AddVoucherForm() {
     const [formData, setFormData] = useState({
         code: '',
         discount: '',
-        expiration: '', // YYYY-MM-DDTHH:mm
+        expiresInDays: '',
         quantity: ''
     });
     const [loading, setLoading] = useState(false);
@@ -32,13 +32,18 @@ export default function AddVoucherForm() {
         setSuccessMessage('');
 
         // Basic validation
-        if (!formData.code || !formData.discount || !formData.expiration) {
-            setError('Vui lòng điền đầy đủ các trường bắt buộc.');
+        if (!formData.code || !formData.discount || !formData.expiresInDays) {
+            setError('Vui lòng điền đầy đủ các trường bắt buộc: Mã Voucher, Giảm giá, và Số ngày có hiệu lực.');
             setLoading(false);
             return;
         }
         if (formData.discount < 1 || formData.discount > 100) {
             setError('Mức giảm giá phải từ 1 đến 100.');
+            setLoading(false);
+            return;
+        }
+        if (formData.expiresInDays < 1) {
+            setError('Số ngày có hiệu lực phải lớn hơn 0.');
             setLoading(false);
             return;
         }
@@ -49,17 +54,17 @@ export default function AddVoucherForm() {
         }
 
         try {
-            // Chuẩn bị dữ liệu gửi đi
+            // Chuẩn bị dữ liệu gửi đi, khớp với backend
             const dataToSend = {
                 code: formData.code,
                 discount: Number(formData.discount),
-                expiration: new Date(formData.expiration).toISOString(), // Chuyển đổi sang ISO String
+                expiresInDays: Number(formData.expiresInDays), // Gửi số ngày
                 quantity: formData.quantity === '' ? null : Number(formData.quantity) // Gửi null nếu trống
             };
 
             const res = await axiosInstance.post('/voucher', dataToSend);
             setSuccessMessage('Voucher đã được thêm thành công!');
-            setFormData({ code: '', discount: '', expiration: '', quantity: '' }); // Reset form
+            setFormData({ code: '', discount: '', expiresInDays: '', quantity: '' }); // Reset form
         } catch (err) {
             console.error('Lỗi khi thêm voucher:', err);
             setError(err.response?.data?.message || 'Lỗi khi thêm voucher. Vui lòng thử lại.');
@@ -116,19 +121,22 @@ export default function AddVoucherForm() {
                             required
                         />
                     </div>
+                    {/* THAY ĐỔI Ở ĐÂY: Dùng expiresInDays */}
                     <div>
-                        <label htmlFor="expiration" className="block text-sm font-medium text-gray-700">Ngày & Giờ Hết hạn <span className="text-red-500">*</span></label>
+                        <label htmlFor="expiresInDays" className="block text-sm font-medium text-gray-700">Số ngày có hiệu lực <span className="text-red-500">*</span></label>
                         <input
-                            type="datetime-local"
-                            id="expiration"
-                            name="expiration"
-                            value={formData.expiration}
+                            type="number"
+                            id="expiresInDays"
+                            name="expiresInDays"
+                            value={formData.expiresInDays}
                             onChange={handleChange}
                             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                            min="1"
                             required
                         />
-                        <p className="mt-1 text-xs text-gray-500">Chọn ngày và giờ hết hạn chính xác.</p>
+                        <p className="mt-1 text-xs text-gray-500">Voucher sẽ hết hạn sau số ngày này tính từ thời điểm tạo.</p>
                     </div>
+                    {/* End THAY ĐỔI */}
                     <div>
                         <label htmlFor="quantity" className="block text-sm font-medium text-gray-700">Số lượng (Để trống nếu không giới hạn)</label>
                         <input
@@ -138,7 +146,7 @@ export default function AddVoucherForm() {
                             value={formData.quantity}
                             onChange={handleChange}
                             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                            min="0" // Cho phép 0 nếu muốn tạo voucher không còn lượt sử dụng ngay
+                            min="0"
                         />
                     </div>
 
