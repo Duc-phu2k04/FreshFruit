@@ -8,5 +8,8 @@ router.post("/", verifyToken, isAdmin, voucherController.createVoucher);
 router.get("/", verifyToken, isAdmin, voucherController.getAllVouchers);
 router.delete("/:id", verifyToken, isAdmin, voucherController.deleteVoucher);
 
+// ✅ Route kiểm tra mã giảm giá
+router.get('/validate/:code', voucherController.validateVoucher);
+
 
 export default router;

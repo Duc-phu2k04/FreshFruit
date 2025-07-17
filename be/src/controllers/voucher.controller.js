@@ -48,6 +48,28 @@ const voucherController = {
       res.status(500).json({ message: 'Lỗi khi xóa voucher', error: err.message });
     }
   },
+  validateVoucher: async (req, res) => {
+    try {
+      const code = req.params.code?.toUpperCase().trim();
+      const voucher = await Voucher.findOne({ code });
+
+      if (!voucher) {
+        return res.status(404).json({ message: 'Mã giảm giá không tồn tại' });
+      }
+
+      if (voucher.expiration < new Date()) {
+        return res.status(400).json({ message: 'Mã đã hết hạn' });
+      }
+
+      if (voucher.quantity !== null && voucher.quantity <= 0) {
+        return res.status(400).json({ message: 'Mã đã hết lượt sử dụng' });
+      }
+
+      return res.status(200).json(voucher);
+    } catch (err) {
+      res.status(500).json({ message: 'Lỗi server', error: err.message });
+    }
+  },
 };
 
 export default voucherController;
