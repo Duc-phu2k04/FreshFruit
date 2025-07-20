@@ -56,6 +56,17 @@ export default function Checkout() {
     setWardCode('');
   }, [districtCode, provinceCode, data]);
 
+  const subtotal = dataCart?.products?.reduce((sum, item) => {
+  return sum + (item.price * item.quantity);
+}, 0) || 0;
+
+const total = Math.max(0, subtotal + BASE_SHIPPING_FEE - discountAmount);
+
+console.log("Subtotal:", subtotal);
+console.log("Shipping:", BASE_SHIPPING_FEE);
+console.log("Discount:", discountAmount);
+console.log("Total:", total);
+
   const handleApplyVoucher = async () => {
     if (!voucherCode) return;
     try {
@@ -120,6 +131,7 @@ const handlePaymentMomo = async () => {
     const orderRes = await axios.post('http://localhost:3000/api/orders/add', {
       cartItems,
       voucher: appliedVoucher?.code || null,
+      total,
     }, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -150,16 +162,7 @@ const handlePaymentMomo = async () => {
     setDiscountAmount(0);
   };
 
-const subtotal = dataCart?.products?.reduce((sum, item) => {
-  return sum + (item.price * item.quantity);
-}, 0) || 0;
 
-const total = Math.max(0, subtotal + BASE_SHIPPING_FEE - discountAmount);
-
-console.log("Subtotal:", subtotal);
-console.log("Shipping:", BASE_SHIPPING_FEE);
-console.log("Discount:", discountAmount);
-console.log("Total:", total);
 
 
 

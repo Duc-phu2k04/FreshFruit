@@ -17,15 +17,18 @@ export const createOrder = async ({ userId, cartItems, voucher }) => {
     });
   }
 
-  let total = items.reduce((sum, item) => sum + item.quantity * item.price, 0);
+  const BASE_SHIPPING_FEE = 30000;
 
+  const subtotal = items.reduce((sum, item) => sum + item.quantity * item.price, 0);
+
+  let discountAmount = 0;
   let appliedVoucher = null;
 
   if (voucher) {
     const foundVoucher = await Voucher.findOne({ code: voucher.toUpperCase() });
     if (!foundVoucher) throw new Error("Mã giảm giá không hợp lệ");
 
-    total = total - (total * foundVoucher.discount) / 100;
+    discountAmount = (subtotal * foundVoucher.discount) / 100;
     appliedVoucher = foundVoucher._id;
 
     if (foundVoucher.quantity !== null && foundVoucher.quantity > 0) {
@@ -33,6 +36,8 @@ export const createOrder = async ({ userId, cartItems, voucher }) => {
       await foundVoucher.save();
     }
   }
+
+  const total = Math.max(0, subtotal + BASE_SHIPPING_FEE - discountAmount);
 
   const customId = "ORD" + Date.now();
 
@@ -46,7 +51,7 @@ export const createOrder = async ({ userId, cartItems, voucher }) => {
 
   await order.save();
 
-  // xoá các sản phẩm đã đặt khỏi giỏ
+  // Xoá các sản phẩm đã đặt khỏi giỏ
   await Cart.findOneAndUpdate(
     { user: userId },
     {
@@ -60,3 +65,4 @@ export const createOrder = async ({ userId, cartItems, voucher }) => {
 
   return order;
 };
+

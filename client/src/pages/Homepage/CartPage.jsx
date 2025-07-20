@@ -171,7 +171,7 @@ function CartPage() {
                     </td>
                     <td className="flex items-center gap-4">
                       <img
-                        src={item.product.image}
+                         src={`http://localhost:3000${item.product.image}`}
                         alt={item.product.name}
                         className={styles.productImage}
                       />
