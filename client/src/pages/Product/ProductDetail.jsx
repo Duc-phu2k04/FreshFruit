@@ -1,3 +1,4 @@
+// ProductDetail.jsx
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FaStar } from "react-icons/fa";
@@ -21,7 +22,9 @@ export default function ProductDetail() {
         const data = await res.json();
         setProduct(data);
 
-        const relatedRes = await fetch(`http://localhost:3000/api/product?category=${data.category._id}`);
+        const relatedRes = await fetch(
+          `http://localhost:3000/api/product?category=${data.category._id}`
+        );
         const related = await relatedRes.json();
         const filtered = related.filter((item) => item._id !== id);
         setRelatedProducts(filtered);
@@ -47,11 +50,18 @@ export default function ProductDetail() {
 
   const handleSubmitComment = async (e) => {
     e.preventDefault();
-    if (!comment || rating === 0) return;
+    if (!comment || rating === 0) {
+      alert("Vui lòng nhập đánh giá và chọn số sao.");
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      alert("Bạn cần đăng nhập để gửi đánh giá.");
+      return;
+    }
 
     try {
-      const token = localStorage.getItem("token");
-
       const res = await fetch(`http://localhost:3000/api/review/add`, {
         method: "POST",
         headers: {
@@ -72,7 +82,8 @@ export default function ProductDetail() {
       setComment("");
       setRating(0);
     } catch (err) {
-      console.error("Lỗi khi gửi đánh giá:", err);
+      console.error("Lỗi khi gửi đánh giá:", err.message);
+      alert("Lỗi: " + err.message);
     }
   };
 
@@ -82,7 +93,8 @@ export default function ProductDetail() {
       return;
     }
 
-    const img = e?.currentTarget?.closest(".product-actions")?.parentElement?.parentElement?.querySelector("img");
+    const img =
+      e?.currentTarget?.closest(".product-actions")?.parentElement?.parentElement?.querySelector("img");
     if (img) {
       const flyImg = img.cloneNode(true);
       const rect = img.getBoundingClientRect();
@@ -144,11 +156,11 @@ export default function ProductDetail() {
     navigate("/gio-hang");
   };
 
-  if (!product) return <p className="text-center mt-10">Đang tải dữ liệu sản phẩm...</p>;
+  if (!product)
+    return <p className="text-center mt-10">Đang tải dữ liệu sản phẩm...</p>;
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
-      {/* Thông báo nổi */}
       {successMessage && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-green-600 text-white px-6 py-2 rounded-full shadow-lg">
           {successMessage}
@@ -217,6 +229,7 @@ export default function ProductDetail() {
         </div>
       </div>
 
+      {/* Đánh giá của khách hàng */}
       <div className="mt-10">
         <h3 className="text-2xl font-semibold mb-4">Đánh giá của khách hàng:</h3>
         {comments.length === 0 ? (
@@ -224,29 +237,42 @@ export default function ProductDetail() {
         ) : (
           <div className="space-y-6">
             {comments.map((cmt, idx) => (
-              <div key={idx} className="bg-gray-100 p-4 rounded shadow-sm">
-                <div className="flex justify-between mb-1">
-                  <p className="font-semibold">{cmt.user?.username || "Người dùng ẩn danh"}</p>
-                  <span className="text-sm text-gray-500">
-                    {new Date(cmt.createdAt).toLocaleString()}
-                  </span>
+              <div
+                key={idx}
+                className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition duration-300"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-4">
+                    <div className="w-11 h-11 rounded-full bg-blue-600 text-white flex items-center justify-center text-lg font-bold shadow-sm">
+                      {cmt.user?.username?.charAt(0).toUpperCase() || "?"}
+                    </div>
+                    <div>
+                      <p className="text-base font-semibold">
+                        {cmt.user?.username || "Người dùng ẩn danh"}
+                      </p>
+                      <p className="text-sm text-gray-400">
+                        {new Date(cmt.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex">
+                    {[...Array(5)].map((_, i) => (
+                      <FaStar
+                        key={i}
+                        size={18}
+                        color={i < cmt.rating ? "#facc15" : "#e5e7eb"}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <div className="flex mb-2">
-                  {[...Array(5)].map((_, i) => (
-                    <FaStar
-                      key={i}
-                      size={16}
-                      color={i < cmt.rating ? "#ffc107" : "#e4e5e9"}
-                    />
-                  ))}
-                </div>
-                <p>{cmt.comment}</p>
+                <p className="text-gray-700 leading-relaxed">{cmt.comment}</p>
               </div>
             ))}
           </div>
         )}
       </div>
 
+      {/* Sản phẩm liên quan */}
       <div className="mt-12">
         <h3 className="text-2xl font-semibold mb-4">Sản phẩm liên quan:</h3>
         <div className="grid md:grid-cols-4 gap-6">

@@ -1,3 +1,4 @@
+// App.jsx
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Layout from "./layouts/Main-layout";
 import Homepage from "./pages/Homepage/Homepage";
@@ -23,11 +24,17 @@ import EditLocationForm from "./pages/Admin/Location/Edit";
 import ProductList from "./pages/Admin/Product/List";
 import AddProductForm from "./pages/Admin/Product/Add";
 import EditProductForm from "./pages/Admin/Product/Edit";
-import ProductDetail from "./pages/Product/ProductDetail";  // Thêm import trang chi tiết sản phẩm
+import ProductDetail from "./pages/Product/ProductDetail";
 import UserList from "./pages/Admin/User/List";
 import ReviewList from "./pages/Admin/Reviews/List";
 import VoucherList from "./pages/Admin/Voucher/List";
 import AddVoucherForm from "./pages/Admin/Voucher/Add";
+
+// Các trang mới thêm
+import About from './pages/About/About';
+import News from './pages/News/News';
+import Franchise from './pages/Franchise/Franchise';
+import StoreSystem from './pages/Stores/StoreSystem';
 
 function App() {
   return (
@@ -39,7 +46,7 @@ function App() {
               <Route index element={<Homepage />} />
               <Route path="gio-hang" element={<CartPage />} />
               <Route path="san-pham" element={<ProductListPage />} />
-              <Route path="san-pham/:id" element={<ProductDetail />} />   {/* Thêm route chi tiết sản phẩm */}
+              <Route path="san-pham/:id" element={<ProductDetail />} />
               <Route path="checkout" element={<Checkout />} />
               <Route path="register" element={<RegisterForm />} />
               <Route path="login" element={<LoginForm />} />
@@ -48,7 +55,14 @@ function App() {
               <Route path="dang-nhap" element={<LoginForm />} />
               <Route path="/quen-mat-khau" element={<ForgotPassword />} />
               <Route path="/thong-tin" element={<ProfilePage />} />
+
+              {/* Các trang nội dung mới */}
+              <Route path="tin-tuc" element={<News />} />
+              <Route path="ve-chung-toi" element={<About />} />
+              <Route path="nhuong-quyen" element={<Franchise />} />
+              <Route path="he-thong-cua-hang" element={<StoreSystem />} />
             </Route>
+
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<Dashboard />} />
               <Route path="/admin/category" element={<CategoryList />} />
@@ -64,7 +78,6 @@ function App() {
               <Route path="/admin/reviews" element={<ReviewList />} />
               <Route path="/admin/vouchers" element={<VoucherList />} />
               <Route path="/admin/vouchers/add" element={<AddVoucherForm />} />
-
             </Route>
           </Routes>
         </BrowserRouter>
