@@ -5,6 +5,7 @@ import Homepage from "./pages/Homepage/Homepage";
 import CartPage from "./pages/Homepage/CartPage";
 import ProductListPage from "./pages/ProductList/ProductList";
 import Checkout from "./pages/Checkout/Checkout";
+import OrderSuccess from "./pages/Checkout/OrderSuccess";
 import { CartProvider } from "./context/CartContext";
 import { AuthProvider } from "./context/AuthContext";
 import RegisterForm from "./pages/RegisterForm";
@@ -48,6 +49,7 @@ function App() {
               <Route path="san-pham" element={<ProductListPage />} />
               <Route path="san-pham/:id" element={<ProductDetail />} />
               <Route path="checkout" element={<Checkout />} />
+              <Route path="/order-success" element={<OrderSuccess />} />
               <Route path="register" element={<RegisterForm />} />
               <Route path="login" element={<LoginForm />} />
               <Route path="product" element={<ListSanPham />} />
