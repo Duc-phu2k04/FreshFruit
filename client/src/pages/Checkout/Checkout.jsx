@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
-export default function Checkout({ handlePayment, handlePaymentMomo }) {
+export default function Checkout() {
   const location = useLocation();
   const cartData = location.state?.cartData;
   const navigate = useNavigate();
@@ -81,6 +81,68 @@ export default function Checkout({ handlePayment, handlePaymentMomo }) {
       setDiscountAmount(0);
     }
   };
+
+  const handlePayment = async () => {
+  if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
+
+  try {
+    const cartItems = dataCart.products.map(item => ({
+      productId: item._id,
+      quantity: item.quantity,
+    }));
+
+    const response = await axios.post('http://localhost:3000/api/orders/add', {
+      cartItems,
+      voucher: appliedVoucher?.code || null,
+    }, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+      }
+    });
+
+    alert("Đặt hàng thành công!");
+    navigate('/order-success'); // hoặc về trang đơn hàng
+  } catch (error) {
+    console.error("Lỗi đặt hàng COD:", error);
+    alert("Đặt hàng thất bại.");
+  }
+};
+
+const handlePaymentMomo = async () => {
+  if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
+
+  try {
+    const cartItems = dataCart.products.map(item => ({
+      productId: item._id,
+      quantity: item.quantity,
+    }));
+
+    const orderRes = await axios.post('http://localhost:3000/api/orders/add', {
+      cartItems,
+      voucher: appliedVoucher?.code || null,
+    }, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+      }
+    });
+
+    const orderId = orderRes.data.order._id;
+
+    const momoRes = await axios.post('http://localhost:3000/api/momo/create-payment', {
+      orderId,
+    });
+
+    if (momoRes.data.paymentUrl) {
+      window.location.href = momoRes.data.paymentUrl;
+    } else {
+      alert("Không thể tạo thanh toán MoMo");
+    }
+  } catch (err) {
+    console.error("Lỗi MoMo:", err);
+    alert("Thanh toán MoMo thất bại.");
+  }
+};
+
 
   const removeVoucher = () => {
     setAppliedVoucher(null);
@@ -188,7 +250,7 @@ console.log("Total:", total);
             <label className="text-sm">Vui lòng chấp nhận điều khoản</label>
           </div>
 
-          <button onClick={handlePaymentMomo} className="w-full h-14 bg-blue-600 text-white rounded-lg mb-3">Thanh Toán Qua VNPAY</button>
+          <button onClick={handlePaymentMomo} className="w-full h-14 bg-blue-600 text-white rounded-lg mb-3">Thanh Toán Qua MOMO</button>
           <button onClick={handlePayment} className="w-full h-14 bg-red-600 text-white rounded-lg">Thanh Toán Khi Nhận Hàng</button>
         </div>
       </main>
