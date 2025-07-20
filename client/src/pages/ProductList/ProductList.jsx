@@ -208,7 +208,7 @@ export default function ProductListPage() {
                     transition={{ duration: 0.3 }}
                   >
                     <img
-                      src={product.image}
+                      src={`http://localhost:3000${product.image}`}
                       alt={product.name}
                       className="product-image cursor-pointer"
                       onClick={() => handleViewDetail(product)}
