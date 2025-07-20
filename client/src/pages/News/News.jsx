@@ -4,17 +4,17 @@ export default function News() {
   const newsList = [
     {
       title: 'Lợi ích tuyệt vời của việc ăn trái cây tươi mỗi ngày',
-      image: 'https://images.unsplash.com/photo-1574226516831-e1dff420e40d?auto=format&fit=crop&w=800&q=80',
+      image: 'https://cdn.pixabay.com/photo/2023/10/21/18/34/grapes-8331973_1280.jpg',
       content: 'Trái cây tươi không chỉ cung cấp vitamin mà còn giúp tăng sức đề kháng và làm đẹp da. Ăn trái cây mỗi ngày là một thói quen sống lành mạnh được các chuyên gia khuyên dùng.'
     },
     {
       title: 'FreshFruit khai trương cửa hàng mới tại TP.HCM',
-      image: 'https://images.unsplash.com/photo-1615486369244-e3f6632fe3fa?auto=format&fit=crop&w=800&q=80',
+      image: 'https://cdn.pixabay.com/photo/2013/11/18/13/30/cherry-212601_1280.jpg',
       content: 'Chúng tôi vừa mở thêm chi nhánh mới tại Quận 1. Với không gian hiện đại và nguồn trái cây tươi sạch, hy vọng sẽ mang đến trải nghiệm mua sắm tuyệt vời cho khách hàng.'
     },
     {
       title: 'Bí quyết bảo quản trái cây lâu hỏng tại nhà',
-      image: 'https://images.unsplash.com/photo-1600691035391-bd2e547edb6d?auto=format&fit=crop&w=800&q=80',
+      image: 'https://cdn.pixabay.com/photo/2014/11/12/21/18/strawberries-528791_1280.jpg',
       content: 'Để trái cây luôn tươi ngon, hãy bảo quản trong nhiệt độ phù hợp, tránh ánh nắng trực tiếp và sử dụng hộp kín. Cùng tìm hiểu thêm các mẹo hữu ích khác!'
     }
   ];

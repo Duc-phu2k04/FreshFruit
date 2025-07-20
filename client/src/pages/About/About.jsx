@@ -15,12 +15,12 @@ const About = () => {
             Chúng tôi cam kết mang đến trải nghiệm mua sắm trái cây hiện đại, tiện lợi và đảm bảo chất lượng cho từng sản phẩm.
           </p>
         </div>
-        <img src="/images/about-us.jpg" alt="FreshFruit intro" className="rounded-xl shadow-md w-full h-auto object-cover" />
+        <img src="https://cdn.pixabay.com/photo/2020/01/10/21/03/garden-4756275_1280.jpg" alt="FreshFruit intro" className="rounded-xl shadow-md w-full h-auto object-cover" />
       </section>
 
       {/* Thế mạnh sản phẩm */}
       <section className="grid md:grid-cols-2 gap-8 items-center">
-        <img src="/images/strength.jpg" alt="FreshFruit strengths" className="rounded-xl shadow-md w-full h-auto object-cover" />
+        <img src="https://cdn.pixabay.com/photo/2015/05/21/16/57/vegetable-777473_1280.jpg" alt="FreshFruit strengths" className="rounded-xl shadow-md w-full h-auto object-cover" />
         <div>
           <h2 className="text-2xl font-semibold mb-3 text-green-600">Thế mạnh của chúng tôi</h2>
           <ul className="list-disc list-inside text-gray-700 space-y-2">
