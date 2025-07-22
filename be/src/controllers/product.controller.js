@@ -3,6 +3,19 @@ import productService from '../services/product.service.js';
 const productController = {
   create: async (req, res) => {
     try {
+      const {
+        name,
+        baseVariant,
+        gradeOptions,
+        weightOptions,
+        ripenessOptions
+      } = req.body;
+
+      // Kiểm tra input cơ bản
+      if (!name || !baseVariant || !gradeOptions || !weightOptions || !ripenessOptions) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
       const newProduct = await productService.createProduct(req.body);
       res.status(201).json(newProduct);
     } catch (error) {
@@ -54,7 +67,6 @@ const productController = {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
   },
-
 };
 
 export default productController;
