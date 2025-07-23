@@ -5,21 +5,34 @@ const productController = {
     try {
       const {
         name,
-        baseVariant,
+        description,
+        category,
+        location,
         gradeOptions,
         weightOptions,
-        ripenessOptions
+        ripenessOptions,
+        baseVariant
       } = req.body;
 
-      // Kiểm tra input cơ bản
-      if (!name || !baseVariant || !gradeOptions || !weightOptions || !ripenessOptions) {
-        return res.status(400).json({ message: "Missing required fields" });
+      if (!name || !category || !location || !gradeOptions || !weightOptions || !ripenessOptions || !baseVariant) {
+        return res.status(400).json({ message: "Thiếu thông tin bắt buộc." });
       }
 
-      const newProduct = await productService.createProduct(req.body);
+      const newProduct = await productService.createProduct({
+        name,
+        description,
+        category,
+        location,
+        gradeOptions,
+        weightOptions,
+        ripenessOptions,
+        baseVariant
+      });
+
       res.status(201).json(newProduct);
     } catch (error) {
-      res.status(500).json({ message: 'Server error', error: error.message });
+      console.error("Error in create product:", error);
+      res.status(500).json({ message: 'Lỗi server', error: error.message });
     }
   },
 
@@ -28,7 +41,7 @@ const productController = {
       const products = await productService.getAllProducts();
       res.json(products);
     } catch (error) {
-      res.status(500).json({ message: 'Server error', error: error.message });
+      res.status(500).json({ message: 'Lỗi server', error: error.message });
     }
   },
 
@@ -36,11 +49,11 @@ const productController = {
     try {
       const product = await productService.getProductById(req.params.id);
       if (!product) {
-        return res.status(404).json({ message: 'Product not found' });
+        return res.status(404).json({ message: 'Không tìm thấy sản phẩm' });
       }
       res.json(product);
     } catch (error) {
-      res.status(500).json({ message: 'Server error', error: error.message });
+      res.status(500).json({ message: 'Lỗi server', error: error.message });
     }
   },
 
@@ -48,11 +61,11 @@ const productController = {
     try {
       const updatedProduct = await productService.updateProduct(req.params.id, req.body);
       if (!updatedProduct) {
-        return res.status(404).json({ message: 'Product not found' });
+        return res.status(404).json({ message: 'Không tìm thấy sản phẩm' });
       }
       res.json(updatedProduct);
     } catch (error) {
-      res.status(500).json({ message: 'Server error', error: error.message });
+      res.status(500).json({ message: 'Lỗi server', error: error.message });
     }
   },
 
@@ -60,11 +73,11 @@ const productController = {
     try {
       const deletedProduct = await productService.deleteProduct(req.params.id);
       if (!deletedProduct) {
-        return res.status(404).json({ message: 'Product not found' });
+        return res.status(404).json({ message: 'Không tìm thấy sản phẩm' });
       }
-      res.json({ message: 'Product deleted successfully' });
+      res.json({ message: 'Xoá sản phẩm thành công' });
     } catch (error) {
-      res.status(500).json({ message: 'Server error', error: error.message });
+      res.status(500).json({ message: 'Lỗi server', error: error.message });
     }
   },
 };

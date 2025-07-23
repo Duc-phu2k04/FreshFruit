@@ -2,33 +2,35 @@
 import axios from 'axios';
 
 const axiosInstance = axios.create({
-    baseURL: 'http://localhost:3000/api', // ⚠️ Đổi URL phù hợp với server bạn
-    timeout: 10000,
-    headers: {
-        'Content-Type': 'application/json',
-    },
+  baseURL: 'http://localhost:3000/api', // ⚠️ Đổi nếu dùng server khác
+  timeout: 10000,
 });
 
-// 👉 Thêm interceptor nếu cần: token, xử lý lỗi...
+// 👉 Thêm token nếu có
 axiosInstance.interceptors.request.use(
-    (config) => {
-        // Ví dụ: thêm token nếu có
-        const token = localStorage.getItem('token');
-        if (token) {
-            config.headers['Authorization'] = `Bearer ${token}`;
-        }
-        return config;
-    },
-    (error) => Promise.reject(error)
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    // ⚠️ Nếu đang gửi FormData thì KHÔNG set Content-Type
+    if (!(config.data instanceof FormData)) {
+      config.headers['Content-Type'] = 'application/json';
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
 );
 
+// 👉 Xử lý lỗi response
 axiosInstance.interceptors.response.use(
-    (response) => response,
-    (error) => {
-        // Bạn có thể xử lý lỗi 401, 403 ở đây
-        console.error('API Error:', error);
-        return Promise.reject(error);
-    }
+  (response) => response,
+  (error) => {
+    console.error('API Error:', error);
+    return Promise.reject(error);
+  }
 );
 
 export default axiosInstance;

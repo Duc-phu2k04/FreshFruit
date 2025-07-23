@@ -162,18 +162,31 @@ export default function ProductList() {
                                     <div className="text-sm font-medium text-gray-900">{product.name}</div>
                                 </td>
                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {product.price.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' })}
+                                    {product.baseVariant?.price
+                                        ? product.baseVariant.price.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' })
+                                        : 'Không có giá'}
                                 </td>
                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                     {product.image ? (
-                                        <img src={`http://localhost:3000${product.image}`} alt={product.name} className="h-10 w-10 object-cover rounded-md" />
+                                        <img
+                                            src={
+                                                product.image?.startsWith("http")
+                                                    ? product.image
+                                                    : `http://localhost:3000${product.image}`
+                                            }
+                                            alt={product.name}
+                                            className="h-10 w-10 object-cover rounded-md"
+                                        />
+
                                     ) : (
                                         <span className="text-gray-400">Không ảnh</span>
                                     )}
                                 </td>
-                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{product.stock}</td>
                                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {product.category ? product.category.name : 'N/A'}
+                                    {product.baseVariant?.stock ?? 'Không rõ'}
+                                </td>
+                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {product.category?.name ?? 'N/A'}
                                 </td>
                                 <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <div className="flex items-center justify-end space-x-4">
@@ -185,11 +198,19 @@ export default function ProductList() {
                                             <TrashIcon className="h-5 w-5 mr-1" />
                                             Xóa
                                         </button>
+                                        <Link
+                                            to={`/admin/products/detail/${product._id}`}
+                                            className="text-blue-600 hover:underline"
+                                        >
+                                            Xem
+                                        </Link>
+
                                     </div>
                                 </td>
                             </tr>
                         ))}
                     </tbody>
+
                 </table>
             </div>
         );

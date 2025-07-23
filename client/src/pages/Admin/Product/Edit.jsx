@@ -1,373 +1,209 @@
 import React, { useState, useEffect } from 'react';
+import axiosInstance from '../../../utils/axiosConfig';
 import { useNavigate, useParams } from 'react-router-dom';
-import axiosInstance from '../../../utils/axiosConfig'; // Đảm bảo đường dẫn này đúng
-import Loader from '../../../components/common/Loader'; // Sửa lại đường dẫn nếu cần
 
 export default function EditProductForm() {
-    const [name, setName] = useState('');
-    const [description, setDescription] = useState('');
-    const [price, setPrice] = useState('');
-    const [image, setImage] = useState('');
-    const [stock, setStock] = useState(0);
-    const [category, setCategory] = useState(''); // ID của category được chọn
-    const [location, setLocation] = useState(''); // ID của location được chọn
+  const { id } = useParams();
+  const navigate = useNavigate();
 
-    const [categories, setCategories] = useState([]); // Danh sách categories từ API
-    const [locations, setLocations] = useState([]); // Danh sách locations từ API
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [price, setPrice] = useState('');
+  const [stock, setStock] = useState('');
+  const [image, setImage] = useState('');
+  const [category, setCategory] = useState('');
+  const [location, setLocation] = useState('');
+  const [categories, setCategories] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [imagePreview, setImagePreview] = useState('');
+  const [variants, setVariants] = useState([]);
 
-    const [loadingInitialData, setLoadingInitialData] = useState(true); // Loader cho việc tải dữ liệu ban đầu (sản phẩm, danh mục, địa điểm)
-    const [submitting, setSubmitting] = useState(false); // Loader cho việc gửi form
-    const [error, setError] = useState('');
-    const [successMessage, setSuccessMessage] = useState('');
+  // Lấy thông tin sản phẩm hiện tại
+  useEffect(() => {
+    const fetchProduct = async () => {
+      try {
+        const res = await axiosInstance.get(`/products/${id}`);
+        const data = res.data;
 
-    const navigate = useNavigate();
-    const { id } = useParams(); // Lấy ID sản phẩm từ URL (ví dụ: /admin/products/edit/:id)
-
-    // --- Tải dữ liệu sản phẩm, danh mục và địa điểm khi component được mount ---
-    useEffect(() => {
-        const fetchAllData = async () => {
-            try {
-                setLoadingInitialData(true);
-                // Fetch đồng thời sản phẩm, danh mục và địa điểm
-                const [productRes, categoriesRes, locationsRes] = await Promise.all([
-                    axiosInstance.get(`/product/${id}`), // Lấy chi tiết sản phẩm theo ID
-                    axiosInstance.get('/category'),    // Lấy danh sách categories
-                    axiosInstance.get('/locations')      // Lấy danh sách locations
-                ]);
-
-                // Set data cho sản phẩm
-                const productData = productRes.data.data || productRes.data;
-                setName(productData.name || '');
-                setDescription(productData.description || '');
-                setPrice(productData.price || '');
-                setImage(productData.image || '');
-                setStock(productData.stock || 0);
-                // Đảm bảo ID category/location tồn tại và được chọn
-                setCategory(productData.category?._id || '');
-                setLocation(productData.location?._id || '');
-
-                // Set data cho danh mục và địa điểm
-                setCategories(categoriesRes.data.data || categoriesRes.data);
-                setLocations(locationsRes.data.data || locationsRes.data);
-
-                // Nếu sản phẩm có category/location nhưng không có trong danh sách fetched, đặt mặc định
-                // (Trường hợp này ít xảy ra nếu dữ liệu đồng bộ)
-                if (productData.category && !(categoriesRes.data.data || categoriesRes.data).some(c => c._id === productData.category._id)) {
-                    setCategory(''); // Đặt rỗng hoặc chọn mặc định khác nếu category không tìm thấy
-                }
-                if (productData.location && !(locationsRes.data.data || locationsRes.data).some(l => l._id === productData.location._id)) {
-                    setLocation(''); // Đặt rỗng hoặc chọn mặc định khác nếu location không tìm thấy
-                }
-
-
-            } catch (err) {
-                setError('Lỗi khi tải dữ liệu sản phẩm, danh mục hoặc địa điểm. Vui lòng thử lại.');
-                console.error('Lỗi fetch dữ liệu chỉnh sửa:', err);
-            } finally {
-                setLoadingInitialData(false);
-            }
-        };
-
-        if (id) {
-            fetchAllData();
-        } else {
-            setError('ID sản phẩm không hợp lệ.');
-            setLoadingInitialData(false);
-        }
-    }, [id]); // Chạy lại khi ID thay đổi
-    const handleImageUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        setSubmitting(true);
-        setError('');
-        try {
-            const formData = new FormData();
-            formData.append('image', file);
-
-            const res = await axiosInstance.post('/upload', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data'
-                }
-            });
-
-            const url = res.data.imagePath;
-            setImage(url);
-
-        } catch (err) {
-            setError(err.response?.data?.message || 'Lỗi khi upload ảnh.');
-            console.error('Upload image error:', err);
-        } finally {
-            setSubmitting(false);
-        }
+        setName(data.name);
+        setDescription(data.description);
+        setPrice(data.baseVariant?.price || '');
+        setStock(data.baseVariant?.stock || '');
+        setImage(data.image);
+        setCategory(data.category || '');
+        setLocation(data.location || '');
+        setImagePreview(data.image);
+        setVariants(data.variants || []);
+      } catch (err) {
+        console.error('Lỗi khi lấy sản phẩm:', err);
+      }
     };
 
-    // --- Hàm xử lý submit form ---
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    fetchProduct();
+  }, [id]);
 
-        // Reset thông báo
-        setError('');
-        setSuccessMessage('');
-
-        // Basic Validation
-        if (!name.trim() || !price || !category || !location) {
-            setError('Vui lòng điền đầy đủ các trường bắt buộc (Tên, Giá, Danh mục, Nơi sản xuất).');
-            return;
-        }
-        if (isNaN(price) || parseFloat(price) <= 0) {
-            setError('Giá phải là một số dương.');
-            return;
-        }
-        if (isNaN(stock) || parseInt(stock) < 0) {
-            setError('Tồn kho phải là một số không âm.');
-            return;
-        }
-
-        try {
-            setSubmitting(true);
-            const updatedProduct = {
-                name,
-                description,
-                price: parseFloat(price),
-                image,
-                stock: parseInt(stock),
-                category, // Gửi ID của category
-                location  // Gửi ID của location
-            };
-
-            // Gửi yêu cầu PUT hoặc PATCH để cập nhật sản phẩm
-            // Sử dụng PUT nếu API yêu cầu toàn bộ đối tượng để cập nhật.
-            // Sử dụng PATCH nếu API chỉ cập nhật các trường được gửi.
-            await axiosInstance.put(`/product/${id}`, updatedProduct);
-
-            setSuccessMessage('Cập nhật sản phẩm thành công!');
-
-            // Chuyển hướng về trang danh sách sau một thời gian
-            setTimeout(() => {
-                navigate('/admin/products');
-            }, 1500);
-
-        } catch (err) {
-            setError(err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật sản phẩm.');
-            console.error('Lỗi khi cập nhật sản phẩm:', err);
-        } finally {
-            setSubmitting(false);
-        }
+  // Lấy danh sách danh mục & địa điểm
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [catRes, locRes] = await Promise.all([
+          axiosInstance.get('/category'),
+          axiosInstance.get('/locations'),
+        ]);
+        setCategories(catRes.data);
+        setLocations(locRes.data);
+      } catch (err) {
+        console.error('Lỗi khi lấy danh mục/địa điểm:', err);
+      }
     };
 
-    // --- Hiển thị Loader khi đang tải dữ liệu ban đầu ---
-    if (loadingInitialData) {
-        return (
-            <div className="container mx-auto p-4 md:p-6 lg:p-8 text-center">
-                <Loader />
-                <p className="text-gray-600 mt-2">Đang tải thông tin sản phẩm và các danh sách...</p>
-            </div>
-        );
+    fetchData();
+  }, []);
+
+  // Xử lý chọn ảnh mới
+  const handleImageChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const res = await axiosInstance.post('/upload', formData);
+      setImage(res.data.url);
+      setImagePreview(URL.createObjectURL(file));
+    } catch (err) {
+      console.error('Lỗi upload ảnh:', err);
     }
+  };
 
-    // --- Hiển thị lỗi nếu không tải được dữ liệu ban đầu ---
-    if (error && !submitting) {
-        return (
-            <div className="container mx-auto p-4 md:p-6 lg:p-8">
-                <p className="text-center text-red-700 bg-red-100 border border-red-400 rounded p-3 mb-4">
-                    {error}
-                    <button onClick={() => navigate('/admin/products')} className="ml-4 text-blue-600 hover:underline">Quay lại danh sách</button>
-                </p>
-            </div>
-        );
+  // Submit cập nhật
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    try {
+      await axiosInstance.put(`/product/${id}`, {
+        name,
+        description,
+        image,
+        category,
+        location,
+        baseVariant: {
+          price: parseFloat(price),
+          stock: parseInt(stock),
+        },
+        variants, // ✅ Giữ lại biến thể cũ
+      });
+
+      alert('Cập nhật sản phẩm thành công!');
+      navigate('/admin/products');
+    } catch (err) {
+      console.error('Lỗi cập nhật sản phẩm:', err);
+      alert('Cập nhật thất bại!');
     }
+  };
 
-    return (
-        <div className="container mx-auto p-4 md:p-6 lg:p-8">
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6">Sửa Sản phẩm</h1>
+  return (
+    <div className="max-w-2xl mx-auto mt-6 bg-white shadow p-6 rounded">
+      <h2 className="text-2xl font-bold mb-4">Cập nhật sản phẩm</h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
 
-            {submitting && ( // Loader khi đang submit form
-                <div className="text-center p-4">
-                    <Loader />
-                    <p className="text-gray-600 mt-2">Đang cập nhật sản phẩm...</p>
-                </div>
-            )}
-
-            {error && submitting && ( // Lỗi khi submit form
-                <p className="text-center text-red-700 bg-red-100 border border-red-400 rounded p-3 mb-4">
-                    {error}
-                </p>
-            )}
-
-            {successMessage && (
-                <p className="text-center text-green-700 bg-green-100 border border-green-400 rounded p-3 mb-4">
-                    {successMessage}
-                </p>
-            )}
-
-            {/* Chỉ hiển thị form khi không đang submit và dữ liệu đã load xong */}
-            {!submitting && (
-                <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-md max-w-lg mx-auto">
-                    {/* Trường Tên */}
-                    <div className="mb-4">
-                        <label htmlFor="name" className="block text-gray-700 text-sm font-bold mb-2">
-                            Tên Sản phẩm: <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            id="name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-500"
-                            placeholder="Nhập tên sản phẩm"
-                            required
-                        />
-                    </div>
-
-                    {/* Trường Mô tả */}
-                    <div className="mb-4">
-                        <label htmlFor="description" className="block text-gray-700 text-sm font-bold mb-2">
-                            Mô tả:
-                        </label>
-                        <textarea
-                            id="description"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-500"
-                            placeholder="Mô tả chi tiết sản phẩm"
-                            rows="3"
-                        ></textarea>
-                    </div>
-
-                    {/* Trường Giá */}
-                    <div className="mb-4">
-                        <label htmlFor="price" className="block text-gray-700 text-sm font-bold mb-2">
-                            Giá: <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="number"
-                            id="price"
-                            value={price}
-                            onChange={(e) => setPrice(e.target.value)}
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-500"
-                            placeholder="Nhập giá sản phẩm"
-                            min="0"
-                            step="0.01"
-                            required
-                        />
-                    </div>
-
-                    {/* Trường URL Hình ảnh */}
-                    <div className="mb-4">
-                        <label htmlFor="image" className="block text-gray-700 text-sm font-bold mb-2">
-                            URL Hình ảnh:
-                        </label>
-                        <input
-                            type="file"
-                            id="imageFile"
-                            accept="image/*"
-                            onChange={handleImageUpload}
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-500"
-                        />
-                        {image && (
-                            <div className="mt-2">
-                                <img
-                                    src={`http://localhost:3000${image}`}
-                                    alt="Xem trước"
-                                    className="h-24 w-24 object-cover rounded-md"
-                                />
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Trường Tồn kho */}
-                    <div className="mb-4">
-                        <label htmlFor="stock" className="block text-gray-700 text-sm font-bold mb-2">
-                            Tồn kho:
-                        </label>
-                        <input
-                            type="number"
-                            id="stock"
-                            value={stock}
-                            onChange={(e) => setStock(e.target.value)}
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-500"
-                            min="0"
-                            required
-                        />
-                    </div>
-
-                    {/* Select cho Category */}
-                    <div className="mb-4">
-                        <label htmlFor="category" className="block text-gray-700 text-sm font-bold mb-2">
-                            Danh mục: <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                            id="category"
-                            value={category}
-                            onChange={(e) => setCategory(e.target.value)}
-                            className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-500"
-                            required
-                            disabled={categories.length === 0} // Disable nếu không có category nào
-                        >
-                            {categories.length > 0 ? (
-                                categories.map((cat) => (
-                                    <option key={cat._id} value={cat._id}>
-                                        {cat.name}
-                                    </option>
-                                ))
-                            ) : (
-                                <option value="">Không có danh mục nào để chọn</option>
-                            )}
-                        </select>
-                        {categories.length === 0 && !loadingInitialData && (
-                            <p className="text-sm text-red-500 mt-1">Vui lòng thêm danh mục trước.</p>
-                        )}
-                    </div>
-
-                    {/* Select cho Location */}
-                    <div className="mb-6">
-                        <label htmlFor="location" className="block text-gray-700 text-sm font-bold mb-2">
-                            Nơi sản xuất: <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                            id="location"
-                            value={location}
-                            onChange={(e) => setLocation(e.target.value)}
-                            className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-500"
-                            required
-                            disabled={locations.length === 0} // Disable nếu không có location nào
-                        >
-                            {locations.length > 0 ? (
-                                locations.map((loc) => (
-                                    <option key={loc._id} value={loc._id}>
-                                        {loc.name}
-                                    </option>
-                                ))
-                            ) : (
-                                <option value="">Không có địa điểm nào để chọn</option>
-                            )}
-                        </select>
-                        {locations.length === 0 && !loadingInitialData && (
-                            <p className="text-sm text-red-500 mt-1">Vui lòng thêm địa điểm trước.</p>
-                        )}
-                    </div>
-
-                    {/* Nút Submit và Hủy */}
-                    <div className="flex items-center justify-between">
-                        <button
-                            type="submit"
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition-colors"
-                            disabled={submitting || categories.length === 0 || locations.length === 0} // Disable khi đang submit hoặc thiếu dữ liệu
-                        >
-                            Cập nhật Sản phẩm
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => navigate('/admin/products')}
-                            className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition-colors"
-                            disabled={submitting}
-                        >
-                            Hủy
-                        </button>
-                    </div>
-                </form>
-            )}
+        <div>
+          <label className="block font-medium">Tên sản phẩm</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            className="w-full border px-3 py-2 rounded"
+          />
         </div>
-    );
+
+        <div>
+          <label className="block font-medium">Mô tả</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            required
+            className="w-full border px-3 py-2 rounded"
+          />
+        </div>
+
+        <div>
+          <label className="block font-medium">Giá gốc (base)</label>
+          <input
+            type="number"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            required
+            className="w-full border px-3 py-2 rounded"
+          />
+        </div>
+
+        <div>
+          <label className="block font-medium">Tồn kho (base)</label>
+          <input
+            type="number"
+            value={stock}
+            onChange={(e) => setStock(e.target.value)}
+            required
+            className="w-full border px-3 py-2 rounded"
+          />
+        </div>
+
+        <div>
+          <label className="block font-medium">Ảnh sản phẩm</label>
+          <input type="file" accept="image/*" onChange={handleImageChange} />
+          {imagePreview && (
+            <img
+              src={imagePreview}
+              alt="Preview"
+              className="mt-2 w-32 h-32 object-cover border rounded"
+            />
+          )}
+        </div>
+
+        <div>
+          <label className="block font-medium">Danh mục</label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            required
+            className="w-full border px-3 py-2 rounded"
+          >
+            <option value="">-- Chọn danh mục --</option>
+            {categories.map((cat) => (
+              <option key={cat._id} value={cat._id}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block font-medium">Địa điểm</label>
+          <select
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            required
+            className="w-full border px-3 py-2 rounded"
+          >
+            <option value="">-- Chọn địa điểm --</option>
+            {locations.map((loc) => (
+              <option key={loc._id} value={loc._id}>
+                {loc.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <button
+          type="submit"
+          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+        >
+          Cập nhật
+        </button>
+      </form>
+    </div>
+  );
 }

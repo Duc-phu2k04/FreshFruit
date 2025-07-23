@@ -25,6 +25,7 @@ import EditLocationForm from "./pages/Admin/Location/Edit";
 import ProductList from "./pages/Admin/Product/List";
 import AddProductForm from "./pages/Admin/Product/Add";
 import EditProductForm from "./pages/Admin/Product/Edit";
+import ProductDetailAdmin from "./pages/Admin/Product/Detail";
 import ProductDetail from "./pages/Product/ProductDetail";
 import UserList from "./pages/Admin/User/List";
 import ReviewList from "./pages/Admin/Reviews/List";
@@ -76,6 +77,8 @@ function App() {
               <Route path="/admin/products" element={<ProductList />} />
               <Route path="/admin/products/add" element={<AddProductForm />} />
               <Route path="/admin/products/edit/:id" element={<EditProductForm />} />
+              <Route path="/admin/products/detail/:id" element={<ProductDetailAdmin />} />
+
               <Route path="/admin/users" element={<UserList />} />
               <Route path="/admin/reviews" element={<ReviewList />} />
               <Route path="/admin/vouchers" element={<VoucherList />} />

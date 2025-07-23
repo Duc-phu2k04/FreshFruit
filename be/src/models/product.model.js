@@ -13,15 +13,12 @@ const variantSchema = new mongoose.Schema({
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
   description: String,
+  image: String,
   category: { type: mongoose.Schema.Types.ObjectId, ref: "Category" },
   location: { type: mongoose.Schema.Types.ObjectId, ref: "Location" },
-
-  // Các option để sinh biến thể
   gradeOptions: [String],
   weightOptions: [String],
   ripenessOptions: [String],
-
-  // Gốc để sinh biến thể
   baseVariant: {
     attributes: {
       grade: String,
@@ -31,7 +28,6 @@ const productSchema = new mongoose.Schema({
     price: Number,
     stock: Number
   },
-
   variants: [variantSchema]
 }, { timestamps: true });
 
