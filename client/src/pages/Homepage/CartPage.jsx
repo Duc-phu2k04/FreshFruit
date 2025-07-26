@@ -180,7 +180,7 @@ function CartPage() {
                       </span>
                     </td>
                     <td className={styles.price}>
-                      {item.product.price.toLocaleString()}₫
+                      {(item.product?.price ?? 0).toLocaleString()}đ
                     </td>
                     <td>
                       <div className={styles.quantityControl}>
