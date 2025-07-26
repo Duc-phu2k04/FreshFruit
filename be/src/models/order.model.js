@@ -1,11 +1,11 @@
 import mongoose from "mongoose";
 
-// Tạo customId dạng: ORD-20250714-153020-xxxx
+// Tạo customId dạng: ORD-yyyyMMdd-HHmmss-xxxx
 function generateCustomId() {
   const now = new Date();
-  const date = now.toISOString().slice(0,10).replace(/-/g, ''); // yyyyMMdd
-  const time = now.toTimeString().slice(0,8).replace(/:/g, ''); // HHmmss
-  const random = Math.floor(1000 + Math.random() * 9000); // 4 số ngẫu nhiên
+  const date = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const time = now.toTimeString().slice(0, 8).replace(/:/g, '');
+  const random = Math.floor(1000 + Math.random() * 9000);
   return `ORD-${date}-${time}-${random}`;
 }
 
@@ -29,6 +29,14 @@ const orderSchema = new mongoose.Schema({
         ref: "Product", 
         required: true 
       },
+      productName: { type: String }, // Lưu tên phòng trường hợp sản phẩm bị xóa
+
+      variant: {
+        grade: { type: String },
+        weight: { type: String },
+        ripeness: { type: String }
+      },
+
       quantity: { type: Number, required: true },
       price: { type: Number, required: true }
     }

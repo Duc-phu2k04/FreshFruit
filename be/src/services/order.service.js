@@ -3,6 +3,15 @@ import Voucher from "../models/voucher.model.js";
 import Product from "../models/product.model.js";
 import Cart from "../models/cart.model.js";
 
+// So sánh biến thể
+const isSameVariant = (a, b) => {
+  return (
+    a.grade === b.grade &&
+    a.weight === b.weight &&
+    a.ripeness === b.ripeness
+  );
+};
+
 export const createOrder = async ({ userId, cartItems, voucher }) => {
   let items = [];
 
@@ -10,10 +19,22 @@ export const createOrder = async ({ userId, cartItems, voucher }) => {
     const product = await Product.findById(item.productId);
     if (!product) throw new Error(`Sản phẩm không tồn tại: ${item.productId}`);
 
+    const variantInfo = item.variant; // { grade, weight, ripeness }
+    if (!variantInfo) throw new Error(`Thiếu thông tin biến thể cho sản phẩm ${product.name}`);
+
+    const matchedVariant = product.variants.find(v =>
+      isSameVariant(v.attributes, variantInfo)
+    );
+
+    if (!matchedVariant) {
+      throw new Error(`Không tìm thấy biến thể phù hợp cho sản phẩm ${product.name}`);
+    }
+
     items.push({
       product: product._id,
       quantity: item.quantity,
-      price: product.price,
+      price: matchedVariant.price,
+      variant: variantInfo // lưu luôn biến thể đã chọn
     });
   }
 
@@ -39,10 +60,7 @@ export const createOrder = async ({ userId, cartItems, voucher }) => {
 
   const total = Math.max(0, subtotal + BASE_SHIPPING_FEE - discountAmount);
 
-  const customId = "ORD" + Date.now();
-
   const order = new Order({
-    customId,
     user: userId,
     items,
     total,
@@ -65,4 +83,3 @@ export const createOrder = async ({ userId, cartItems, voucher }) => {
 
   return order;
 };
-

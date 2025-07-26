@@ -6,27 +6,35 @@ const productController = {
       const {
         name,
         description,
+        image, // ✅ THÊM DÒNG NÀY
         category,
         location,
         gradeOptions,
         weightOptions,
         ripenessOptions,
-        baseVariant
+        baseVariant,
+        variants,
       } = req.body;
 
-      if (!name || !category || !location || !gradeOptions || !weightOptions || !ripenessOptions || !baseVariant) {
+      if (!name || !category || !location || !gradeOptions || !weightOptions || !ripenessOptions) {
         return res.status(400).json({ message: "Thiếu thông tin bắt buộc." });
+      }
+
+      if (!baseVariant && (!variants || variants.length === 0)) {
+        return res.status(400).json({ message: "Phải có baseVariant hoặc ít nhất 1 biến thể trong variants." });
       }
 
       const newProduct = await productService.createProduct({
         name,
         description,
+        image, // ✅ ĐÃ ĐƯỢC KHAI BÁO VÀ TRUYỀN VÀO
         category,
         location,
         gradeOptions,
         weightOptions,
         ripenessOptions,
-        baseVariant
+        baseVariant,
+        variants,
       });
 
       res.status(201).json(newProduct);
