@@ -1,4 +1,3 @@
-// ProductDetail.jsx
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FaStar } from "react-icons/fa";
@@ -14,6 +13,10 @@ export default function ProductDetail() {
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState([]);
   const [successMessage, setSuccessMessage] = useState("");
+
+  const [selectedType, setSelectedType] = useState("");
+  const [selectedWeight, setSelectedWeight] = useState("");
+  const [selectedRipeness, setSelectedRipeness] = useState("");
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -93,6 +96,11 @@ export default function ProductDetail() {
       return;
     }
 
+    if (!selectedType || !selectedWeight || !selectedRipeness) {
+      alert("Vui lòng chọn đầy đủ Phân loại, Khối lượng và Tình trạng trước khi thêm vào giỏ hàng.");
+      return;
+    }
+
     const img =
       e?.currentTarget?.closest(".product-actions")?.parentElement?.parentElement?.querySelector("img");
     if (img) {
@@ -130,7 +138,13 @@ export default function ProductDetail() {
         return;
       }
 
-      const payload = { productId: product._id, quantity: 1 };
+      const payload = {
+        productId: product._id,
+        quantity: 1,
+        type: selectedType,
+        weight: selectedWeight,
+        ripeness: selectedRipeness,
+      };
 
       const res = await fetch("http://localhost:3000/api/cart/add", {
         method: "POST",
@@ -146,12 +160,21 @@ export default function ProductDetail() {
 
       setSuccessMessage("Đã thêm vào giỏ hàng ✔️");
       setTimeout(() => setSuccessMessage(""), 2500);
+
+      setSelectedType("");
+      setSelectedWeight("");
+      setSelectedRipeness("");
     } catch (error) {
       alert("Lỗi: " + error.message);
     }
   };
 
   const handleBuyNow = async (product, e) => {
+    if (!selectedType || !selectedWeight || !selectedRipeness) {
+      alert("Vui lòng chọn đầy đủ Phân loại, Khối lượng và Tình trạng trước khi mua.");
+      return;
+    }
+
     await addToCartServer(product, e);
     navigate("/gio-hang");
   };
@@ -175,6 +198,57 @@ export default function ProductDetail() {
             {product.price.toLocaleString()}đ
           </p>
           <p className="mb-4">{product.description}</p>
+
+          {/* Phân loại (grade) */}
+          <div className="mb-4">
+            <label className="block font-medium mb-1">Phân loại:</label>
+            <select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+              className="border rounded px-3 py-2 w-full"
+            >
+              <option value="">-- Chọn loại --</option>
+              {product.gradeOptions.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Khối lượng (weight) */}
+          <div className="mb-4">
+            <label className="block font-medium mb-1">Khối lượng:</label>
+            <select
+              value={selectedWeight}
+              onChange={(e) => setSelectedWeight(e.target.value)}
+              className="border rounded px-3 py-2 w-full"
+            >
+              <option value="">-- Chọn khối lượng --</option>
+              {product.weightOptions.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Tình trạng (ripeness) */}
+          <div className="mb-4">
+            <label className="block font-medium mb-1">Tình trạng:</label>
+            <select
+              value={selectedRipeness}
+              onChange={(e) => setSelectedRipeness(e.target.value)}
+              className="border rounded px-3 py-2 w-full"
+            >
+              <option value="">-- Chọn tình trạng --</option>
+              {product.ripenessOptions.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div className="flex gap-3 mb-4 product-actions">
             <button
