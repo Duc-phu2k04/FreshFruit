@@ -1,3 +1,4 @@
+// src/pages/Cart/CartPage.jsx
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -36,7 +37,9 @@ function CartPage() {
     if (newQuantity < 1) return;
     setCartItems((prevItems) =>
       prevItems.map((item) =>
-        item.product._id === productId ? { ...item, quantity: newQuantity } : item
+        item.product && item.product._id === productId
+          ? { ...item, quantity: newQuantity }
+          : item
       )
     );
     try {
@@ -55,7 +58,7 @@ function CartPage() {
 
   const removeFromCart = async (productId) => {
     setCartItems((prevItems) =>
-      prevItems.filter((item) => item.product._id !== productId)
+      prevItems.filter((item) => item.product && item.product._id !== productId)
     );
     setSelectedItems((prev) => prev.filter((id) => id !== productId));
     try {
@@ -82,18 +85,17 @@ function CartPage() {
     if (selectAll) {
       setSelectedItems([]);
     } else {
-      setSelectedItems(cartItems.map((item) => item.product._id));
+      const validIds = cartItems
+        .filter((item) => item.product && item.product._id)
+        .map((item) => item.product._id);
+      setSelectedItems(validIds);
     }
     setSelectAll(!selectAll);
   };
 
-  const getProductPrice = (product) => {
-    return product?.price ?? product?.baseVariant?.price ?? 0;
-  };
-
   const handleCheckout = () => {
-    const selectedProducts = cartItems.filter((item) =>
-      selectedItems.includes(item.product._id)
+    const selectedProducts = cartItems.filter(
+      (item) => item.product && selectedItems.includes(item.product._id)
     );
 
     if (selectedProducts.length === 0) {
@@ -102,7 +104,7 @@ function CartPage() {
     }
 
     const sumPrice = selectedProducts.reduce(
-      (total, item) => total + getProductPrice(item.product) * item.quantity,
+      (total, item) => total + (item.product.price || 0) * item.quantity,
       0
     );
 
@@ -111,7 +113,7 @@ function CartPage() {
         _id: item.product._id,
         nameProduct: item.product.name,
         quantity: item.quantity,
-        price: getProductPrice(item.product),
+        price: item.product.price,
       })),
       sumPrice,
     };
@@ -120,10 +122,10 @@ function CartPage() {
   };
 
   const totalPrice = cartItems.reduce((acc, item) => {
-    const price = getProductPrice(item.product);
-    return selectedItems.includes(item.product._id)
-      ? acc + price * item.quantity
-      : acc;
+    if (item.product && selectedItems.includes(item.product._id)) {
+      return acc + (item.product.price || 0) * item.quantity;
+    }
+    return acc;
   }, 0);
 
   return (
@@ -161,10 +163,9 @@ function CartPage() {
                 </tr>
               </thead>
               <tbody>
-                {cartItems.map((item) => {
-                  const price = getProductPrice(item.product);
-                  return (
-                    <tr key={item.product._id}>
+                {cartItems.map((item, index) =>
+                  item.product ? (
+                    <tr key={item.product._id || index}>
                       <td>
                         <input
                           type="checkbox"
@@ -184,7 +185,7 @@ function CartPage() {
                         </span>
                       </td>
                       <td className={styles.price}>
-                        {(price * item.quantity).toLocaleString()}₫
+                        {(item.product.price ?? 0).toLocaleString()}đ
                       </td>
                       <td>
                         <div className={styles.quantityControl}>
@@ -216,8 +217,8 @@ function CartPage() {
                         </button>
                       </td>
                     </tr>
-                  );
-                })}
+                  ) : null
+                )}
               </tbody>
             </table>
           </div>
@@ -226,7 +227,7 @@ function CartPage() {
             <div className={styles.totalPrice}>
               Tổng:{" "}
               <span className="font-semibold text-green-700">
-                {(totalPrice ?? 0).toLocaleString()}₫
+                {totalPrice.toLocaleString()}₫
               </span>
             </div>
             <button onClick={handleCheckout} className={styles.orderButton}>

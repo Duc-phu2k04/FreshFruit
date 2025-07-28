@@ -25,6 +25,7 @@ export default function ProductDetail() {
         const data = await res.json();
         setProduct(data);
 
+        // Lấy sản phẩm liên quan
         const relatedRes = await fetch(
           `http://localhost:3000/api/product?category=${data.category._id}`
         );
@@ -195,11 +196,13 @@ export default function ProductDetail() {
         <div>
           <h1 className="text-4xl font-bold mb-3">{product.name}</h1>
           <p className="text-green-700 text-2xl font-semibold mb-4">
-            {product.price.toLocaleString()}đ
+            {/* ✅ Sửa lỗi: kiểm tra tồn tại trước khi gọi toLocaleString */}
+            {product.price ? `${product.price.toLocaleString()}đ` : "Giá: Đang cập nhật"}
           </p>
           <p className="mb-4">{product.description}</p>
 
-          {/* Phân loại (grade) */}
+          {/* ... (các select phân loại như cũ) */}
+
           <div className="mb-4">
             <label className="block font-medium mb-1">Phân loại:</label>
             <select
@@ -208,7 +211,7 @@ export default function ProductDetail() {
               className="border rounded px-3 py-2 w-full"
             >
               <option value="">-- Chọn loại --</option>
-              {product.gradeOptions.map((opt) => (
+              {product.gradeOptions?.map((opt) => (
                 <option key={opt} value={opt}>
                   {opt}
                 </option>
@@ -216,7 +219,6 @@ export default function ProductDetail() {
             </select>
           </div>
 
-          {/* Khối lượng (weight) */}
           <div className="mb-4">
             <label className="block font-medium mb-1">Khối lượng:</label>
             <select
@@ -225,7 +227,7 @@ export default function ProductDetail() {
               className="border rounded px-3 py-2 w-full"
             >
               <option value="">-- Chọn khối lượng --</option>
-              {product.weightOptions.map((opt) => (
+              {product.weightOptions?.map((opt) => (
                 <option key={opt} value={opt}>
                   {opt}
                 </option>
@@ -233,7 +235,6 @@ export default function ProductDetail() {
             </select>
           </div>
 
-          {/* Tình trạng (ripeness) */}
           <div className="mb-4">
             <label className="block font-medium mb-1">Tình trạng:</label>
             <select
@@ -242,7 +243,7 @@ export default function ProductDetail() {
               className="border rounded px-3 py-2 w-full"
             >
               <option value="">-- Chọn tình trạng --</option>
-              {product.ripenessOptions.map((opt) => (
+              {product.ripenessOptions?.map((opt) => (
                 <option key={opt} value={opt}>
                   {opt}
                 </option>
@@ -250,6 +251,7 @@ export default function ProductDetail() {
             </select>
           </div>
 
+          {/* Nút thêm giỏ hàng và mua ngay */}
           <div className="flex gap-3 mb-4 product-actions">
             <button
               className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600"
@@ -265,6 +267,7 @@ export default function ProductDetail() {
             </button>
           </div>
 
+          {/* Gửi đánh giá */}
           <div className="mb-6">
             <h3 className="font-semibold mb-2">Đánh giá sản phẩm:</h3>
             <div className="flex">
@@ -303,7 +306,7 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      {/* Đánh giá của khách hàng */}
+      {/* Đánh giá khách hàng */}
       <div className="mt-10">
         <h3 className="text-2xl font-semibold mb-4">Đánh giá của khách hàng:</h3>
         {comments.length === 0 ? (
@@ -359,7 +362,8 @@ export default function ProductDetail() {
               <img src={item.image} alt={item.name} className="w-full h-40 object-cover rounded" />
               <h4 className="mt-2 font-semibold text-lg">{item.name}</h4>
               <p className="text-green-700 font-semibold">
-                {item.price.toLocaleString()}đ
+                {/* ✅ Kiểm tra tồn tại trước khi gọi toLocaleString */}
+                {item.price ? `${item.price.toLocaleString()}đ` : "Giá: Đang cập nhật"}
               </p>
             </div>
           ))}

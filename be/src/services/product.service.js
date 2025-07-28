@@ -1,3 +1,4 @@
+// src/services/product.service.js
 import Product from '../models/product.model.js';
 
 const isEqualVariant = (v1, v2) => {
@@ -13,15 +14,9 @@ const generateVariants = (grades, weights, ripenesses, baseVariant) => {
   for (const grade of grades) {
     for (const weight of weights) {
       for (const ripeness of ripenesses) {
-        // Nếu là biến thể cơ bản, bỏ qua không tạo lại
-        if (
-          isEqualVariant({ grade, weight, ripeness }, baseVariant)
-        ) continue;
-
+        if (isEqualVariant({ grade, weight, ripeness }, baseVariant)) continue;
         variants.push({
-          grade,
-          weight,
-          ripeness,
+          attributes: { grade, weight, ripeness },
           price: baseVariant.price,
           stock: 0
         });
@@ -69,12 +64,17 @@ const productService = {
 
     let variants = [];
 
-    // Nếu FE gửi sẵn variants thì dùng luôn
     if (Array.isArray(inputVariants) && inputVariants.length > 0) {
-      variants = inputVariants;
-    }
-    // Nếu không có variants mà baseVariant là mặc định thì sinh tự động
-    else if (isDefaultBase && hasFullBase) {
+      variants = inputVariants.map(v => ({
+        attributes: {
+          grade: v.grade,
+          weight: v.weight,
+          ripeness: v.ripeness,
+        },
+        price: v.price,
+        stock: v.stock
+      }));
+    } else if (isDefaultBase && hasFullBase) {
       variants = generateVariants(gradeList, weightList, ripenessList, baseAttrs);
     }
 
@@ -88,15 +88,37 @@ const productService = {
       weightOptions: weightList,
       ripenessOptions: ripenessList,
       baseVariant: {
-        ...baseVariant,
-        grade: baseAttrs.grade,
-        weight: baseAttrs.weight,
-        ripeness: baseAttrs.ripeness
+        attributes: {
+          grade: baseAttrs.grade,
+          weight: baseAttrs.weight,
+          ripeness: baseAttrs.ripeness
+        },
+        price: baseVariant.price,
+        stock: baseVariant.stock
       },
       variants
     });
 
     await product.save();
+    return product;
+  },
+
+  getAllProducts: async () => {
+    const products = await Product.find({}).lean();
+    return products.map(p => ({
+      _id: p._id,
+      name: p.name,
+      description: p.description,
+      image: p.image,
+      category: p.category,
+      location: p.location,
+      price: p.baseVariant?.price ?? 0,
+    }));
+  },
+
+  // ✅ Hàm cần thêm để sửa lỗi 500
+  getProductById: async (id) => {
+    const product = await Product.findById(id).lean();
     return product;
   }
 };
