@@ -87,42 +87,44 @@ function CartPage() {
     setSelectAll(!selectAll);
   };
 
-  const handleCheckout = () => {
-  const selectedProducts = cartItems.filter((item) =>
-    selectedItems.includes(item.product._id)
-  );
-
-  if (selectedProducts.length === 0) {
-    setErrorMsg("Vui lòng chọn ít nhất 1 sản phẩm để đặt hàng.");
-    return;
-  }
-
-  const sumPrice = selectedProducts.reduce(
-    (total, item) => total + item.product.price * item.quantity,
-    0
-  );
-
-  // Dữ liệu bạn cần gửi sang trang checkout
-  const payload = {
-    products: selectedProducts.map(item => ({
-      _id: item.product._id,
-      nameProduct: item.product.name,
-      quantity: item.quantity,
-      price: item.product.price,
-    })),
-    sumPrice,
+  const getProductPrice = (product) => {
+    return product?.price ?? product?.baseVariant?.price ?? 0;
   };
 
-  navigate("/checkout", { state: { cartData: payload } });
-};
-
-  const totalPrice = cartItems.reduce(
-    (acc, item) =>
+  const handleCheckout = () => {
+    const selectedProducts = cartItems.filter((item) =>
       selectedItems.includes(item.product._id)
-        ? acc + item.product.price * item.quantity
-        : acc,
-    0
-  );
+    );
+
+    if (selectedProducts.length === 0) {
+      setErrorMsg("Vui lòng chọn ít nhất 1 sản phẩm để đặt hàng.");
+      return;
+    }
+
+    const sumPrice = selectedProducts.reduce(
+      (total, item) => total + getProductPrice(item.product) * item.quantity,
+      0
+    );
+
+    const payload = {
+      products: selectedProducts.map((item) => ({
+        _id: item.product._id,
+        nameProduct: item.product.name,
+        quantity: item.quantity,
+        price: getProductPrice(item.product),
+      })),
+      sumPrice,
+    };
+
+    navigate("/checkout", { state: { cartData: payload } });
+  };
+
+  const totalPrice = cartItems.reduce((acc, item) => {
+    const price = getProductPrice(item.product);
+    return selectedItems.includes(item.product._id)
+      ? acc + price * item.quantity
+      : acc;
+  }, 0);
 
   return (
     <div className={`${styles.container} mx-auto max-w-[1300px]`}>
@@ -159,60 +161,63 @@ function CartPage() {
                 </tr>
               </thead>
               <tbody>
-                {cartItems.map((item) => (
-                  <tr key={item.product._id}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        className={styles.checkbox}
-                        checked={selectedItems.includes(item.product._id)}
-                        onChange={() => handleSelectItem(item.product._id)}
-                      />
-                    </td>
-                    <td className="flex items-center gap-4">
-                      <img
-                         src={`http://localhost:3000${item.product.image}`}
-                        alt={item.product.name}
-                        className={styles.productImage}
-                      />
-                      <span className={styles.productName}>
-                        {item.product.name}
-                      </span>
-                    </td>
-                    <td className={styles.price}>
-                      {(item.product?.price ?? 0).toLocaleString()}đ
-                    </td>
-                    <td>
-                      <div className={styles.quantityControl}>
+                {cartItems.map((item) => {
+                  const price = getProductPrice(item.product);
+                  return (
+                    <tr key={item.product._id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          className={styles.checkbox}
+                          checked={selectedItems.includes(item.product._id)}
+                          onChange={() => handleSelectItem(item.product._id)}
+                        />
+                      </td>
+                      <td className="flex items-center gap-4">
+                        <img
+                          src={`http://localhost:3000${item.product.image}`}
+                          alt={item.product.name}
+                          className={styles.productImage}
+                        />
+                        <span className={styles.productName}>
+                          {item.product.name}
+                        </span>
+                      </td>
+                      <td className={styles.price}>
+                        {(price * item.quantity).toLocaleString()}₫
+                      </td>
+                      <td>
+                        <div className={styles.quantityControl}>
+                          <button
+                            onClick={() =>
+                              updateQuantity(item.product._id, item.quantity - 1)
+                            }
+                            className={styles.quantityButton}
+                          >
+                            -
+                          </button>
+                          <span>{item.quantity}</span>
+                          <button
+                            onClick={() =>
+                              updateQuantity(item.product._id, item.quantity + 1)
+                            }
+                            className={styles.quantityButton}
+                          >
+                            +
+                          </button>
+                        </div>
+                      </td>
+                      <td className="text-center">
                         <button
-                          onClick={() =>
-                            updateQuantity(item.product._id, item.quantity - 1)
-                          }
-                          className={styles.quantityButton}
+                          onClick={() => removeFromCart(item.product._id)}
+                          className={styles.removeButton}
                         >
-                          -
+                          Hủy đơn
                         </button>
-                        <span>{item.quantity}</span>
-                        <button
-                          onClick={() =>
-                            updateQuantity(item.product._id, item.quantity + 1)
-                          }
-                          className={styles.quantityButton}
-                        >
-                          +
-                        </button>
-                      </div>
-                    </td>
-                    <td className="text-center">
-                      <button
-                        onClick={() => removeFromCart(item.product._id)}
-                        className={styles.removeButton}
-                      >
-                        Hủy đơn
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -221,7 +226,7 @@ function CartPage() {
             <div className={styles.totalPrice}>
               Tổng:{" "}
               <span className="font-semibold text-green-700">
-                {totalPrice.toLocaleString()}₫
+                {(totalPrice ?? 0).toLocaleString()}₫
               </span>
             </div>
             <button onClick={handleCheckout} className={styles.orderButton}>

@@ -216,7 +216,7 @@ export default function ProductListPage() {
                     <div className="product-info">
                       <h2 className="product-name">{product.name}</h2>
                       <p className="product-price">
-                        {(product.price ?? 0).toLocaleString()}đ
+                        {(product.baseVariant?.price ?? product.price ?? 0).toLocaleString()}đ
                       </p>
                       <p className="product-description line-clamp-2 text-sm text-gray-600">
                         {product.description || "Trái cây sạch chất lượng cao."}
