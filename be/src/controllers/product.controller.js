@@ -6,7 +6,7 @@ const productController = {
       const {
         name,
         description,
-        image, // ✅ THÊM DÒNG NÀY
+        image,
         category,
         location,
         gradeOptions,
@@ -27,7 +27,7 @@ const productController = {
       const newProduct = await productService.createProduct({
         name,
         description,
-        image, // ✅ ĐÃ ĐƯỢC KHAI BÁO VÀ TRUYỀN VÀO
+        image,
         category,
         location,
         gradeOptions,
@@ -46,7 +46,7 @@ const productController = {
 
   getAll: async (req, res) => {
     try {
-      const products = await productService.getAllProducts();
+      const products = await productService.getAllProducts(); // ✅ Gọi hàm mới được thêm
       res.json(products);
     } catch (error) {
       res.status(500).json({ message: 'Lỗi server', error: error.message });

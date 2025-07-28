@@ -5,8 +5,8 @@ import { verifyToken, isAdmin } from "../middlewares/auth.middleware.js";
 const router = express.Router();
 
 // PUBLIC
-router.get("/", productController.getAll);                  // Lấy tất cả sản phẩm
-router.get("/related/:id", productController.getById); // Lấy sản phẩm liên quan
+router.get("/", productController.getAll);                  // ✅ Lấy tất cả sản phẩm
+router.get("/related/:id", productController.getById);     // Lấy sản phẩm liên quan
 router.get("/:id", productController.getById);              // Lấy sản phẩm theo id
 
 // ADMIN
