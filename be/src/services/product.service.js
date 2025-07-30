@@ -1,81 +1,66 @@
-import Product from '../models/product.model.js';
+import Product from "../models/product.model.js";
 
-const isEqualVariant = (v1, v2) => {
-  return (
-    v1.grade === v2.grade &&
-    v1.weight === v2.weight &&
-    v1.ripeness === v2.ripeness
-  );
-};
-
-const generateVariants = (grades, weights, ripenesses, baseVariant) => {
+// Hàm sinh biến thể từ baseVariant
+const generateVariants = (weights, ripenesses, baseVariant) => {
   const variants = [];
-  for (const grade of grades) {
-    for (const weight of weights) {
-      for (const ripeness of ripenesses) {
-        // Nếu là biến thể cơ bản, bỏ qua không tạo lại
-        if (
-          isEqualVariant({ grade, weight, ripeness }, baseVariant)
-        ) continue;
+  const basePrice = Number(baseVariant.price); // Ép sang số
 
-        variants.push({
-          grade,
-          weight,
-          ripeness,
-          price: baseVariant.price,
-          stock: 0
-        });
+  if (isNaN(basePrice)) {
+    throw new Error("Giá baseVariant không hợp lệ");
+  }
+
+  const weightMultiplier = {
+    "0.5kg": 0.5,
+    "1kg": 1,
+    "1.5kg": 1.5,
+    "2kg": 2
+  };
+
+  for (const weight of weights) {
+    for (const ripeness of ripenesses) {
+      // Bỏ qua biến thể gốc
+      if (weight === baseVariant.attributes.weight && ripeness === baseVariant.attributes.ripeness) {
+        continue;
       }
+
+      const multiplier = weightMultiplier[weight] ?? 1;
+      const price = Math.round(basePrice * multiplier);
+
+      variants.push({
+        attributes: { weight, ripeness },
+        price,
+        stock: 0
+      });
     }
   }
   return variants;
 };
 
 const productService = {
+  // Tạo sản phẩm
   createProduct: async (data) => {
     const {
-      name,
-      description,
-      image,
-      category,
-      location,
-      gradeOptions = [],
-      weightOptions = [],
-      ripenessOptions = [],
-      baseVariant,
-      variants: inputVariants
+      name, description, image, category, location,
+      weightOptions = [], ripenessOptions = [],
+      baseVariant, variants: inputVariants
     } = data;
 
-    const gradeList = gradeOptions.length ? gradeOptions : ["A", "B", "C"];
-    const weightList = weightOptions.length ? weightOptions : ["1kg", "2kg"];
-    const ripenessList = ripenessOptions.length ? ripenessOptions : ["Chín", "Xanh"];
-
-    const baseAttrs = {
-      grade: baseVariant?.grade,
-      weight: baseVariant?.weight,
-      ripeness: baseVariant?.ripeness
-    };
-
-    const hasFullBase =
-      baseAttrs.grade && baseAttrs.weight && baseAttrs.ripeness &&
-      typeof baseVariant?.price === 'number' &&
-      typeof baseVariant?.stock === 'number';
-
-    const isDefaultBase = isEqualVariant(baseAttrs, {
-      grade: "A",
-      weight: "1kg",
-      ripeness: "Chín"
-    });
-
     let variants = [];
+    let displayVariant = null;
 
-    // Nếu FE gửi sẵn variants thì dùng luôn
+    // Nếu gửi sẵn variants thủ công
     if (Array.isArray(inputVariants) && inputVariants.length > 0) {
       variants = inputVariants;
+      displayVariant = inputVariants[0];
     }
-    // Nếu không có variants mà baseVariant là mặc định thì sinh tự động
-    else if (isDefaultBase && hasFullBase) {
-      variants = generateVariants(gradeList, weightList, ripenessList, baseAttrs);
+    // Nếu có baseVariant → tự sinh variants còn lại
+    else if (baseVariant?.attributes && typeof baseVariant.price !== "undefined") {
+      baseVariant.price = Number(baseVariant.price);
+      if (isNaN(baseVariant.price)) {
+        throw new Error("Giá baseVariant không hợp lệ");
+      }
+      variants = generateVariants(weightOptions, ripenessOptions, baseVariant);
+      displayVariant = baseVariant;
     }
 
     const product = new Product({
@@ -84,16 +69,51 @@ const productService = {
       image,
       category,
       location,
-      gradeOptions: gradeList,
-      weightOptions: weightList,
-      ripenessOptions: ripenessList,
-      baseVariant: {
-        ...baseVariant,
-        grade: baseAttrs.grade,
-        weight: baseAttrs.weight,
-        ripeness: baseAttrs.ripeness
-      },
-      variants
+      weightOptions,
+      ripenessOptions,
+      baseVariant,
+      variants,
+      displayVariant
+    });
+
+    await product.save();
+    return product;
+  },
+
+  // Lấy tất cả sản phẩm
+  getAllProducts: async () => {
+    const products = await Product.find()
+      .populate("category", "name")
+      .populate("location", "name");
+    return { data: products };
+  },
+
+  // Lấy sản phẩm theo ID
+  getProductById: async (id) => {
+    return await Product.findById(id)
+      .populate("category", "name")
+      .populate("location", "name");
+  },
+
+  // Cập nhật sản phẩm
+  updateProduct: async (id, data) => {
+    return await Product.findByIdAndUpdate(id, data, { new: true });
+  },
+
+  // Xoá sản phẩm
+  deleteProduct: async (id) => {
+    return await Product.findByIdAndDelete(id);
+  },
+
+  // Xoá 1 hoặc nhiều biến thể
+  deleteVariants: async (productId, attributesList) => {
+    const product = await Product.findById(productId);
+    if (!product) return null;
+
+    product.variants = product.variants.filter(v => {
+      return !attributesList.some(attr =>
+        v.attributes.weight === attr.weight && v.attributes.ripeness === attr.ripeness
+      );
     });
 
     await product.save();
