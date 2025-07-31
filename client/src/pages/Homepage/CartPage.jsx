@@ -1,3 +1,4 @@
+// src/pages/Cart/CartPage.jsx
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -36,7 +37,9 @@ function CartPage() {
     if (newQuantity < 1) return;
     setCartItems((prevItems) =>
       prevItems.map((item) =>
-        item.product._id === productId ? { ...item, quantity: newQuantity } : item
+        item.product && item.product._id === productId
+          ? { ...item, quantity: newQuantity }
+          : item
       )
     );
     try {
@@ -55,7 +58,7 @@ function CartPage() {
 
   const removeFromCart = async (productId) => {
     setCartItems((prevItems) =>
-      prevItems.filter((item) => item.product._id !== productId)
+      prevItems.filter((item) => item.product && item.product._id !== productId)
     );
     setSelectedItems((prev) => prev.filter((id) => id !== productId));
     try {
@@ -82,47 +85,48 @@ function CartPage() {
     if (selectAll) {
       setSelectedItems([]);
     } else {
-      setSelectedItems(cartItems.map((item) => item.product._id));
+      const validIds = cartItems
+        .filter((item) => item.product && item.product._id)
+        .map((item) => item.product._id);
+      setSelectedItems(validIds);
     }
     setSelectAll(!selectAll);
   };
 
   const handleCheckout = () => {
-  const selectedProducts = cartItems.filter((item) =>
-    selectedItems.includes(item.product._id)
-  );
+    const selectedProducts = cartItems.filter(
+      (item) => item.product && selectedItems.includes(item.product._id)
+    );
 
-  if (selectedProducts.length === 0) {
-    setErrorMsg("Vui lòng chọn ít nhất 1 sản phẩm để đặt hàng.");
-    return;
-  }
+    if (selectedProducts.length === 0) {
+      setErrorMsg("Vui lòng chọn ít nhất 1 sản phẩm để đặt hàng.");
+      return;
+    }
 
-  const sumPrice = selectedProducts.reduce(
-    (total, item) => total + item.product.price * item.quantity,
-    0
-  );
+    const sumPrice = selectedProducts.reduce(
+      (total, item) => total + (item.product.price || 0) * item.quantity,
+      0
+    );
 
-  // Dữ liệu bạn cần gửi sang trang checkout
-  const payload = {
-    products: selectedProducts.map(item => ({
-      _id: item.product._id,
-      nameProduct: item.product.name,
-      quantity: item.quantity,
-      price: item.product.price,
-    })),
-    sumPrice,
+    const payload = {
+      products: selectedProducts.map((item) => ({
+        _id: item.product._id,
+        nameProduct: item.product.name,
+        quantity: item.quantity,
+        price: item.product.price,
+      })),
+      sumPrice,
+    };
+
+    navigate("/checkout", { state: { cartData: payload } });
   };
 
-  navigate("/checkout", { state: { cartData: payload } });
-};
-
-  const totalPrice = cartItems.reduce(
-    (acc, item) =>
-      selectedItems.includes(item.product._id)
-        ? acc + item.product.price * item.quantity
-        : acc,
-    0
-  );
+  const totalPrice = cartItems.reduce((acc, item) => {
+    if (item.product && selectedItems.includes(item.product._id)) {
+      return acc + (item.product.price || 0) * item.quantity;
+    }
+    return acc;
+  }, 0);
 
   return (
     <div className={`${styles.container} mx-auto max-w-[1300px]`}>
@@ -159,60 +163,62 @@ function CartPage() {
                 </tr>
               </thead>
               <tbody>
-                {cartItems.map((item) => (
-                  <tr key={item.product._id}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        className={styles.checkbox}
-                        checked={selectedItems.includes(item.product._id)}
-                        onChange={() => handleSelectItem(item.product._id)}
-                      />
-                    </td>
-                    <td className="flex items-center gap-4">
-                      <img
-                         src={`http://localhost:3000${item.product.image}`}
-                        alt={item.product.name}
-                        className={styles.productImage}
-                      />
-                      <span className={styles.productName}>
-                        {item.product.name}
-                      </span>
-                    </td>
-                    <td className={styles.price}>
-                      {(item.product?.price ?? 0).toLocaleString()}đ
-                    </td>
-                    <td>
-                      <div className={styles.quantityControl}>
+                {cartItems.map((item, index) =>
+                  item.product ? (
+                    <tr key={item.product._id || index}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          className={styles.checkbox}
+                          checked={selectedItems.includes(item.product._id)}
+                          onChange={() => handleSelectItem(item.product._id)}
+                        />
+                      </td>
+                      <td className="flex items-center gap-4">
+                        <img
+                          src={`http://localhost:3000${item.product.image}`}
+                          alt={item.product.name}
+                          className={styles.productImage}
+                        />
+                        <span className={styles.productName}>
+                          {item.product.name}
+                        </span>
+                      </td>
+                      <td className={styles.price}>
+                        {(item.product.price ?? 0).toLocaleString()}đ
+                      </td>
+                      <td>
+                        <div className={styles.quantityControl}>
+                          <button
+                            onClick={() =>
+                              updateQuantity(item.product._id, item.quantity - 1)
+                            }
+                            className={styles.quantityButton}
+                          >
+                            -
+                          </button>
+                          <span>{item.quantity}</span>
+                          <button
+                            onClick={() =>
+                              updateQuantity(item.product._id, item.quantity + 1)
+                            }
+                            className={styles.quantityButton}
+                          >
+                            +
+                          </button>
+                        </div>
+                      </td>
+                      <td className="text-center">
                         <button
-                          onClick={() =>
-                            updateQuantity(item.product._id, item.quantity - 1)
-                          }
-                          className={styles.quantityButton}
+                          onClick={() => removeFromCart(item.product._id)}
+                          className={styles.removeButton}
                         >
-                          -
+                          Hủy đơn
                         </button>
-                        <span>{item.quantity}</span>
-                        <button
-                          onClick={() =>
-                            updateQuantity(item.product._id, item.quantity + 1)
-                          }
-                          className={styles.quantityButton}
-                        >
-                          +
-                        </button>
-                      </div>
-                    </td>
-                    <td className="text-center">
-                      <button
-                        onClick={() => removeFromCart(item.product._id)}
-                        className={styles.removeButton}
-                      >
-                        Hủy đơn
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  ) : null
+                )}
               </tbody>
             </table>
           </div>

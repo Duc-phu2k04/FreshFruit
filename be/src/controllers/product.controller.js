@@ -4,6 +4,39 @@ const productController = {
   create: async (req, res) => {
     try {
       const newProduct = await productService.createProduct(req.body);
+      const {
+        name,
+        description,
+        image,
+        category,
+        location,
+        gradeOptions,
+        weightOptions,
+        ripenessOptions,
+        baseVariant,
+        variants,
+      } = req.body;
+
+      if (!name || !category || !location || !gradeOptions || !weightOptions || !ripenessOptions) {
+        return res.status(400).json({ message: "Thiếu thông tin bắt buộc." });
+      }
+
+      if (!baseVariant && (!variants || variants.length === 0)) {
+        return res.status(400).json({ message: "Phải có baseVariant hoặc ít nhất 1 biến thể trong variants." });
+      }
+
+      const newProduct = await productService.createProduct({
+        name,
+        description,
+        image,
+        category,
+        location,
+        gradeOptions,
+        weightOptions,
+        ripenessOptions,
+        baseVariant,
+        variants,
+      });
       res.status(201).json(newProduct);
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
@@ -12,7 +45,7 @@ const productController = {
 
   getAll: async (req, res) => {
     try {
-      const products = await productService.getAllProducts();
+      const products = await productService.getAllProducts(); // ✅ Gọi hàm mới được thêm
       res.json(products);
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
