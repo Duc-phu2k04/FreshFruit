@@ -11,18 +11,20 @@ export default function Add() {
   const [locations, setLocations] = useState([]);
   const [preview, setPreview] = useState(null);
 
-  const [gradeOptions] = useState(["A", "B", "C"]);
-  const [weightOptions] = useState(["0.5kg", "1kg", "1.5kg", "2kg"]);
-  const [ripenessOptions] = useState(["Chín", "Xanh"]);
+  const weightOptions = ["0.5kg", "1kg", "1.5kg", "2kg"];
+  const ripenessOptions = ["Chín", "Xanh", "Chín vừa"];
 
-  const [baseGrade, setBaseGrade] = useState("A");
-  const [baseWeight, setBaseWeight] = useState("1kg");
-  const [baseRipeness, setBaseRipeness] = useState("Chín");
+  const [selectedWeights, setSelectedWeights] = useState([]);
+  const [selectedRipeness, setSelectedRipeness] = useState([]);
+
+  const [baseWeight, setBaseWeight] = useState("");
+  const [baseRipeness, setBaseRipeness] = useState("");
   const [price, setPrice] = useState("");
   const [stock, setStock] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
 
+  // Lấy danh mục & địa điểm
   useEffect(() => {
     const fetchData = async () => {
       const [catRes, locRes] = await Promise.all([
@@ -32,10 +34,24 @@ export default function Add() {
       setCategories(catRes.data);
       setLocations(locRes.data);
     };
-
     fetchData();
   }, []);
 
+  // Toggle chọn weight
+  const toggleWeight = (w) => {
+    setSelectedWeights((prev) =>
+      prev.includes(w) ? prev.filter((x) => x !== w) : [...prev, w]
+    );
+  };
+
+  // Toggle chọn ripeness
+  const toggleRipeness = (r) => {
+    setSelectedRipeness((prev) =>
+      prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]
+    );
+  };
+
+  // Upload ảnh
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -46,11 +62,7 @@ export default function Add() {
     try {
       const res = await axiosInstance.post("/upload", formData);
       const imagePath = res.data.imagePath;
-
-      // ✅ Gửi imagePath về BE (ví dụ: /images/abc.jpg)
       setImage(imagePath);
-
-      // ✅ Hiển thị ảnh đúng từ server BE ở cổng 3000
       setPreview(`http://localhost:3000${imagePath}`);
     } catch (err) {
       console.error("Lỗi upload ảnh:", err);
@@ -58,21 +70,30 @@ export default function Add() {
     }
   };
 
+  // Submit
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (selectedWeights.length === 0 || selectedRipeness.length === 0) {
+      alert("❌ Vui lòng chọn ít nhất 1 khối lượng và 1 tình trạng");
+      return;
+    }
+
+    if (!baseWeight || !baseRipeness) {
+      alert("❌ Vui lòng chọn baseVariant");
+      return;
+    }
 
     const newProduct = {
       name,
       description,
-      image, // ➜ Đường dẫn tương đối
+      image,
       category,
       location,
-      gradeOptions,
-      weightOptions,
-      ripenessOptions,
+      weightOptions: selectedWeights,
+      ripenessOptions: selectedRipeness,
       baseVariant: {
         attributes: {
-          grade: baseGrade,
           weight: baseWeight,
           ripeness: baseRipeness,
         },
@@ -85,6 +106,19 @@ export default function Add() {
       setSubmitting(true);
       await axiosInstance.post("/product/add", newProduct);
       alert("✅ Thêm sản phẩm thành công!");
+      // Reset form
+      setName("");
+      setDescription("");
+      setImage("");
+      setPreview(null);
+      setCategory("");
+      setLocation("");
+      setSelectedWeights([]);
+      setSelectedRipeness([]);
+      setBaseWeight("");
+      setBaseRipeness("");
+      setPrice("");
+      setStock("");
     } catch (err) {
       console.error("🔴 Lỗi:", err.response?.data || err);
       alert("❌ Lỗi khi thêm sản phẩm.");
@@ -97,7 +131,7 @@ export default function Add() {
     "border border-gray-300 rounded-lg px-4 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500";
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white rounded-xl shadow">
+    <div className="max-w-3xl mx-auto p-6 bg-white rounded-xl shadow">
       <h1 className="text-2xl font-bold mb-4">Thêm sản phẩm</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         <input
@@ -116,20 +150,17 @@ export default function Add() {
           required
         />
 
-        <input
-          type="file"
-          accept="image/*"
-          onChange={handleImageUpload}
-          className={inputStyle}
-        />
+        {/* Upload ảnh */}
+        <input type="file" accept="image/*" onChange={handleImageUpload} />
         {preview && (
           <img
             src={preview}
             alt="Ảnh xem trước"
-            className="w-32 h-32 object-cover rounded-lg mt-2 border border-gray-300"
+            className="w-32 h-32 object-cover rounded-lg mt-2 border"
           />
         )}
 
+        {/* Chọn danh mục */}
         <select
           className={inputStyle}
           value={category}
@@ -144,6 +175,7 @@ export default function Add() {
           ))}
         </select>
 
+        {/* Chọn địa điểm */}
         <select
           className={inputStyle}
           value={location}
@@ -158,24 +190,48 @@ export default function Add() {
           ))}
         </select>
 
-        <div className="grid grid-cols-3 gap-2">
-          <select
-            className={inputStyle}
-            value={baseGrade}
-            onChange={(e) => setBaseGrade(e.target.value)}
-          >
-            {gradeOptions.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
+        {/* Chọn biến thể */}
+        <div>
+          <h3 className="font-semibold">Chọn khối lượng</h3>
+          <div className="flex flex-wrap gap-4">
+            {weightOptions.map((w) => (
+              <label key={w} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={selectedWeights.includes(w)}
+                  onChange={() => toggleWeight(w)}
+                />
+                {w}
+              </label>
             ))}
-          </select>
+          </div>
+        </div>
+
+        <div>
+          <h3 className="font-semibold mt-4">Chọn tình trạng</h3>
+          <div className="flex flex-wrap gap-4">
+            {ripenessOptions.map((r) => (
+              <label key={r} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={selectedRipeness.includes(r)}
+                  onChange={() => toggleRipeness(r)}
+                />
+                {r}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Chọn baseVariant */}
+        <div className="grid grid-cols-2 gap-2 mt-4">
           <select
             className={inputStyle}
             value={baseWeight}
             onChange={(e) => setBaseWeight(e.target.value)}
           >
-            {weightOptions.map((w) => (
+            <option value="">-- Base Weight --</option>
+            {selectedWeights.map((w) => (
               <option key={w} value={w}>
                 {w}
               </option>
@@ -186,7 +242,8 @@ export default function Add() {
             value={baseRipeness}
             onChange={(e) => setBaseRipeness(e.target.value)}
           >
-            {ripenessOptions.map((r) => (
+            <option value="">-- Base Ripeness --</option>
+            {selectedRipeness.map((r) => (
               <option key={r} value={r}>
                 {r}
               </option>
@@ -194,9 +251,11 @@ export default function Add() {
           </select>
         </div>
 
+        {/* Giá & tồn kho */}
         <div className="grid grid-cols-2 gap-2">
           <input
             type="number"
+            min="0"
             placeholder="Giá (vnđ)"
             className={inputStyle}
             value={price}
@@ -205,6 +264,7 @@ export default function Add() {
           />
           <input
             type="number"
+            min="0"
             placeholder="Tồn kho"
             className={inputStyle}
             value={stock}

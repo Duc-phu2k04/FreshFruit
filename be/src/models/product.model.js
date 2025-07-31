@@ -2,7 +2,6 @@ import mongoose from "mongoose";
 
 const variantSchema = new mongoose.Schema({
   attributes: {
-    grade: { type: String, required: true },
     weight: { type: String, required: true },
     ripeness: { type: String, required: true }
   },
@@ -16,19 +15,21 @@ const productSchema = new mongoose.Schema({
   image: String,
   category: { type: mongoose.Schema.Types.ObjectId, ref: "Category" },
   location: { type: mongoose.Schema.Types.ObjectId, ref: "Location" },
-  gradeOptions: [String],
   weightOptions: [String],
   ripenessOptions: [String],
   baseVariant: {
     attributes: {
-      grade: String,
       weight: String,
       ripeness: String
     },
     price: Number,
     stock: Number
   },
-  variants: [variantSchema]
+  variants: [variantSchema],
+  displayVariant: {
+    type: Object, // lưu biến thể hiển thị ngoài FE
+    default: null
+  }
 }, { timestamps: true });
 
 export default mongoose.model("Product", productSchema);
