@@ -13,7 +13,13 @@ router.post("/add", verifyToken, isAdmin, productController.create);
 router.put("/:id", verifyToken, isAdmin, productController.update);
 router.delete("/:id", verifyToken, isAdmin, productController.remove);
 
-// ✅ Xóa 1 hoặc nhiều biến thể
+// ✅ Xóa 1 hoặc nhiều biến thể (truyền mảng attributesList)
 router.delete("/:id/variant", verifyToken, isAdmin, productController.removeVariants);
+
+// ✅ Cập nhật 1 biến thể theo ID
+router.put("/:id/variant/:variantId", verifyToken, isAdmin, productController.updateVariant);
+
+// ✅ Xóa 1 biến thể theo ID
+router.delete("/:id/variant/:variantId", verifyToken, isAdmin, productController.removeVariantById);
 
 export default router;
