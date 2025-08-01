@@ -20,26 +20,10 @@ export default function ProductDetail() {
   const [currentVariant, setCurrentVariant] = useState(null);
 
   useEffect(() => {
-  const fetchProduct = async () => {
+ const fetchProduct = async () => {
   try {
     const res = await fetch(`http://localhost:3000/api/product/${id}`);
     const data = await res.json();
-
-    // Nếu có baseVariant và chưa có trong variants thì thêm vào
-    if (data.baseVariant) {
-      const exists = data.variants.some(
-        (v) =>
-          v.attributes.weight === data.baseVariant.attributes.weight &&
-          v.attributes.ripeness === data.baseVariant.attributes.ripeness
-      );
-
-      if (!exists) {
-        data.variants.push({
-          ...data.baseVariant,
-          isBase: true // Đánh dấu để biết đây là baseVariant
-        });
-      }
-    }
 
     setProduct(data);
 
@@ -53,6 +37,7 @@ export default function ProductDetail() {
     console.error("Lỗi khi lấy sản phẩm:", err);
   }
 };
+
 
 
     setProduct(null);
@@ -131,19 +116,41 @@ export default function ProductDetail() {
     }
   };
 
-  const handleBuyNow = async () => {
-    if (!currentVariant) {
-      alert("Vui lòng chọn biến thể trước khi mua");
-      return;
-    }
-    if (currentVariant.stock <= 0) {
-      alert("Sản phẩm này đã hết hàng");
-      return;
-    }
+ const handleBuyNow = () => {
+  if (!currentVariant) {
+    alert("Vui lòng chọn biến thể trước khi mua");
+    return;
+  }
+  if (currentVariant.stock <= 0) {
+    alert("Sản phẩm này đã hết hàng");
+    return;
+  }
 
-    await addToCartServer();
-    navigate("/gio-hang");
-  };
+  navigate("/checkout", {
+    state: {
+      selectedItems: [
+        {
+          product: {
+            _id: product._id,
+            name: product.name,
+          },
+          variant: {
+            _id: currentVariant._id,
+            price: currentVariant.price,
+            attributes: currentVariant.attributes,
+          },
+          variantInfo: {
+            weight: currentVariant.attributes.weight,
+            ripeness: currentVariant.attributes.ripeness,
+          },
+          quantity,
+        },
+      ],
+    },
+  });
+};
+
+
 
   const handleSubmitComment = async (e) => {
     e.preventDefault();

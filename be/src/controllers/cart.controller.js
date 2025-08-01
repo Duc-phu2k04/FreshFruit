@@ -1,14 +1,14 @@
+// ✅ controllers/cart.controller.js
 import Cart from "../models/cart.model.js";
 import Product from "../models/product.model.js";
 
-// Thêm sản phẩm vào giỏ hàng
 export const addToCart = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { productId, quantity } = req.body;
+    const { productId, variantId, quantity } = req.body;
 
-    if (!productId || quantity === undefined || quantity === null) {
-      return res.status(400).json({ message: "Thiếu productId hoặc quantity" });
+    if (!productId || !variantId || quantity === undefined || quantity === null) {
+      return res.status(400).json({ message: "Thiếu productId, variantId hoặc quantity" });
     }
 
     const parsedQuantity = parseInt(quantity);
@@ -23,13 +23,15 @@ export const addToCart = async (req, res) => {
     }
 
     const existingItemIndex = cart.items.findIndex(
-      (item) => item.product.toString() === productId
+      (item) =>
+        item.product.toString() === productId &&
+        item.variantId.toString() === variantId
     );
 
     if (existingItemIndex >= 0) {
       cart.items[existingItemIndex].quantity += parsedQuantity;
     } else {
-      cart.items.push({ product: productId, quantity: parsedQuantity });
+      cart.items.push({ product: productId, variantId, quantity: parsedQuantity });
     }
 
     await cart.save();
@@ -42,17 +44,18 @@ export const addToCart = async (req, res) => {
   }
 };
 
-// Cập nhật số lượng sản phẩm trong giỏ
 export const updateCartItem = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { productId, quantity } = req.body;
+    const { productId, variantId, quantity } = req.body;
 
     const cart = await Cart.findOne({ user: userId });
     if (!cart) return res.status(404).json({ message: "Giỏ hàng không tồn tại" });
 
     const itemIndex = cart.items.findIndex(
-      (item) => item.product.toString() === productId
+      (item) =>
+        item.product.toString() === productId &&
+        item.variantId.toString() === variantId
     );
 
     if (itemIndex === -1) {
@@ -75,28 +78,43 @@ export const updateCartItem = async (req, res) => {
   }
 };
 
-// Lấy giỏ hàng theo người dùng
 export const getCartByUser = async (req, res) => {
   try {
     const userId = req.user._id;
+
     const cart = await Cart.findOne({ user: userId }).populate("items.product");
 
     if (!cart || cart.items.length === 0) {
       return res.status(200).json({ message: "Giỏ hàng trống", items: [] });
     }
 
-    res.status(200).json({ items: cart.items });
+    // Tìm thông tin variant tương ứng cho từng item
+    const enrichedItems = cart.items.map((item) => {
+      const product = item.product;
+
+      // Tìm biến thể khớp với variantId
+      const variant = product.variants.find(
+        (v) => v._id.toString() === item.variantId.toString()
+      );
+
+      return {
+        ...item.toObject(),
+        variant, // gắn thêm thông tin variant vào item
+      };
+    });
+
+    res.status(200).json({ items: enrichedItems });
   } catch (error) {
     console.error("Lỗi khi lấy giỏ hàng:", error.message);
     res.status(500).json({ message: "Lỗi server", error: error.message });
   }
 };
 
-// Xoá một sản phẩm khỏi giỏ hàng
+
 export const removeCartItem = async (req, res) => {
   try {
     const userId = req.user._id;
-    const productId = req.params.productId;
+    const { productId, variantId } = req.params;
 
     const cart = await Cart.findOne({ user: userId });
     if (!cart) {
@@ -104,7 +122,9 @@ export const removeCartItem = async (req, res) => {
     }
 
     cart.items = cart.items.filter(
-      (item) => item.product.toString() !== productId
+      (item) =>
+        item.product.toString() !== productId ||
+        item.variantId.toString() !== variantId
     );
 
     await cart.save();
@@ -117,7 +137,6 @@ export const removeCartItem = async (req, res) => {
   }
 };
 
-//  Xoá toàn bộ giỏ hàng (dùng sau khi đặt hàng thành công)
 export const clearCart = async (req, res) => {
   try {
     const userId = req.user._id;

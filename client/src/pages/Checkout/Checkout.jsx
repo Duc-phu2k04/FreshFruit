@@ -1,11 +1,10 @@
-// ✅ FILE: Checkout.jsx (fixed)
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 export default function Checkout() {
   const location = useLocation();
-  const cartData = location.state?.cartData;
+  const selectedItems = location.state?.selectedItems;
   const navigate = useNavigate();
   const [dataCart, setDataCart] = useState(null);
 
@@ -28,12 +27,21 @@ export default function Checkout() {
   const BASE_SHIPPING_FEE = 30000;
 
   useEffect(() => {
-    if (cartData) {
-      setDataCart(cartData);
+    if (selectedItems && selectedItems.length > 0) {
+      const formattedData = {
+        products: selectedItems.map((item) => ({
+          _id: item.product._id,
+          nameProduct: item.product.name,
+          price: item.variant.price,
+          quantity: item.quantity,
+          variantInfo: item.variant.attributes // ✅ truyền đúng attributes
+        })),
+      };
+      setDataCart(formattedData);
     } else {
-      navigate("/cart");
+      navigate("/gio-hang");
     }
-  }, [cartData, navigate]);
+  }, [selectedItems, navigate]);
 
   useEffect(() => {
     axios.get('https://provinces.open-api.vn/api/?depth=3').then(res => {
@@ -57,15 +65,10 @@ export default function Checkout() {
   }, [districtCode, provinceCode, data]);
 
   const subtotal = dataCart?.products?.reduce((sum, item) => {
-  return sum + (item.price * item.quantity);
-}, 0) || 0;
+    return sum + (item.price * item.quantity);
+  }, 0) || 0;
 
-const total = Math.max(0, subtotal + BASE_SHIPPING_FEE - discountAmount);
-
-console.log("Subtotal:", subtotal);
-console.log("Shipping:", BASE_SHIPPING_FEE);
-console.log("Discount:", discountAmount);
-console.log("Total:", total);
+  const total = Math.max(0, subtotal + BASE_SHIPPING_FEE - discountAmount);
 
   const handleApplyVoucher = async () => {
     if (!voucherCode) return;
@@ -74,9 +77,8 @@ console.log("Total:", total);
       const voucher = response.data;
 
       let discount = 0;
-      const sum = dataCart?.sumPrice || 0;
       if (voucher.discount > 0 && voucher.discount <= 100) {
-        discount = sum * (voucher.discount / 100);
+        discount = subtotal * (voucher.discount / 100);
       } else {
         discount = voucher.discount;
       }
@@ -94,77 +96,79 @@ console.log("Total:", total);
   };
 
   const handlePayment = async () => {
-  if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
+    if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
 
-  try {
-    const cartItems = dataCart.products.map(item => ({
-      productId: item._id,
-      quantity: item.quantity,
-    }));
+    try {
+      const cartItems = dataCart.products.map(item => ({
+        productId: item._id,
+        quantity: item.quantity,
+        variant: {
+          weight: item.variantInfo?.weight,
+          ripeness: item.variantInfo?.ripeness
+        }
+      }));
 
-    const response = await axios.post('http://localhost:3000/api/orders/add', {
-      cartItems,
-      voucher: appliedVoucher?.code || null,
-    }, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
-      }
-    });
+      const response = await axios.post('http://localhost:3000/api/orders/add', {
+        cartItems,
+        voucher: appliedVoucher?.code || null,
+      }, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        }
+      });
 
-    alert("Đặt hàng thành công!");
-    navigate('/order-success'); // hoặc về trang đơn hàng
-  } catch (error) {
-    console.error("Lỗi đặt hàng COD:", error);
-    alert("Đặt hàng thất bại.");
-  }
-};
-
-const handlePaymentMomo = async () => {
-  if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
-
-  try {
-    const cartItems = dataCart.products.map(item => ({
-      productId: item._id,
-      quantity: item.quantity,
-    }));
-
-    const orderRes = await axios.post('http://localhost:3000/api/orders/add', {
-      cartItems,
-      voucher: appliedVoucher?.code || null,
-      total,
-    }, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
-      }
-    });
-
-    const orderId = orderRes.data.order._id;
-
-    const momoRes = await axios.post('http://localhost:3000/api/momo/create-payment', {
-      orderId,
-    });
-
-    if (momoRes.data.paymentUrl) {
-      window.location.href = momoRes.data.paymentUrl;
-    } else {
-      alert("Không thể tạo thanh toán MoMo");
+      alert("Đặt hàng thành công!");
+      navigate('/order-success');
+    } catch (error) {
+      console.error("Lỗi đặt hàng COD:", error);
+      alert("Đặt hàng thất bại.");
     }
-  } catch (err) {
-    console.error("Lỗi MoMo:", err);
-    alert("Thanh toán MoMo thất bại.");
-  }
-};
+  };
 
+  const handlePaymentMomo = async () => {
+    if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
+
+    try {
+      const cartItems = dataCart.products.map(item => ({
+        productId: item._id,
+        quantity: item.quantity,
+        variant: {
+          weight: item.variantInfo?.weight,
+          ripeness: item.variantInfo?.ripeness
+        }
+      }));
+
+      const orderRes = await axios.post('http://localhost:3000/api/orders/add', {
+        cartItems,
+        voucher: appliedVoucher?.code || null,
+      }, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        }
+      });
+
+      const orderId = orderRes.data.order._id;
+
+      const momoRes = await axios.post('http://localhost:3000/api/momo/create-payment', {
+        orderId,
+      });
+
+      if (momoRes.data.paymentUrl) {
+        window.location.href = momoRes.data.paymentUrl;
+      } else {
+        alert("Không thể tạo thanh toán MoMo");
+      }
+    } catch (err) {
+      console.error("Lỗi MoMo:", err);
+      alert("Thanh toán MoMo thất bại.");
+    }
+  };
 
   const removeVoucher = () => {
     setAppliedVoucher(null);
     setVoucherCode('');
     setDiscountAmount(0);
   };
-
-
-
-
 
   return (
     <div className="w-[85%] mx-auto my-5">
@@ -176,6 +180,7 @@ const handlePaymentMomo = async () => {
           Quay lại Giỏ hàng
         </Link>
       </div>
+
       <main className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
           <h1 className="text-lg font-bold mb-4">Thông Tin Thanh Toán</h1>
@@ -211,8 +216,15 @@ const handlePaymentMomo = async () => {
             </thead>
             <tbody>
               {dataCart?.products?.map((item) => (
-                <tr key={item._id}>
-                  <td className="px-4 py-2">{item.nameProduct}</td>
+                <tr key={`${item._id}-${item.variantInfo?.weight}-${item.variantInfo?.ripeness}`}>
+                  <td className="px-4 py-2">
+                    {item.nameProduct}
+                    {item.variantInfo && (
+                      <span className="block text-sm text-gray-500">
+                        ({item.variantInfo.weight} / {item.variantInfo.ripeness})
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-2">x{item.quantity}</td>
                   <td className="px-4 py-2">{item.price?.toLocaleString()}₫</td>
                 </tr>

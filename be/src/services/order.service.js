@@ -5,13 +5,10 @@ import Cart from "../models/cart.model.js";
 
 // So sánh biến thể
 const isSameVariant = (a, b) => {
-  return (
-    a.grade === b.grade &&
-    a.weight === b.weight &&
-    a.ripeness === b.ripeness
-  );
+  return a.weight === b.weight && a.ripeness === b.ripeness;
 };
 
+// Tạo đơn hàng
 export const createOrder = async ({ userId, cartItems, voucher }) => {
   let items = [];
 
@@ -19,27 +16,39 @@ export const createOrder = async ({ userId, cartItems, voucher }) => {
     const product = await Product.findById(item.productId);
     if (!product) throw new Error(`Sản phẩm không tồn tại: ${item.productId}`);
 
-    const variantInfo = item.variant; // { grade, weight, ripeness }
-    if (!variantInfo) throw new Error(`Thiếu thông tin biến thể cho sản phẩm ${product.name}`);
+    const variantInfo = item.variant;
+    if (!variantInfo || !variantInfo.weight || !variantInfo.ripeness) {
+      throw new Error(`Thiếu thông tin biến thể cho sản phẩm ${product.name}`);
+    }
 
-    const matchedVariant = product.variants.find(v =>
+    const matchedVariant = product.variants.find((v) =>
       isSameVariant(v.attributes, variantInfo)
     );
 
     if (!matchedVariant) {
-      throw new Error(`Không tìm thấy biến thể phù hợp cho sản phẩm ${product.name}`);
+      throw new Error(
+        `Không tìm thấy biến thể phù hợp cho sản phẩm ${product.name}`
+      );
     }
 
+    if (matchedVariant.stock < item.quantity) {
+      throw new Error(
+        `Không đủ tồn kho cho sản phẩm ${product.name} (${variantInfo.weight}, ${variantInfo.ripeness})`
+      );
+    }
+
+    // Thêm vào danh sách item cho đơn hàng
     items.push({
       product: product._id,
+      productName: product.name,
       quantity: item.quantity,
       price: matchedVariant.price,
-      variant: variantInfo // lưu luôn biến thể đã chọn
+      variant: variantInfo,
+      variantId: matchedVariant._id, // Dùng để cập nhật chính xác tồn kho
     });
   }
 
   const BASE_SHIPPING_FEE = 30000;
-
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.price, 0);
 
   let discountAmount = 0;
@@ -69,17 +78,54 @@ export const createOrder = async ({ userId, cartItems, voucher }) => {
 
   await order.save();
 
-  // Xoá các sản phẩm đã đặt khỏi giỏ
+  // ✅ Trừ tồn kho
+  for (const item of items) {
+    await Product.updateOne(
+      {
+        _id: item.product,
+        "variants._id": item.variantId,
+      },
+      {
+        $inc: { "variants.$.stock": -item.quantity },
+      }
+    );
+  }
+
+  // ✅ Xoá sản phẩm khỏi giỏ hàng
   await Cart.findOneAndUpdate(
     { user: userId },
     {
       $pull: {
         items: {
-          product: { $in: items.map(i => i.product) }
-        }
-      }
+          $or: items.map((i) => ({
+            product: i.product,
+            variantId: i.variantId,
+          })),
+        },
+      },
     }
   );
 
   return order;
+};
+
+// Lấy tất cả đơn hàng (dành cho admin)
+export const getAllOrders = async () => {
+  const orders = await Order.find()
+    .populate("user", "username email")
+    .populate("items.product", "name image")
+    .populate("voucher", "code discount")
+    .sort({ createdAt: -1 });
+
+  return orders;
+};
+
+// Cập nhật trạng thái đơn hàng
+export const updateOrderStatus = async (orderId, status) => {
+  const updated = await Order.findByIdAndUpdate(
+    orderId,
+    { status },
+    { new: true }
+  );
+  return updated;
 };

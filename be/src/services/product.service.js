@@ -61,7 +61,12 @@ const productService = {
       if (isNaN(baseVariant.price))
         throw new Error("Giá baseVariant không hợp lệ");
 
-      variants = generateVariants(weightOptions, ripenessOptions, baseVariant);
+      // ✅ Generate and include baseVariant into variants
+      const autoVariants = generateVariants(weightOptions, ripenessOptions, baseVariant);
+      variants = [
+        { ...baseVariant }, // add baseVariant as a real variant
+        ...autoVariants,
+      ];
       displayVariant = baseVariant;
     }
 
@@ -91,7 +96,7 @@ const productService = {
       if (p.baseVariant && !p.baseVariant._id) {
         p.baseVariant = {
           ...p.baseVariant.toObject?.() || p.baseVariant,
-          _id: new mongoose.Types.ObjectId(), // tạo id mới
+          _id: new mongoose.Types.ObjectId(),
         };
       }
       return p;
