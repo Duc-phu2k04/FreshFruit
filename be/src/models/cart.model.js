@@ -1,4 +1,3 @@
-// src/models/cart.model.js
 import mongoose from "mongoose";
 
 const cartItemSchema = new mongoose.Schema(
@@ -14,8 +13,14 @@ const cartItemSchema = new mongoose.Schema(
       min: [1, "Số lượng phải lớn hơn 0"],
       default: 1,
     },
+    weight: {
+      type: String,
+    },
+    ripeness: {
+      type: String,
+    },
   },
-  { _id: false } 
+  { _id: false }
 );
 
 const cartSchema = new mongoose.Schema(
@@ -24,7 +29,7 @@ const cartSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      unique: true, 
+      unique: true,
     },
     items: [cartItemSchema],
   },
