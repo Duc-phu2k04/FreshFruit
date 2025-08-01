@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import styles from "./CartPage.module.css";
 
-function CartPage() {
+export default function CartPage() {
   const { user } = useAuth();
   const [cartItems, setCartItems] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
@@ -15,13 +15,13 @@ function CartPage() {
   useEffect(() => {
     async function fetchCartItems() {
       try {
-        const response = await fetch(`http://localhost:3000/api/cart`, {
+        const res = await fetch(`http://localhost:3000/api/cart`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
         });
-        if (!response.ok) throw new Error("Lấy giỏ hàng thất bại");
-        const data = await response.json();
+        if (!res.ok) throw new Error("Lấy giỏ hàng thất bại");
+        const data = await res.json();
         setCartItems(data.items || []);
       } catch (error) {
         console.error(error);
@@ -32,11 +32,11 @@ function CartPage() {
     if (user?._id) fetchCartItems();
   }, [user]);
 
-  const updateQuantity = async (productId, newQuantity) => {
+  const updateQuantity = async (cartItemId, newQuantity) => {
     if (newQuantity < 1) return;
-    setCartItems((prevItems) =>
-      prevItems.map((item) =>
-        item.product._id === productId ? { ...item, quantity: newQuantity } : item
+    setCartItems((prev) =>
+      prev.map((item) =>
+        item._id === cartItemId ? { ...item, quantity: newQuantity } : item
       )
     );
     try {
@@ -46,20 +46,18 @@ function CartPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
-        body: JSON.stringify({ productId, quantity: newQuantity }),
+        body: JSON.stringify({ cartItemId, quantity: newQuantity }),
       });
     } catch (err) {
       console.error("Lỗi cập nhật số lượng:", err);
     }
   };
 
-  const removeFromCart = async (productId) => {
-    setCartItems((prevItems) =>
-      prevItems.filter((item) => item.product._id !== productId)
-    );
-    setSelectedItems((prev) => prev.filter((id) => id !== productId));
+  const removeFromCart = async (cartItemId) => {
+    setCartItems((prev) => prev.filter((item) => item._id !== cartItemId));
+    setSelectedItems((prev) => prev.filter((id) => id !== cartItemId));
     try {
-      await fetch(`http://localhost:3000/api/cart/${productId}`, {
+      await fetch(`http://localhost:3000/api/cart/${cartItemId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -70,11 +68,11 @@ function CartPage() {
     }
   };
 
-  const handleSelectItem = (productId) => {
+  const handleSelectItem = (cartItemId) => {
     setSelectedItems((prev) =>
-      prev.includes(productId)
-        ? prev.filter((id) => id !== productId)
-        : [...prev, productId]
+      prev.includes(cartItemId)
+        ? prev.filter((id) => id !== cartItemId)
+        : [...prev, cartItemId]
     );
   };
 
@@ -82,44 +80,45 @@ function CartPage() {
     if (selectAll) {
       setSelectedItems([]);
     } else {
-      setSelectedItems(cartItems.map((item) => item.product._id));
+      setSelectedItems(cartItems.map((item) => item._id));
     }
     setSelectAll(!selectAll);
   };
 
   const handleCheckout = () => {
-  const selectedProducts = cartItems.filter((item) =>
-    selectedItems.includes(item.product._id)
-  );
+    const selectedProducts = cartItems.filter((item) =>
+      selectedItems.includes(item._id)
+    );
 
-  if (selectedProducts.length === 0) {
-    setErrorMsg("Vui lòng chọn ít nhất 1 sản phẩm để đặt hàng.");
-    return;
-  }
+    if (selectedProducts.length === 0) {
+      setErrorMsg("Vui lòng chọn ít nhất 1 sản phẩm để đặt hàng.");
+      return;
+    }
 
-  const sumPrice = selectedProducts.reduce(
-    (total, item) => total + item.product.price * item.quantity,
-    0
-  );
+    const sumPrice = selectedProducts.reduce(
+      (total, item) => total + (item.price || 0) * item.quantity,
+      0
+    );
 
-  // Dữ liệu bạn cần gửi sang trang checkout
-  const payload = {
-    products: selectedProducts.map(item => ({
-      _id: item.product._id,
-      nameProduct: item.product.name,
-      quantity: item.quantity,
-      price: item.product.price,
-    })),
-    sumPrice,
+    const payload = {
+      products: selectedProducts.map((item) => ({
+        _id: item.product?._id,
+        nameProduct: item.product?.name,
+        variantId: item.variantId,
+        attributes: item.attributes || {},
+        quantity: item.quantity,
+        price: item.price,
+      })),
+      sumPrice,
+    };
+
+    navigate("/checkout", { state: { cartData: payload } });
   };
-
-  navigate("/checkout", { state: { cartData: payload } });
-};
 
   const totalPrice = cartItems.reduce(
     (acc, item) =>
-      selectedItems.includes(item.product._id)
-        ? acc + item.product.price * item.quantity
+      selectedItems.includes(item._id)
+        ? acc + (item.price || 0) * item.quantity
         : acc,
     0
   );
@@ -160,33 +159,39 @@ function CartPage() {
               </thead>
               <tbody>
                 {cartItems.map((item) => (
-                  <tr key={item.product._id}>
+                  <tr key={item._id}>
                     <td>
                       <input
                         type="checkbox"
                         className={styles.checkbox}
-                        checked={selectedItems.includes(item.product._id)}
-                        onChange={() => handleSelectItem(item.product._id)}
+                        checked={selectedItems.includes(item._id)}
+                        onChange={() => handleSelectItem(item._id)}
                       />
                     </td>
                     <td className="flex items-center gap-4">
                       <img
-                         src={`http://localhost:3000${item.product.image}`}
-                        alt={item.product.name}
+                        src={`http://localhost:3000${item.product?.image}`}
+                        alt={item.product?.name}
                         className={styles.productImage}
                       />
-                      <span className={styles.productName}>
-                        {item.product.name}
-                      </span>
+                      <div>
+                        <div className={styles.productName}>
+                          {item.product?.name}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {item.attributes?.weight} -{" "}
+                          {item.attributes?.ripeness}
+                        </div>
+                      </div>
                     </td>
                     <td className={styles.price}>
-                      {(item.product?.price ?? 0).toLocaleString()}đ
+                      {(item.price || 0).toLocaleString()}đ
                     </td>
                     <td>
                       <div className={styles.quantityControl}>
                         <button
                           onClick={() =>
-                            updateQuantity(item.product._id, item.quantity - 1)
+                            updateQuantity(item._id, item.quantity - 1)
                           }
                           className={styles.quantityButton}
                         >
@@ -195,7 +200,7 @@ function CartPage() {
                         <span>{item.quantity}</span>
                         <button
                           onClick={() =>
-                            updateQuantity(item.product._id, item.quantity + 1)
+                            updateQuantity(item._id, item.quantity + 1)
                           }
                           className={styles.quantityButton}
                         >
@@ -205,10 +210,10 @@ function CartPage() {
                     </td>
                     <td className="text-center">
                       <button
-                        onClick={() => removeFromCart(item.product._id)}
+                        onClick={() => removeFromCart(item._id)}
                         className={styles.removeButton}
                       >
-                        Hủy đơn
+                        Xoá
                       </button>
                     </td>
                   </tr>
@@ -239,5 +244,3 @@ function CartPage() {
     </div>
   );
 }
-
-export default CartPage;

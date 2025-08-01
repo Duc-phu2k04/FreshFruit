@@ -1,4 +1,5 @@
 import Product from "../models/product.model.js";
+import mongoose from "mongoose";
 
 const generateVariants = (weights, ripenesses, baseVariant) => {
   const variants = [];
@@ -11,14 +12,19 @@ const generateVariants = (weights, ripenesses, baseVariant) => {
   for (const weight of weights) {
     for (const ripeness of ripenesses) {
       // Bỏ qua chính baseVariant
-      if (weight === baseVariant.attributes.weight && ripeness === baseVariant.attributes.ripeness) continue;
+      if (
+        weight === baseVariant.attributes.weight &&
+        ripeness === baseVariant.attributes.ripeness
+      )
+        continue;
 
       let price = basePrice;
 
-      // Nếu khác cân nặng thì tính giá theo tỉ lệ cân nặng
       if (weight !== baseVariant.attributes.weight) {
         const targetWeightMultiplier = weightMultiplier[weight] ?? 1;
-        price = Math.round(basePrice * (targetWeightMultiplier / baseWeightMultiplier));
+        price = Math.round(
+          basePrice * (targetWeightMultiplier / baseWeightMultiplier)
+        );
       }
 
       variants.push({ attributes: { weight, ripeness }, price, stock: 0 });
@@ -27,12 +33,19 @@ const generateVariants = (weights, ripenesses, baseVariant) => {
   return variants;
 };
 
-
 const productService = {
   createProduct: async (data) => {
-    const { name, description, image, category, location,
-      weightOptions = [], ripenessOptions = [],
-      baseVariant, variants: inputVariants } = data;
+    const {
+      name,
+      description,
+      image,
+      category,
+      location,
+      weightOptions = [],
+      ripenessOptions = [],
+      baseVariant,
+      variants: inputVariants,
+    } = data;
 
     let variants = [];
     let displayVariant = null;
@@ -40,17 +53,29 @@ const productService = {
     if (Array.isArray(inputVariants) && inputVariants.length > 0) {
       variants = inputVariants;
       displayVariant = inputVariants[0];
-    } else if (baseVariant?.attributes && typeof baseVariant.price !== "undefined") {
+    } else if (
+      baseVariant?.attributes &&
+      typeof baseVariant.price !== "undefined"
+    ) {
       baseVariant.price = Number(baseVariant.price);
-      if (isNaN(baseVariant.price)) throw new Error("Giá baseVariant không hợp lệ");
+      if (isNaN(baseVariant.price))
+        throw new Error("Giá baseVariant không hợp lệ");
+
       variants = generateVariants(weightOptions, ripenessOptions, baseVariant);
       displayVariant = baseVariant;
     }
 
     const product = new Product({
-      name, description, image, category, location,
-      weightOptions, ripenessOptions,
-      baseVariant, variants, displayVariant
+      name,
+      description,
+      image,
+      category,
+      location,
+      weightOptions,
+      ripenessOptions,
+      baseVariant,
+      variants,
+      displayVariant,
     });
 
     await product.save();
@@ -61,13 +86,35 @@ const productService = {
     const products = await Product.find()
       .populate("category", "name")
       .populate("location", "name");
-    return { data: products };
+
+    const productsWithBaseId = products.map((p) => {
+      if (p.baseVariant && !p.baseVariant._id) {
+        p.baseVariant = {
+          ...p.baseVariant.toObject?.() || p.baseVariant,
+          _id: new mongoose.Types.ObjectId(), // tạo id mới
+        };
+      }
+      return p;
+    });
+
+    return { data: productsWithBaseId };
   },
 
   getProductById: async (id) => {
-    return await Product.findById(id)
+    const product = await Product.findById(id)
       .populate("category", "name")
       .populate("location", "name");
+
+    if (!product) return null;
+
+    if (product.baseVariant && !product.baseVariant._id) {
+      product.baseVariant = {
+        ...product.baseVariant.toObject?.() || product.baseVariant,
+        _id: new mongoose.Types.ObjectId(),
+      };
+    }
+
+    return product;
   },
 
   updateProduct: async (id, data) => {
@@ -81,16 +128,18 @@ const productService = {
   deleteVariants: async (productId, attributesList) => {
     const product = await Product.findById(productId);
     if (!product) return null;
-    product.variants = product.variants.filter(v =>
-      !attributesList.some(attr =>
-        v.attributes.weight === attr.weight && v.attributes.ripeness === attr.ripeness
-      )
+    product.variants = product.variants.filter(
+      (v) =>
+        !attributesList.some(
+          (attr) =>
+            v.attributes.weight === attr.weight &&
+            v.attributes.ripeness === attr.ripeness
+        )
     );
     await product.save();
     return product;
   },
 
-  // ✅ Cập nhật biến thể theo ID
   updateVariant: async (productId, variantId, updateData) => {
     const product = await Product.findById(productId);
     if (!product) return null;
@@ -104,18 +153,17 @@ const productService = {
     return product;
   },
 
-  // ✅ Xóa biến thể theo ID
   deleteVariantById: async (productId, variantId) => {
-  const product = await Product.findById(productId);
-  if (!product) return null;
+    const product = await Product.findById(productId);
+    if (!product) return null;
 
-  const exists = product.variants.id(variantId);
-  if (!exists) return null;
+    const exists = product.variants.id(variantId);
+    if (!exists) return null;
 
-  product.variants.pull({ _id: variantId }); // <-- Sửa ở đây
-  await product.save();
-  return product;
-}
+    product.variants.pull({ _id: variantId });
+    await product.save();
+    return product;
+  },
 };
 
 export default productService;
