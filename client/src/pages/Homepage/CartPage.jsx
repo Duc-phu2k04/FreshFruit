@@ -1,4 +1,3 @@
-// src/pages/Cart/CartPage.jsx
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -11,7 +10,12 @@ function CartPage() {
   const [selectAll, setSelectAll] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [editingItemKey, setEditingItemKey] = useState(null);
+  const [editedItem, setEditedItem] = useState({});
   const navigate = useNavigate();
+
+  const generateItemKey = (item) =>
+    `${item.product._id}-${item.weight}-${item.ripeness}`;
 
   useEffect(() => {
     async function fetchCartItems() {
@@ -33,15 +37,18 @@ function CartPage() {
     if (user?._id) fetchCartItems();
   }, [user]);
 
-  const updateQuantity = async (productId, newQuantity) => {
+  const updateQuantity = async (itemKey, newQuantity) => {
     if (newQuantity < 1) return;
     setCartItems((prevItems) =>
       prevItems.map((item) =>
-        item.product && item.product._id === productId
+        generateItemKey(item) === itemKey
           ? { ...item, quantity: newQuantity }
           : item
       )
     );
+
+    const [productId, weight, ripeness] = itemKey.split("-");
+
     try {
       await fetch(`http://localhost:3000/api/cart/update`, {
         method: "PUT",
@@ -49,35 +56,76 @@ function CartPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
-        body: JSON.stringify({ productId, quantity: newQuantity }),
+        body: JSON.stringify({
+          productId,
+          weight,
+          ripeness,
+          quantity: newQuantity,
+        }),
       });
     } catch (err) {
       console.error("Lỗi cập nhật số lượng:", err);
     }
   };
 
-  const removeFromCart = async (productId) => {
+  const removeFromCart = async (itemKey) => {
+    const [productId, weight, ripeness] = itemKey.split("-");
     setCartItems((prevItems) =>
-      prevItems.filter((item) => item.product && item.product._id !== productId)
+      prevItems.filter((item) => generateItemKey(item) !== itemKey)
     );
-    setSelectedItems((prev) => prev.filter((id) => id !== productId));
+    setSelectedItems((prev) => prev.filter((id) => id !== itemKey));
     try {
-      await fetch(`http://localhost:3000/api/cart/${productId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
+      await fetch(
+        `http://localhost:3000/api/cart/${productId}?weight=${weight}&ripeness=${ripeness}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
     } catch (err) {
       console.error("Lỗi xoá sản phẩm:", err);
     }
   };
 
-  const handleSelectItem = (productId) => {
+  const saveEdit = async (originalItem) => {
+    const updated = {
+      productId: originalItem.product._id,
+      weight: editedItem.weight,
+      ripeness: editedItem.ripeness,
+      quantity: editedItem.quantity,
+    };
+
+    try {
+      await fetch(`http://localhost:3000/api/cart/update`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify(updated),
+      });
+
+      const response = await fetch(`http://localhost:3000/api/cart`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+      const data = await response.json();
+      setCartItems(data.items || []);
+      setEditingItemKey(null);
+    } catch (err) {
+      console.error("Lỗi khi lưu chỉnh sửa:", err);
+      setErrorMsg("Không thể lưu chỉnh sửa");
+    }
+  };
+
+  const handleSelectItem = (itemKey) => {
     setSelectedItems((prev) =>
-      prev.includes(productId)
-        ? prev.filter((id) => id !== productId)
-        : [...prev, productId]
+      prev.includes(itemKey)
+        ? prev.filter((id) => id !== itemKey)
+        : [...prev, itemKey]
     );
   };
 
@@ -85,17 +133,17 @@ function CartPage() {
     if (selectAll) {
       setSelectedItems([]);
     } else {
-      const validIds = cartItems
+      const validKeys = cartItems
         .filter((item) => item.product && item.product._id)
-        .map((item) => item.product._id);
-      setSelectedItems(validIds);
+        .map((item) => generateItemKey(item));
+      setSelectedItems(validKeys);
     }
     setSelectAll(!selectAll);
   };
 
   const handleCheckout = () => {
-    const selectedProducts = cartItems.filter(
-      (item) => item.product && selectedItems.includes(item.product._id)
+    const selectedProducts = cartItems.filter((item) =>
+      selectedItems.includes(generateItemKey(item))
     );
 
     if (selectedProducts.length === 0) {
@@ -103,17 +151,18 @@ function CartPage() {
       return;
     }
 
-    const sumPrice = selectedProducts.reduce(
-      (total, item) => total + (item.product.price || 0) * item.quantity,
-      0
-    );
+    const sumPrice = selectedProducts.reduce((total, item) => {
+      return total + (item.price || 0) * item.quantity;
+    }, 0);
 
     const payload = {
       products: selectedProducts.map((item) => ({
         _id: item.product._id,
         nameProduct: item.product.name,
         quantity: item.quantity,
-        price: item.product.price,
+        price: item.price,
+        weight: item.weight,
+        ripeness: item.ripeness,
       })),
       sumPrice,
     };
@@ -122,8 +171,8 @@ function CartPage() {
   };
 
   const totalPrice = cartItems.reduce((acc, item) => {
-    if (item.product && selectedItems.includes(item.product._id)) {
-      return acc + (item.product.price || 0) * item.quantity;
+    if (selectedItems.includes(generateItemKey(item))) {
+      return acc + (item.price || 0) * item.quantity;
     }
     return acc;
   }, 0);
@@ -158,20 +207,24 @@ function CartPage() {
                   </th>
                   <th>Sản phẩm</th>
                   <th>Giá</th>
+                  <th>Khối lượng</th>
+                  <th>Tình trạng</th>
                   <th>Số lượng</th>
                   <th className="text-center">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
-                {cartItems.map((item, index) =>
+                {cartItems.map((item) =>
                   item.product ? (
-                    <tr key={item.product._id || index}>
+                    <tr key={generateItemKey(item)}>
                       <td>
                         <input
                           type="checkbox"
                           className={styles.checkbox}
-                          checked={selectedItems.includes(item.product._id)}
-                          onChange={() => handleSelectItem(item.product._id)}
+                          checked={selectedItems.includes(generateItemKey(item))}
+                          onChange={() =>
+                            handleSelectItem(generateItemKey(item))
+                          }
                         />
                       </td>
                       <td className="flex items-center gap-4">
@@ -185,36 +238,145 @@ function CartPage() {
                         </span>
                       </td>
                       <td className={styles.price}>
-                        {(item.product.price ?? 0).toLocaleString()}đ
+                        {item.price
+                          ? `${item.price.toLocaleString()}đ`
+                          : "Giá: Đang cập nhật"}
                       </td>
                       <td>
-                        <div className={styles.quantityControl}>
-                          <button
-                            onClick={() =>
-                              updateQuantity(item.product._id, item.quantity - 1)
+                        {editingItemKey === generateItemKey(item) ? (
+                          <select
+                            value={editedItem.weight}
+                            onChange={(e) =>
+                              setEditedItem((prev) => ({
+                                ...prev,
+                                weight: e.target.value,
+                              }))
                             }
-                            className={styles.quantityButton}
                           >
-                            -
-                          </button>
-                          <span>{item.quantity}</span>
-                          <button
-                            onClick={() =>
-                              updateQuantity(item.product._id, item.quantity + 1)
+                            {[...new Set(item.product.variants.map((v) => v.attributes.weight))].map(
+                              (weight, i) => (
+                                <option key={i} value={weight}>
+                                  {weight}
+                                </option>
+                              )
+                            )}
+                          </select>
+                        ) : (
+                          item.weight || "Không rõ"
+                        )}
+                      </td>
+                      <td>
+                        {editingItemKey === generateItemKey(item) ? (
+                          <select
+                            value={editedItem.ripeness}
+                            onChange={(e) =>
+                              setEditedItem((prev) => ({
+                                ...prev,
+                                ripeness: e.target.value,
+                              }))
                             }
-                            className={styles.quantityButton}
                           >
-                            +
-                          </button>
-                        </div>
+                            {item.product.variants
+                              .filter(
+                                (v) =>
+                                  v.attributes.weight === editedItem.weight
+                              )
+                              .map((v, i) => (
+                                <option
+                                  key={i}
+                                  value={v.attributes.ripeness}
+                                >
+                                  {v.attributes.ripeness}
+                                </option>
+                              ))}
+                          </select>
+                        ) : (
+                          item.ripeness || "Không rõ"
+                        )}
+                      </td>
+                      <td>
+                        {editingItemKey === generateItemKey(item) ? (
+                          <input
+                            type="number"
+                            min={1}
+                            value={editedItem.quantity}
+                            onChange={(e) =>
+                              setEditedItem((prev) => ({
+                                ...prev,
+                                quantity: +e.target.value,
+                              }))
+                            }
+                            className="border w-16 px-2 py-1"
+                          />
+                        ) : (
+                          <div className={styles.quantityControl}>
+                            <button
+                              onClick={() =>
+                                updateQuantity(
+                                  generateItemKey(item),
+                                  item.quantity - 1
+                                )
+                              }
+                              className={styles.quantityButton}
+                            >
+                              -
+                            </button>
+                            <span>{item.quantity}</span>
+                            <button
+                              onClick={() =>
+                                updateQuantity(
+                                  generateItemKey(item),
+                                  item.quantity + 1
+                                )
+                              }
+                              className={styles.quantityButton}
+                            >
+                              +
+                            </button>
+                          </div>
+                        )}
                       </td>
                       <td className="text-center">
-                        <button
-                          onClick={() => removeFromCart(item.product._id)}
-                          className={styles.removeButton}
-                        >
-                          Hủy đơn
-                        </button>
+                        {editingItemKey === generateItemKey(item) ? (
+                          <>
+                            <button
+                              onClick={() => saveEdit(item)}
+                              className="text-green-600 mr-2 underline"
+                            >
+                              Lưu
+                            </button>
+                            <button
+                              onClick={() => setEditingItemKey(null)}
+                              className="text-gray-500 underline"
+                            >
+                              Hủy
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => {
+                                setEditingItemKey(generateItemKey(item));
+                                setEditedItem({
+                                  weight: item.weight,
+                                  ripeness: item.ripeness,
+                                  quantity: item.quantity,
+                                });
+                              }}
+                              className="text-blue-600 mr-2 underline"
+                            >
+                              Sửa
+                            </button>
+                            <button
+                              onClick={() =>
+                                removeFromCart(generateItemKey(item))
+                              }
+                              className={styles.removeButton}
+                            >
+                              Hủy đơn
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ) : null
@@ -227,7 +389,7 @@ function CartPage() {
             <div className={styles.totalPrice}>
               Tổng:{" "}
               <span className="font-semibold text-green-700">
-                {totalPrice.toLocaleString()}₫
+                {totalPrice.toLocaleString()}đ
               </span>
             </div>
             <button onClick={handleCheckout} className={styles.orderButton}>

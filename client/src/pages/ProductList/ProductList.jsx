@@ -62,94 +62,15 @@ export default function ProductListPage() {
     fetchProducts();
   }, [fetchProducts]);
 
-  const addToCartServer = async (product, e) => {
-    if (!product || !product._id) return;
-    const img = e?.currentTarget?.closest(".product-card")?.querySelector("img");
-    if (img) {
-      const flyImg = img.cloneNode(true);
-      const rect = img.getBoundingClientRect();
-      const targetX = window.innerWidth - 80;
-      const targetY = 20;
-
-      flyImg.style.position = "fixed";
-      flyImg.style.left = `${rect.left}px`;
-      flyImg.style.top = `${rect.top}px`;
-      flyImg.style.width = `${rect.width}px`;
-      flyImg.style.height = `${rect.height}px`;
-      flyImg.style.zIndex = 9999;
-      flyImg.style.transition = "all 0.8s ease-in-out";
-      flyImg.style.borderRadius = "12px";
-
-      document.body.appendChild(flyImg);
-
-      requestAnimationFrame(() => {
-        flyImg.style.left = `${targetX}px`;
-        flyImg.style.top = `${targetY}px`;
-        flyImg.style.width = "20px";
-        flyImg.style.height = "20px";
-        flyImg.style.opacity = "0.3";
-      });
-
-      setTimeout(() => flyImg.remove(), 900);
-    }
-
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        alert("Bạn cần đăng nhập để thêm vào giỏ hàng.");
-        return;
-      }
-
-      const res = await fetch("http://localhost:3000/api/cart/add", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ productId: product._id, quantity: 1 }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Lỗi khi thêm vào giỏ hàng");
-
-      setSuccessMessage("Đã thêm vào giỏ hàng ✔️");
-      setTimeout(() => setSuccessMessage(""), 2500);
-    } catch (error) {
-      console.error("Lỗi thêm vào giỏ hàng:", error.message);
-      alert("Lỗi: " + error.message);
-    }
-  };
-
-  const handleBuyNow = (product) => {
-  const token = localStorage.getItem("token");
-  if (!token) {
-    alert("Bạn cần đăng nhập để mua sản phẩm.");
-    return;
-  }
-
-  const cartData = {
-    products: [
-      {
-        _id: product._id,
-        nameProduct: product.name,
-        quantity: 1,
-        price: product.price,
-      },
-    ],
-    sumPrice: product.price,
-  };
-
-  navigate("/checkout", { state: { cartData } });
-};
-
-
   const handleViewDetail = (product) => {
     navigate(`/san-pham/${product._id}`, { state: product });
   };
 
   const indexOfLastProduct = currentPage * productsPerPage;
   const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
-  const currentProducts = products.slice(indexOfFirstProduct, indexOfLastProduct);
+  const currentProducts = Array.isArray(products)
+    ? products.slice(indexOfFirstProduct, indexOfLastProduct)
+    : [];
 
   return (
     <div className="product-page-wrapper bg-gray-50 pb-10 relative">
@@ -218,21 +139,12 @@ export default function ProductListPage() {
                       <p className="product-price">
                         {(product.price ?? 0).toLocaleString()}đ
                       </p>
-                      <p className="product-description line-clamp-2 text-sm text-gray-600">
-                        {product.description || "Trái cây sạch chất lượng cao."}
-                      </p>
                       <div className="product-actions">
                         <button
-                          className="buy-button"
-                          onClick={(e) => addToCartServer(product, e)}
+                          className="buy-button orange w-full"
+                          onClick={() => handleViewDetail(product)}
                         >
-                          Thêm vào giỏ
-                        </button>
-                        <button
-                          className="buy-button orange"
-                          onClick={(e) => handleBuyNow(product, e)}
-                        >
-                          Mua ngay
+                          Xem sản phẩm
                         </button>
                       </div>
                     </div>
@@ -244,7 +156,9 @@ export default function ProductListPage() {
 
           <Pagination
             currentPage={currentPage}
-            totalPages={Math.ceil(products.length / productsPerPage)}
+            totalPages={Math.ceil(
+              Array.isArray(products) ? products.length / productsPerPage : 0
+            )}
             onPageChange={setCurrentPage}
           />
 

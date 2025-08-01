@@ -1,3 +1,5 @@
+// ✅ ProductDetail.jsx (có hiển thị tồn kho theo biến thể)
+
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FaStar } from "react-icons/fa";
@@ -14,7 +16,7 @@ export default function ProductDetail() {
   const [comments, setComments] = useState([]);
   const [successMessage, setSuccessMessage] = useState("");
 
-  const [selectedType, setSelectedType] = useState("");
+  const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [selectedWeight, setSelectedWeight] = useState("");
   const [selectedRipeness, setSelectedRipeness] = useState("");
 
@@ -25,7 +27,6 @@ export default function ProductDetail() {
         const data = await res.json();
         setProduct(data);
 
-        // Lấy sản phẩm liên quan
         const relatedRes = await fetch(
           `http://localhost:3000/api/product?category=${data.category._id}`
         );
@@ -97,8 +98,8 @@ export default function ProductDetail() {
       return;
     }
 
-    if (!selectedType || !selectedWeight || !selectedRipeness) {
-      alert("Vui lòng chọn đầy đủ Phân loại, Khối lượng và Tình trạng trước khi thêm vào giỏ hàng.");
+    if (!selectedQuantity || !selectedWeight || !selectedRipeness) {
+      alert("Vui lòng chọn đầy đủ Số lượng, Khối lượng và Tình trạng.");
       return;
     }
 
@@ -141,8 +142,7 @@ export default function ProductDetail() {
 
       const payload = {
         productId: product._id,
-        quantity: 1,
-        type: selectedType,
+        quantity: parseInt(selectedQuantity),
         weight: selectedWeight,
         ripeness: selectedRipeness,
       };
@@ -162,8 +162,8 @@ export default function ProductDetail() {
       setSuccessMessage("Đã thêm vào giỏ hàng ✔️");
       setTimeout(() => setSuccessMessage(""), 2500);
 
-      setSelectedType("");
       setSelectedWeight("");
+      setSelectedQuantity(1);
       setSelectedRipeness("");
     } catch (error) {
       alert("Lỗi: " + error.message);
@@ -171,17 +171,41 @@ export default function ProductDetail() {
   };
 
   const handleBuyNow = async (product, e) => {
-    if (!selectedType || !selectedWeight || !selectedRipeness) {
-      alert("Vui lòng chọn đầy đủ Phân loại, Khối lượng và Tình trạng trước khi mua.");
+    if (!selectedQuantity || !selectedWeight || !selectedRipeness) {
+      alert("Vui lòng chọn đầy đủ Số lượng, Khối lượng và Tình trạng.");
       return;
     }
 
-    await addToCartServer(product, e);
-    navigate("/gio-hang");
+    const token = localStorage.getItem("token");
+    if (!token) {
+      alert("Bạn cần đăng nhập để mua sản phẩm.");
+      return;
+    }
+
+    const cartData = {
+      products: [
+        {
+          _id: product._id,
+          nameProduct: product.name,
+          quantity: parseInt(selectedQuantity),
+          price: product.price,
+          weight: selectedWeight,
+          ripeness: selectedRipeness,
+        },
+      ],
+      sumPrice: product.price * parseInt(selectedQuantity),
+    };
+
+    navigate("/checkout", { state: { cartData } });
   };
 
   if (!product)
     return <p className="text-center mt-10">Đang tải dữ liệu sản phẩm...</p>;
+
+  // ✅ Tìm biến thể phù hợp với lựa chọn để hiển thị tồn kho
+  const selectedVariant = product.variants?.find(
+    (v) => v.weight === selectedWeight && v.ripeness === selectedRipeness
+  );
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
@@ -196,28 +220,14 @@ export default function ProductDetail() {
         <div>
           <h1 className="text-4xl font-bold mb-3">{product.name}</h1>
           <p className="text-green-700 text-2xl font-semibold mb-4">
-            {/* ✅ Sửa lỗi: kiểm tra tồn tại trước khi gọi toLocaleString */}
             {product.price ? `${product.price.toLocaleString()}đ` : "Giá: Đang cập nhật"}
           </p>
           <p className="mb-4">{product.description}</p>
 
-          {/* ... (các select phân loại như cũ) */}
-
-          <div className="mb-4">
-            <label className="block font-medium mb-1">Phân loại:</label>
-            <select
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-              className="border rounded px-3 py-2 w-full"
-            >
-              <option value="">-- Chọn loại --</option>
-              {product.gradeOptions?.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* ✅ Hiển thị tồn kho */}
+          <p className="mb-2 text-sm text-gray-600">
+            Tồn kho: {selectedVariant?.inventory ?? product.inventory ?? "Đang cập nhật"}
+          </p>
 
           <div className="mb-4">
             <label className="block font-medium mb-1">Khối lượng:</label>
@@ -236,6 +246,18 @@ export default function ProductDetail() {
           </div>
 
           <div className="mb-4">
+            <label className="block font-medium mb-1">Số lượng:</label>
+            <input
+              type="number"
+              min={1}
+              value={selectedQuantity}
+              onChange={(e) => setSelectedQuantity(e.target.value)}
+              className="border rounded px-3 py-2 w-full"
+              placeholder="Nhập số lượng"
+            />
+          </div>
+
+          <div className="mb-4">
             <label className="block font-medium mb-1">Tình trạng:</label>
             <select
               value={selectedRipeness}
@@ -243,15 +265,12 @@ export default function ProductDetail() {
               className="border rounded px-3 py-2 w-full"
             >
               <option value="">-- Chọn tình trạng --</option>
-              {product.ripenessOptions?.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
+              <option value="Xanh">Xanh</option>
+              <option value="Chín vừa">Chín vừa</option>
+              <option value="Chín">Chín</option>
             </select>
           </div>
 
-          {/* Nút thêm giỏ hàng và mua ngay */}
           <div className="flex gap-3 mb-4 product-actions">
             <button
               className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600"
@@ -267,7 +286,6 @@ export default function ProductDetail() {
             </button>
           </div>
 
-          {/* Gửi đánh giá */}
           <div className="mb-6">
             <h3 className="font-semibold mb-2">Đánh giá sản phẩm:</h3>
             <div className="flex">
@@ -306,7 +324,6 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      {/* Đánh giá khách hàng */}
       <div className="mt-10">
         <h3 className="text-2xl font-semibold mb-4">Đánh giá của khách hàng:</h3>
         {comments.length === 0 ? (
@@ -349,7 +366,6 @@ export default function ProductDetail() {
         )}
       </div>
 
-      {/* Sản phẩm liên quan */}
       <div className="mt-12">
         <h3 className="text-2xl font-semibold mb-4">Sản phẩm liên quan:</h3>
         <div className="grid md:grid-cols-4 gap-6">
@@ -362,7 +378,6 @@ export default function ProductDetail() {
               <img src={item.image} alt={item.name} className="w-full h-40 object-cover rounded" />
               <h4 className="mt-2 font-semibold text-lg">{item.name}</h4>
               <p className="text-green-700 font-semibold">
-                {/* ✅ Kiểm tra tồn tại trước khi gọi toLocaleString */}
                 {item.price ? `${item.price.toLocaleString()}đ` : "Giá: Đang cập nhật"}
               </p>
             </div>

@@ -1,4 +1,4 @@
-// ✅ FILE: Checkout.jsx (fixed)
+// ✅ FILE: Checkout.jsx (đã chỉnh sửa hiển thị đầy đủ biến thể cố định)
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -26,6 +26,9 @@ export default function Checkout() {
   const [wards, setWards] = useState([]);
 
   const BASE_SHIPPING_FEE = 30000;
+
+  const [editingItemKey, setEditingItemKey] = useState(null);
+  const [editedItem, setEditedItem] = useState({});
 
   useEffect(() => {
     if (cartData) {
@@ -56,16 +59,61 @@ export default function Checkout() {
     setWardCode('');
   }, [districtCode, provinceCode, data]);
 
+  const fetchUpdatedCart = async () => {
+    try {
+      const res = await axios.get('http://localhost:3000/api/cart', {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const items = res.data.items || [];
+
+      const payload = {
+        products: items.map(item => ({
+          _id: item.product._id,
+          nameProduct: item.product.name,
+          quantity: item.quantity,
+          price: item.price,
+          weight: item.weight,
+          ripeness: item.ripeness,
+          product: item.product
+        })),
+        sumPrice: items.reduce((acc, item) => acc + item.price * item.quantity, 0)
+      };
+
+      setDataCart(payload);
+    } catch (err) {
+      console.error("Lỗi làm mới giỏ hàng:", err);
+    }
+  };
+
+  const saveEdit = async (item) => {
+    try {
+      await axios.put('http://localhost:3000/api/cart/update', {
+        productId: item._id,
+        weight: editedItem.weight,
+        ripeness: editedItem.ripeness,
+        quantity: editedItem.quantity,
+      }, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      setEditingItemKey(null);
+      setEditedItem({});
+      await fetchUpdatedCart();
+    } catch (err) {
+      console.error("Lỗi khi lưu chỉnh sửa:", err);
+      alert("Không thể lưu chỉnh sửa");
+    }
+  };
+
   const subtotal = dataCart?.products?.reduce((sum, item) => {
-  return sum + (item.price * item.quantity);
-}, 0) || 0;
+    return sum + (item.price * item.quantity);
+  }, 0) || 0;
 
-const total = Math.max(0, subtotal + BASE_SHIPPING_FEE - discountAmount);
-
-console.log("Subtotal:", subtotal);
-console.log("Shipping:", BASE_SHIPPING_FEE);
-console.log("Discount:", discountAmount);
-console.log("Total:", total);
+  const total = Math.max(0, subtotal + BASE_SHIPPING_FEE - discountAmount);
 
   const handleApplyVoucher = async () => {
     if (!voucherCode) return;
@@ -94,77 +142,72 @@ console.log("Total:", total);
   };
 
   const handlePayment = async () => {
-  if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
+    if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
 
-  try {
-    const cartItems = dataCart.products.map(item => ({
-      productId: item._id,
-      quantity: item.quantity,
-    }));
+    try {
+      const cartItems = dataCart.products.map(item => ({
+        productId: item._id,
+        quantity: item.quantity,
+      }));
 
-    const response = await axios.post('http://localhost:3000/api/orders/add', {
-      cartItems,
-      voucher: appliedVoucher?.code || null,
-    }, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
-      }
-    });
+      await axios.post('http://localhost:3000/api/orders/add', {
+        cartItems,
+        voucher: appliedVoucher?.code || null,
+      }, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        }
+      });
 
-    alert("Đặt hàng thành công!");
-    navigate('/order-success'); // hoặc về trang đơn hàng
-  } catch (error) {
-    console.error("Lỗi đặt hàng COD:", error);
-    alert("Đặt hàng thất bại.");
-  }
-};
-
-const handlePaymentMomo = async () => {
-  if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
-
-  try {
-    const cartItems = dataCart.products.map(item => ({
-      productId: item._id,
-      quantity: item.quantity,
-    }));
-
-    const orderRes = await axios.post('http://localhost:3000/api/orders/add', {
-      cartItems,
-      voucher: appliedVoucher?.code || null,
-      total,
-    }, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
-      }
-    });
-
-    const orderId = orderRes.data.order._id;
-
-    const momoRes = await axios.post('http://localhost:3000/api/momo/create-payment', {
-      orderId,
-    });
-
-    if (momoRes.data.paymentUrl) {
-      window.location.href = momoRes.data.paymentUrl;
-    } else {
-      alert("Không thể tạo thanh toán MoMo");
+      alert("Đặt hàng thành công!");
+      navigate('/order-success');
+    } catch (error) {
+      console.error("Lỗi đặt hàng COD:", error);
+      alert("Đặt hàng thất bại.");
     }
-  } catch (err) {
-    console.error("Lỗi MoMo:", err);
-    alert("Thanh toán MoMo thất bại.");
-  }
-};
+  };
 
+  const handlePaymentMomo = async () => {
+    if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
+
+    try {
+      const cartItems = dataCart.products.map(item => ({
+        productId: item._id,
+        quantity: item.quantity,
+      }));
+
+      const orderRes = await axios.post('http://localhost:3000/api/orders/add', {
+        cartItems,
+        voucher: appliedVoucher?.code || null,
+        total,
+      }, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        }
+      });
+
+      const orderId = orderRes.data.order._id;
+
+      const momoRes = await axios.post('http://localhost:3000/api/momo/create-payment', {
+        orderId,
+      });
+
+      if (momoRes.data.paymentUrl) {
+        window.location.href = momoRes.data.paymentUrl;
+      } else {
+        alert("Không thể tạo thanh toán MoMo");
+      }
+    } catch (err) {
+      console.error("Lỗi MoMo:", err);
+      alert("Thanh toán MoMo thất bại.");
+    }
+  };
 
   const removeVoucher = () => {
     setAppliedVoucher(null);
     setVoucherCode('');
     setDiscountAmount(0);
   };
-
-
-
-
 
   return (
     <div className="w-[85%] mx-auto my-5">
@@ -207,16 +250,101 @@ const handlePaymentMomo = async () => {
                 <th className="px-4 py-2">Tên</th>
                 <th className="px-4 py-2">SL</th>
                 <th className="px-4 py-2">Tổng</th>
+                <th className="px-4 py-2 text-center">Sửa</th>
               </tr>
             </thead>
             <tbody>
-              {dataCart?.products?.map((item) => (
-                <tr key={item._id}>
-                  <td className="px-4 py-2">{item.nameProduct}</td>
-                  <td className="px-4 py-2">x{item.quantity}</td>
-                  <td className="px-4 py-2">{item.price?.toLocaleString()}₫</td>
-                </tr>
-              ))}
+              {dataCart?.products?.map((item) => {
+                const key = `${item._id}-${item.weight}-${item.ripeness}`;
+                const variantOptions = ["0.5kg", "1kg", "1.5kg", "2kg"];
+                const ripenessOptions = ["xanh", "chín", "chín vừa"];
+
+                return (
+                  <tr key={key} className="border-b">
+                    <td className="px-4 py-2">
+                      <div className="font-medium">{item.nameProduct}</div>
+                      {editingItemKey === key ? (
+                        <div className="mt-1">
+                          <select
+                            className="border rounded px-2 py-1 mr-2"
+                            value={editedItem.weight}
+                            onChange={(e) =>
+                              setEditedItem((prev) => ({ ...prev, weight: e.target.value }))
+                            }
+                          >
+                            {variantOptions.map((weight, i) => (
+                              <option key={i} value={weight}>{weight}</option>
+                            ))}
+                          </select>
+                          <select
+                            className="border rounded px-2 py-1"
+                            value={editedItem.ripeness}
+                            onChange={(e) =>
+                              setEditedItem((prev) => ({ ...prev, ripeness: e.target.value }))
+                            }
+                          >
+                            {ripenessOptions.map((ripeness, i) => (
+                              <option key={i} value={ripeness}>{ripeness}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-600 mt-1">
+                          {item.weight} - {item.ripeness}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-2">
+                      {editingItemKey === key ? (
+                        <input
+                          type="number"
+                          min={1}
+                          value={editedItem.quantity}
+                          onChange={(e) =>
+                            setEditedItem((prev) => ({ ...prev, quantity: +e.target.value }))
+                          }
+                          className="border rounded px-2 py-1 w-16"
+                        />
+                      ) : (
+                        `x${item.quantity}`
+                      )}
+                    </td>
+                    <td className="px-4 py-2">{(item.price * item.quantity).toLocaleString()}₫</td>
+                    <td className="px-4 py-2 text-center">
+                      {editingItemKey === key ? (
+                        <>
+                          <button
+                            onClick={() => saveEdit(item)}
+                            className="text-green-600 underline mr-2"
+                          >
+                            Lưu
+                          </button>
+                          <button
+                            onClick={() => setEditingItemKey(null)}
+                            className="text-gray-500 underline"
+                          >
+                            Hủy
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setEditingItemKey(key);
+                            setEditedItem({
+                              weight: item.weight,
+                              ripeness: item.ripeness,
+                              quantity: item.quantity,
+                            });
+                          }}
+                          className="text-blue-600 underline"
+                        >
+                          Sửa
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
               <tr className="border-t">
                 <td className="px-4 py-2 font-medium">Tạm Tính</td>
                 <td></td>

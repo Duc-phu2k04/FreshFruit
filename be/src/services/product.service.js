@@ -1,8 +1,4 @@
-
 import Product from "../models/product.model.js";
-
-// src/services/product.service.js
-import Product from '../models/product.model.js';
 
 const isEqualVariant = (v1, v2) => {
   return (
@@ -11,7 +7,6 @@ const isEqualVariant = (v1, v2) => {
     v1.ripeness === v2.ripeness
   );
 };
-
 
 const generateVariants = (weights, ripenesses, baseVariant) => {
   const variants = [];
@@ -24,71 +19,66 @@ const generateVariants = (weights, ripenesses, baseVariant) => {
 
   for (const weight of weights) {
     for (const ripeness of ripenesses) {
-      // Bỏ qua chính baseVariant
-      if (weight === baseVariant.attributes.weight && ripeness === baseVariant.attributes.ripeness) continue;
-
-      let price = basePrice;
-
-      // Nếu khác cân nặng thì tính giá theo tỉ lệ cân nặng
-      if (weight !== baseVariant.attributes.weight) {
-        const targetWeightMultiplier = weightMultiplier[weight] ?? 1;
-        price = Math.round(basePrice * (targetWeightMultiplier / baseWeightMultiplier));
-
-  for (const grade of grades) {
-    for (const weight of weights) {
-      for (const ripeness of ripenesses) {
-        if (isEqualVariant({ grade, weight, ripeness }, baseVariant)) continue;
-        variants.push({
-          attributes: { grade, weight, ripeness },
-          price: baseVariant.price,
-          stock: 0
-        });
-
+      if (
+        weight === baseVariant.attributes.weight &&
+        ripeness === baseVariant.attributes.ripeness
+      ) {
+        continue;
       }
 
-      variants.push({ attributes: { weight, ripeness }, price, stock: 0 });
+      let price = basePrice;
+      const targetWeightMultiplier = weightMultiplier[weight] ?? 1;
+      price = Math.round(basePrice * (targetWeightMultiplier / baseWeightMultiplier));
+
+      variants.push({
+        attributes: {
+          weight,
+          ripeness
+        },
+        price,
+        stock: 0
+      });
     }
   }
+
   return variants;
 };
 
-
 const productService = {
   createProduct: async (data) => {
-    const { name, description, image, category, location,
-      weightOptions = [], ripenessOptions = [],
-      baseVariant, variants: inputVariants } = data;
+    const {
+      name,
+      description,
+      image,
+      category,
+      location,
+      gradeOptions = [],
+      weightOptions = [],
+      ripenessOptions = [],
+      baseVariant,
+      variants: inputVariants
+    } = data;
 
     let variants = [];
     let displayVariant = null;
 
     if (Array.isArray(inputVariants) && inputVariants.length > 0) {
-
-      variants = inputVariants;
-      displayVariant = inputVariants[0];
-    } else if (baseVariant?.attributes && typeof baseVariant.price !== "undefined") {
-      baseVariant.price = Number(baseVariant.price);
-      if (isNaN(baseVariant.price)) throw new Error("Giá baseVariant không hợp lệ");
-      variants = generateVariants(weightOptions, ripenessOptions, baseVariant);
-      displayVariant = baseVariant;
-    }
-
-    const product = new Product({
-      name, description, image, category, location,
-      weightOptions, ripenessOptions,
-      baseVariant, variants, displayVariant
-
       variants = inputVariants.map(v => ({
         attributes: {
           grade: v.grade,
           weight: v.weight,
-          ripeness: v.ripeness,
+          ripeness: v.ripeness
         },
-        price: v.price,
-        stock: v.stock
+        price: Number(v.price),
+        stock: Number(v.stock)
       }));
-    } else if (isDefaultBase && hasFullBase) {
-      variants = generateVariants(gradeList, weightList, ripenessList, baseAttrs);
+      displayVariant = variants[0];
+    } else if (baseVariant?.attributes && typeof baseVariant.price !== "undefined") {
+      baseVariant.price = Number(baseVariant.price);
+      if (isNaN(baseVariant.price)) throw new Error("Giá baseVariant không hợp lệ");
+
+      variants = generateVariants(weightOptions, ripenessOptions, baseVariant);
+      displayVariant = baseVariant;
     }
 
     const product = new Product({
@@ -97,32 +87,24 @@ const productService = {
       image,
       category,
       location,
-      gradeOptions: gradeList,
-      weightOptions: weightList,
-      ripenessOptions: ripenessList,
-      baseVariant: {
-        attributes: {
-          grade: baseAttrs.grade,
-          weight: baseAttrs.weight,
-          ripeness: baseAttrs.ripeness
-        },
-        price: baseVariant.price,
-        stock: baseVariant.stock
-      },
-      variants
-
+      gradeOptions,
+      weightOptions,
+      ripenessOptions,
+      baseVariant,
+      variants,
+      displayVariant
     });
 
     await product.save();
     return product;
   },
 
+  // ✅ SỬA Ở ĐÂY: Trả về mảng trực tiếp thay vì object { data: products }
   getAllProducts: async () => {
-
     const products = await Product.find()
       .populate("category", "name")
       .populate("location", "name");
-    return { data: products };
+    return products;
   },
 
   getProductById: async (id) => {
@@ -142,19 +124,22 @@ const productService = {
   deleteVariants: async (productId, attributesList) => {
     const product = await Product.findById(productId);
     if (!product) return null;
+
     product.variants = product.variants.filter(v =>
       !attributesList.some(attr =>
-        v.attributes.weight === attr.weight && v.attributes.ripeness === attr.ripeness
+        v.attributes.weight === attr.weight &&
+        v.attributes.ripeness === attr.ripeness
       )
     );
+
     await product.save();
     return product;
   },
 
-  // ✅ Cập nhật biến thể theo ID
   updateVariant: async (productId, variantId, updateData) => {
     const product = await Product.findById(productId);
     if (!product) return null;
+
     const variant = product.variants.id(variantId);
     if (!variant) return null;
 
@@ -165,34 +150,15 @@ const productService = {
     return product;
   },
 
-  // ✅ Xóa biến thể theo ID
   deleteVariantById: async (productId, variantId) => {
-  const product = await Product.findById(productId);
-  if (!product) return null;
+    const product = await Product.findById(productId);
+    if (!product) return null;
 
-  const exists = product.variants.id(variantId);
-  if (!exists) return null;
+    const exists = product.variants.id(variantId);
+    if (!exists) return null;
 
-  product.variants.pull({ _id: variantId }); // <-- Sửa ở đây
-  await product.save();
-  return product;
-}
-
-    const products = await Product.find({}).lean();
-    return products.map(p => ({
-      _id: p._id,
-      name: p.name,
-      description: p.description,
-      image: p.image,
-      category: p.category,
-      location: p.location,
-      price: p.baseVariant?.price ?? 0,
-    }));
-  },
-
-  // ✅ Hàm cần thêm để sửa lỗi 500
-  getProductById: async (id) => {
-    const product = await Product.findById(id).lean();
+    product.variants.pull({ _id: variantId });
+    await product.save();
     return product;
   }
 };
