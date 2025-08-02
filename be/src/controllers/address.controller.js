@@ -6,7 +6,11 @@ export const createAddress = async (req, res) => {
     const { fullName, phone, province, district, ward, detail, isDefault } = req.body;
     const userId = req.user?._id || req.userId;
 
-    if (isDefault) {
+    const addressCount = await Address.countDocuments({ user: userId });
+    const shouldBeDefault = addressCount === 0 || isDefault;
+
+    // Nếu là địa chỉ mặc định, xoá mặc định cũ
+    if (shouldBeDefault) {
       await Address.updateMany({ user: userId }, { isDefault: false });
     }
 
@@ -18,7 +22,7 @@ export const createAddress = async (req, res) => {
       district,
       ward,
       detail,
-      isDefault: !!isDefault,
+      isDefault: !!shouldBeDefault,
     });
 
     await newAddress.save();
@@ -52,11 +56,21 @@ export const updateAddress = async (req, res) => {
 
     const updated = await Address.findOneAndUpdate(
       { _id: id, user: userId },
-      { fullName, phone, province, district, ward, detail, isDefault: !!isDefault },
+      {
+        fullName,
+        phone,
+        province,
+        district,
+        ward,
+        detail,
+        isDefault: !!isDefault,
+      },
       { new: true }
     );
 
-    if (!updated) return res.status(404).json({ message: 'Không tìm thấy địa chỉ' });
+    if (!updated) {
+      return res.status(404).json({ message: 'Không tìm thấy địa chỉ' });
+    }
 
     res.status(200).json(updated);
   } catch (error) {
@@ -70,9 +84,21 @@ export const deleteAddress = async (req, res) => {
     const { id } = req.params;
     const userId = req.user?._id || req.userId;
 
-    const deleted = await Address.findOneAndDelete({ _id: id, user: userId });
+    const addressToDelete = await Address.findOne({ _id: id, user: userId });
+    if (!addressToDelete) {
+      return res.status(404).json({ message: 'Không tìm thấy địa chỉ' });
+    }
 
-    if (!deleted) return res.status(404).json({ message: 'Không tìm thấy địa chỉ' });
+    await addressToDelete.deleteOne();
+
+    // Nếu xoá địa chỉ mặc định, gán cái khác làm mặc định
+    if (addressToDelete.isDefault) {
+      const another = await Address.findOne({ user: userId });
+      if (another) {
+        another.isDefault = true;
+        await another.save();
+      }
+    }
 
     res.status(200).json({ message: 'Xoá thành công' });
   } catch (error) {
