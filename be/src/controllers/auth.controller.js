@@ -1,7 +1,7 @@
 import * as authService from '../services/auth.service.js';
 import bcrypt from 'bcryptjs';
 import User from '../models/user.model.js';
-import Order from '../models/order.model.js'; // Thêm dòng này
+import Order from '../models/order.model.js';
 import crypto from 'crypto';
 import { sendMail } from '../services/mail.service.js';
 
@@ -38,19 +38,18 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
-//  Lấy người dùng theo ID + lịch sử đơn hàng
+// Lấy người dùng theo ID + lịch sử đơn hàng
 export const getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select('-password').lean();
     if (!user) return res.status(404).json({ message: 'Không tìm thấy người dùng' });
 
-    //  Lấy đơn hàng của user
     const orders = await Order.find({ user: req.params.id })
       .populate('items.product', 'name image price')
       .sort({ createdAt: -1 })
       .lean();
 
-    user.orders = orders; // gán vào user để FE dễ hiển thị
+    user.orders = orders;
 
     res.json(user);
   } catch (error) {
@@ -134,5 +133,25 @@ Trân trọng,
     res.status(200).json({ message: 'Mật khẩu mới đã được gửi đến email của bạn.' });
   } catch (error) {
     res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+};
+
+// ✅ Thêm: Kiểm tra username hoặc email đã tồn tại
+export const checkDuplicate = async (req, res) => {
+  try {
+    const { username, email } = req.query;
+
+    let query = {};
+    if (username) query.username = username;
+    if (email) query.email = email;
+
+    const existingUser = await User.findOne(query);
+    if (existingUser) {
+      return res.status(200).json({ exists: true });
+    }
+
+    res.status(200).json({ exists: false });
+  } catch (error) {
+    res.status(500).json({ error: 'Lỗi kiểm tra tài khoản' });
   }
 };

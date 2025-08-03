@@ -56,6 +56,22 @@ const RegisterForm = () => {
     return err;
   };
 
+  const checkDuplicate = async () => {
+    const err = {};
+    try {
+      const [usernameRes, emailRes] = await Promise.all([
+        axios.get(`http://localhost:3000/auth/check-duplicate?username=${form.username}`),
+        axios.get(`http://localhost:3000/auth/check-duplicate?email=${form.email}`)
+      ]);
+
+      if (usernameRes.data.exists) err.username = 'Tên đăng nhập đã tồn tại.';
+      if (emailRes.data.exists) err.email = 'Email đã được sử dụng.';
+    } catch (e) {
+      alert('Không thể kiểm tra trùng username/email.');
+    }
+    return err;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validate();
@@ -69,24 +85,33 @@ const RegisterForm = () => {
       return;
     }
 
+    const duplicateErrors = await checkDuplicate();
+    if (Object.keys(duplicateErrors).length > 0) {
+      setErrors(duplicateErrors);
+      if (duplicateErrors.username) usernameRef.current.focus();
+      else if (duplicateErrors.email) emailRef.current.focus();
+      return;
+    }
+
     try {
-      await axios.post('http://localhost:3000/auth/register', form);
+      await axios.post('http://localhost:3000/auth/register', {
+        username: form.username,
+        email: form.email,
+        password: form.password,
+      });
       alert('Đăng ký thành công!');
       navigate('/dang-nhap');
     } catch (error) {
-      alert(error.response?.data?.message || 'Lỗi không xác định.');
+      alert(error.response?.data?.error || 'Lỗi không xác định.');
     }
   };
 
   return (
     <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 bg-gray-50">
-      {/* Bên trái: Ảnh minh họa */}
       <div className="hidden md:flex items-center justify-center bg-green-100">
         <img src="https://images.unsplash.com/photo-1567306226416-28f0efdc88ce" alt="Banner" className="..." />
-
       </div>
 
-      {/* Bên phải: Form */}
       <div className="flex items-center justify-center p-8">
         <div className="w-full max-w-md bg-white rounded-xl shadow-md p-8">
           <h2 className="text-2xl font-bold text-gray-800 text-center">Đăng ký tài khoản</h2>
