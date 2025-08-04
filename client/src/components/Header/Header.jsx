@@ -15,16 +15,7 @@ import { useAuth } from '../../context/AuthContext'; // 💡 import context
 
 export const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [products, setProducts] = useState([]);
   const { user } = useAuth(); // 💡 Lấy user từ context
-
-  useEffect(() => {
-    axios
-      .get("http://localhost:3000/api/product")
-      .then((res) => setProducts(res.data))
-      .catch((err) => console.error("Lỗi khi fetch sản phẩm:", err));
-  }, []);
-
   return (
     <header>
       {/* ======================= HEADER CHO THIẾT BỊ DI ĐỘNG ===================== */}
@@ -54,7 +45,7 @@ export const Header = () => {
               <button onClick={() => setIsMenuOpen(false)} className="self-end p-2 -mr-2">
                 <FontAwesomeIcon icon={faTimes} className="h-6 w-6 text-gray-700" />
               </button>
-              <SearchBar products={products} />
+              <SearchBar />
               <CategoryDropdown />
               <div className="border-t pt-4 w-full">
                 <Navbar />
@@ -90,7 +81,7 @@ export const Header = () => {
         <div className='h-[100px] w-full flex justify-center items-center'>
           <div className='w-[1300px] h-[100px] flex gap-50 items-center'>
             <div className='h-[74px] flex items-center'>
-              <SearchBar products={products} />
+              <SearchBar />
             </div>
             <div className='h-[74px] flex items-center justify-center'>
               <a href="/"><img src="./public/image/logo2-bg.png" alt="" className='w-[150px]' /></a>
