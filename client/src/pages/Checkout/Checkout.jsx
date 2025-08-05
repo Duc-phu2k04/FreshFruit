@@ -7,22 +7,11 @@ export default function Checkout() {
   const selectedItems = location.state?.selectedItems;
   const navigate = useNavigate();
   const [dataCart, setDataCart] = useState(null);
-
-  const [name, setName] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [email, setEmail] = useState('');
-  const [provinceCode, setProvinceCode] = useState('');
-  const [districtCode, setDistrictCode] = useState('');
-  const [wardCode, setWardCode] = useState('');
-  const [address, setAddress] = useState('');
   const [checkBox, setCheckBox] = useState(false);
   const [voucherCode, setVoucherCode] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState(null);
   const [discountAmount, setDiscountAmount] = useState(0);
-
-  const [data, setData] = useState([]);
-  const [districts, setDistricts] = useState([]);
-  const [wards, setWards] = useState([]);
+  const [defaultAddress, setDefaultAddress] = useState(null);
 
   const BASE_SHIPPING_FEE = 30000;
 
@@ -34,7 +23,7 @@ export default function Checkout() {
           nameProduct: item.product.name,
           price: item.variant.price,
           quantity: item.quantity,
-          variantInfo: item.variant.attributes // ✅ truyền đúng attributes
+          variantInfo: item.variant.attributes
         })),
       };
       setDataCart(formattedData);
@@ -44,30 +33,24 @@ export default function Checkout() {
   }, [selectedItems, navigate]);
 
   useEffect(() => {
-    axios.get('https://provinces.open-api.vn/api/?depth=3').then(res => {
-      setData(res.data);
-    });
+    const fetchDefaultAddress = async () => {
+      try {
+        const res = await axios.get('http://localhost:3000/api/address', {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+        });
+        const addressList = res.data;
+        const defaultAddr = addressList.find(a => a.isDefault);
+        setDefaultAddress(defaultAddr || null);
+      } catch (err) {
+        console.error("Lỗi khi lấy địa chỉ:", err);
+      }
+    };
+    fetchDefaultAddress();
   }, []);
 
-  useEffect(() => {
-    const province = data.find(p => p.code === +provinceCode);
-    setDistricts(province?.districts || []);
-    setDistrictCode('');
-    setWardCode('');
-    setWards([]);
-  }, [provinceCode, data]);
-
-  useEffect(() => {
-    const province = data.find(p => p.code === +provinceCode);
-    const district = province?.districts.find(d => d.code === +districtCode);
-    setWards(district?.wards || []);
-    setWardCode('');
-  }, [districtCode, provinceCode, data]);
-
-  const subtotal = dataCart?.products?.reduce((sum, item) => {
-    return sum + (item.price * item.quantity);
-  }, 0) || 0;
-
+  const subtotal = dataCart?.products?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0;
   const total = Math.max(0, subtotal + BASE_SHIPPING_FEE - discountAmount);
 
   const handleApplyVoucher = async () => {
@@ -75,16 +58,13 @@ export default function Checkout() {
     try {
       const response = await axios.get(`http://localhost:3000/api/voucher/validate/${encodeURIComponent(voucherCode)}`);
       const voucher = response.data;
-
       let discount = 0;
       if (voucher.discount > 0 && voucher.discount <= 100) {
         discount = subtotal * (voucher.discount / 100);
       } else {
         discount = voucher.discount;
       }
-
       discount = Math.round(discount);
-
       setAppliedVoucher(voucher);
       setDiscountAmount(discount);
     } catch (err) {
@@ -95,9 +75,20 @@ export default function Checkout() {
     }
   };
 
+  const buildShippingAddress = () => {
+    if (!defaultAddress) return null;
+    return {
+      fullName: defaultAddress.fullName,
+      phone: defaultAddress.phone,
+      province: defaultAddress.province,
+      district: defaultAddress.district,
+      ward: defaultAddress.ward,
+      detail: defaultAddress.detail,
+    };
+  };
+
   const handlePayment = async () => {
     if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
-
     try {
       const cartItems = dataCart.products.map(item => ({
         productId: item._id,
@@ -111,6 +102,7 @@ export default function Checkout() {
       const response = await axios.post('http://localhost:3000/api/orders/add', {
         cartItems,
         voucher: appliedVoucher?.code || null,
+        address: buildShippingAddress(),
       }, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -126,43 +118,39 @@ export default function Checkout() {
   };
 
   const handlePaymentMomo = async () => {
-    if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
+  if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
 
-    try {
-      const cartItems = dataCart.products.map(item => ({
-        productId: item._id,
-        quantity: item.quantity,
-        variant: {
-          weight: item.variantInfo?.weight,
-          ripeness: item.variantInfo?.ripeness
-        }
-      }));
-
-      const orderRes = await axios.post('http://localhost:3000/api/orders/add', {
-        cartItems,
-        voucher: appliedVoucher?.code || null,
-      }, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        }
-      });
-
-      const orderId = orderRes.data.order._id;
-
-      const momoRes = await axios.post('http://localhost:3000/api/momo/create-payment', {
-        orderId,
-      });
-
-      if (momoRes.data.paymentUrl) {
-        window.location.href = momoRes.data.paymentUrl;
-      } else {
-        alert("Không thể tạo thanh toán MoMo");
+  try {
+    const cartItems = dataCart.products.map(item => ({
+      productId: item._id,
+      quantity: item.quantity,
+      variant: {
+        weight: item.variantInfo?.weight,
+        ripeness: item.variantInfo?.ripeness
       }
-    } catch (err) {
-      console.error("Lỗi MoMo:", err);
-      alert("Thanh toán MoMo thất bại.");
+    }));
+
+    const response = await axios.post('http://localhost:3000/api/momo/create-payment', {
+      cartItems,
+      voucher: appliedVoucher?.code || null,
+      address: buildShippingAddress()
+    }, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+      }
+    });
+
+    if (response.data.paymentUrl) {
+      window.location.href = response.data.paymentUrl;
+    } else {
+      alert("Không thể tạo thanh toán MoMo");
     }
-  };
+  } catch (err) {
+    console.error("Lỗi MoMo:", err);
+    alert("Thanh toán MoMo thất bại.");
+  }
+};
+
 
   const removeVoucher = () => {
     setAppliedVoucher(null);
@@ -183,25 +171,15 @@ export default function Checkout() {
 
       <main className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
-          <h1 className="text-lg font-bold mb-4">Thông Tin Thanh Toán</h1>
-          <div className="flex flex-col gap-4">
-            <input type="text" placeholder="Nhập họ tên" onChange={(e) => setName(e.target.value)} className="border rounded px-4 py-2" />
-            <input type="text" placeholder="Số điện thoại" onChange={(e) => setPhoneNumber(e.target.value)} className="border rounded px-4 py-2" />
-            <input type="email" placeholder="Email" onChange={(e) => setEmail(e.target.value)} className="border rounded px-4 py-2" />
-            <select className="border rounded px-4 py-2" value={provinceCode} onChange={(e) => setProvinceCode(e.target.value)}>
-              <option value="">Chọn Tỉnh/Thành</option>
-              {data.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}
-            </select>
-            <select className="border rounded px-4 py-2" value={districtCode} onChange={(e) => setDistrictCode(e.target.value)} disabled={!provinceCode}>
-              <option value="">Chọn Quận/Huyện</option>
-              {districts.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
-            </select>
-            <select className="border rounded px-4 py-2" value={wardCode} onChange={(e) => setWardCode(e.target.value)} disabled={!districtCode}>
-              <option value="">Chọn Phường/Xã</option>
-              {wards.map(w => <option key={w.code} value={w.code}>{w.name}</option>)}
-            </select>
-            <input type="text" placeholder="Địa chỉ nhận hàng" onChange={(e) => setAddress(e.target.value)} className="border rounded px-4 py-2" />
-          </div>
+          <h1 className="text-lg font-bold mb-4">Địa Chỉ Nhận Hàng</h1>
+          {defaultAddress ? (
+            <div className="bg-white border rounded p-4">
+              <p className="font-medium">{defaultAddress.fullName} | {defaultAddress.phone}</p>
+              <p>{defaultAddress.detail}, {defaultAddress.ward}, {defaultAddress.district}, {defaultAddress.province}</p>
+            </div>
+          ) : (
+            <p className="text-red-600">Không tìm thấy địa chỉ mặc định.</p>
+          )}
         </div>
 
         <div className="bg-gray-100 rounded-xl p-5">

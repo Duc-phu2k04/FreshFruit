@@ -9,7 +9,12 @@ const isSameVariant = (a, b) => {
 };
 
 // Tạo đơn hàng
-export const createOrder = async ({ userId, cartItems, voucher }) => {
+
+export const createOrder = async ({ userId, cartItems, voucher, address }) => {
+  if (!address || !address.fullName || !address.phone || !address.province) {
+    throw new Error("Thiếu thông tin địa chỉ giao hàng");
+  }
+
   let items = [];
 
   for (const item of cartItems) {
@@ -26,25 +31,20 @@ export const createOrder = async ({ userId, cartItems, voucher }) => {
     );
 
     if (!matchedVariant) {
-      throw new Error(
-        `Không tìm thấy biến thể phù hợp cho sản phẩm ${product.name}`
-      );
+      throw new Error(`Không tìm thấy biến thể phù hợp cho sản phẩm ${product.name}`);
     }
 
     if (matchedVariant.stock < item.quantity) {
-      throw new Error(
-        `Không đủ tồn kho cho sản phẩm ${product.name} (${variantInfo.weight}, ${variantInfo.ripeness})`
-      );
+      throw new Error(`Không đủ tồn kho cho sản phẩm ${product.name}`);
     }
 
-    // Thêm vào danh sách item cho đơn hàng
     items.push({
       product: product._id,
       productName: product.name,
       quantity: item.quantity,
       price: matchedVariant.price,
       variant: variantInfo,
-      variantId: matchedVariant._id, // Dùng để cập nhật chính xác tồn kho
+      variantId: matchedVariant._id,
     });
   }
 
@@ -74,24 +74,20 @@ export const createOrder = async ({ userId, cartItems, voucher }) => {
     items,
     total,
     voucher: appliedVoucher || null,
+    shippingAddress: address, // ✅ Lưu địa chỉ giao hàng tại thời điểm đặt
   });
 
   await order.save();
 
-  // ✅ Trừ tồn kho
+  // Trừ tồn kho
   for (const item of items) {
     await Product.updateOne(
-      {
-        _id: item.product,
-        "variants._id": item.variantId,
-      },
-      {
-        $inc: { "variants.$.stock": -item.quantity },
-      }
+      { _id: item.product, "variants._id": item.variantId },
+      { $inc: { "variants.$.stock": -item.quantity } }
     );
   }
 
-  // ✅ Xoá sản phẩm khỏi giỏ hàng
+  // Xoá khỏi giỏ hàng
   await Cart.findOneAndUpdate(
     { user: userId },
     {
@@ -108,6 +104,7 @@ export const createOrder = async ({ userId, cartItems, voucher }) => {
 
   return order;
 };
+
 
 // Lấy tất cả đơn hàng (dành cho admin)
 export const getAllOrders = async () => {

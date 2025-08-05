@@ -4,10 +4,10 @@ import Order from "../models/order.model.js";
 // Tạo đơn hàng
 export const checkout = async (req, res) => {
   try {
-    const { cartItems, voucher } = req.body;
+    const { cartItems, voucher, address } = req.body; // ✅ nhận thêm address
     const userId = req.user._id;
 
-    const order = await orderService.createOrder({ userId, cartItems, voucher });
+    const order = await orderService.createOrder({ userId, cartItems, voucher, address }); // ✅ truyền address
 
     res.status(201).json({
       message: "Đặt hàng thành công",
@@ -18,6 +18,7 @@ export const checkout = async (req, res) => {
         total: order.total,
         status: order.status,
         voucher: order.voucher,
+        shippingAddress: order.shippingAddress, // ✅ phản hồi cả địa chỉ
         createdAt: order.createdAt,
       },
     });
