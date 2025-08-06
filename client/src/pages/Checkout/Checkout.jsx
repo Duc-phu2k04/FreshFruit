@@ -103,6 +103,7 @@ export default function Checkout() {
         cartItems,
         voucher: appliedVoucher?.code || null,
         address: buildShippingAddress(),
+        paymentMethod: "cod"
       }, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -133,7 +134,8 @@ export default function Checkout() {
     const response = await axios.post('http://localhost:3000/api/momo/create-payment', {
       cartItems,
       voucher: appliedVoucher?.code || null,
-      address: buildShippingAddress()
+      address: buildShippingAddress(),
+      paymentMethod: "momo"
     }, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}`,

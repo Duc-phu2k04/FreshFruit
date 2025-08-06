@@ -1,4 +1,4 @@
-import * as momoService from '../services/momo.service.js';
+import momoService from '../services/momo.service.js';
 
 const momoController = {
   // Tạo thanh toán MoMo

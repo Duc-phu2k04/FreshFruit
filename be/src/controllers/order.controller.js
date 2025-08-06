@@ -17,6 +17,7 @@ export const checkout = async (req, res) => {
         items: order.items,
         total: order.total,
         status: order.status,
+        paymentStatus: order.paymentStatus, // ✅ thêm trạng thái thanh toán
         voucher: order.voucher,
         shippingAddress: order.shippingAddress, // ✅ phản hồi cả địa chỉ
         createdAt: order.createdAt,
@@ -80,7 +81,7 @@ export const updateStatus = async (req, res) => {
   }
 };
 
-//  Huỷ đơn hàng (chỉ khi status === "pending")
+// Huỷ đơn hàng (chỉ khi status === "pending" hoặc paymentStatus === 'failed')
 export const deleteOrder = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -97,8 +98,8 @@ export const deleteOrder = async (req, res) => {
       return res.status(403).json({ message: "Bạn không có quyền huỷ đơn này" });
     }
 
-    if (order.status !== "pending") {
-      return res.status(400).json({ message: "Chỉ được huỷ đơn khi đang chờ xác nhận" });
+    if (order.status !== "pending" && order.paymentStatus !== "failed") {
+      return res.status(400).json({ message: "Chỉ được huỷ đơn khi đang chờ xác nhận hoặc đã thất bại" });
     }
 
     await Order.findByIdAndDelete(id);

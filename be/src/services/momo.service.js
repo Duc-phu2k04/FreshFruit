@@ -5,9 +5,18 @@ import Product from '../models/product.model.js';
 import Voucher from '../models/voucher.model.js';
 import Cart from '../models/cart.model.js';
 
+// ⚙️ Thay bằng thông tin tài khoản MoMo của bạn
+const partnerCode = "MOMO";
+const accessKey = "F8BBA842ECF85";
+const secretKey = "K951B6PE1waDMi640xX08PD3vg6EkVlz";
+
+// Link callback và redirect
+const redirectUrl = "http://localhost:5173/order-success";
+const ipnUrl = "https://e2f48429cd06.ngrok-free.app/api/momo/ipn";
+
 const isSameVariant = (a, b) => a.weight === b.weight && a.ripeness === b.ripeness;
 
-export const createOrderTemp = async ({ userId, cartItems, voucher, shippingAddress }) => {
+const createOrderTemp = async ({ userId, cartItems, voucher, shippingAddress }) => {
   if (!shippingAddress || !shippingAddress.fullName || !shippingAddress.phone || !shippingAddress.province) {
     throw new Error("Thiếu thông tin địa chỉ giao hàng");
   }
@@ -53,18 +62,94 @@ export const createOrderTemp = async ({ userId, cartItems, voucher, shippingAddr
     voucher: appliedVoucher || null,
     shippingAddress,
     status: 'pending',
+    paymentStatus: 'unpaid',
     paymentMethod: 'momo'
   });
 
   await order.save();
+
+  setTimeout(async () => {
+    const latestOrder = await Order.findById(order._id);
+    if (latestOrder && latestOrder.paymentStatus === 'unpaid') {
+      latestOrder.paymentStatus = 'failed';
+      latestOrder.status = 'cancelled';
+      await latestOrder.save();
+    }
+  }, 100 * 60 * 1000); // 100 phút
+
   return order;
 };
 
-export const confirmMomoOrder = async (orderId) => {
-  const order = await Order.findOne({ _id: orderId });
-  if (!order) throw new Error('Không tìm thấy đơn hàng');
+const createMomoPayment = async (order) => {
+  const requestId = `${partnerCode}${Date.now()}`; // unique
+  const orderId = order._id.toString(); // giữ nguyên
+  const orderInfo = "Thanh toán đơn hàng FreshFruit";
+  const amount = order.total.toString();
+  const requestType = "payWithMethod";
+  const extraData = "";
 
-  // Tránh xác nhận lại nếu đã xác nhận
+  const rawSignature = `accessKey=${accessKey}&amount=${amount}&extraData=${extraData}&ipnUrl=${ipnUrl}&orderId=${orderId}&orderInfo=${orderInfo}&partnerCode=${partnerCode}&redirectUrl=${redirectUrl}&requestId=${requestId}&requestType=${requestType}`;
+  const signature = crypto.createHmac('sha256', secretKey).update(rawSignature).digest('hex');
+
+  const body = JSON.stringify({
+    partnerCode,
+    partnerName: "MoMo Payment", // ✅ thêm
+    storeId: "FreshFruitStore",   // ✅ thêm
+    requestId,
+    amount,
+    orderId,
+    orderInfo,
+    redirectUrl,
+    ipnUrl,
+    lang: 'vi',
+    requestType,
+    signature,
+    extraData
+  });
+
+  console.log("📤 Gửi request tới MoMo với body:", body);
+
+  const options = {
+    hostname: 'test-payment.momo.vn',
+    path: '/v2/gateway/api/create',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(body)
+    }
+  };
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, res => {
+      res.setEncoding('utf8');
+      let responseBody = '';
+      res.on('data', chunk => responseBody += chunk);
+      res.on('end', () => {
+        try {
+          const data = JSON.parse(responseBody);
+          console.log("🎯 Phản hồi từ MoMo:", data);
+
+          if (data && data.payUrl) resolve(data.payUrl);
+          else {
+            console.error("❌ MoMo không trả về payUrl. Phản hồi:", data);
+            reject(new Error("Không lấy được payUrl từ MoMo"));
+          }
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    req.on('error', err => reject(err));
+    req.write(body);
+    req.end();
+  });
+};
+
+
+const confirmMomoOrder = async (orderId) => {
+  const order = await Order.findById(orderId);
+  if (!order) throw new Error("Không tìm thấy đơn hàng");
   if (order.paymentStatus === 'paid') return;
 
   // Trừ tồn kho
@@ -75,109 +160,35 @@ export const confirmMomoOrder = async (orderId) => {
     );
   }
 
-  // Giảm số lượng voucher nếu có
+  // Trừ số lượng voucher
   if (order.voucher) {
     await Voucher.updateOne({ _id: order.voucher }, { $inc: { quantity: -1 } });
   }
 
-  // Xoá sản phẩm khỏi giỏ hàng
-  await Cart.updateOne(
-    { user: order.user },
-    {
-      $pull: {
-        items: order.items.map(i => ({
-          product: i.product,
-          variantId: i.variantId,
-        }))
+  // Xóa sản phẩm khỏi giỏ hàng
+  for (const item of order.items) {
+    await Cart.updateOne(
+      { user: order.user },
+      {
+        $pull: {
+          items: {
+            product: item.product,
+            variantId: item.variantId
+          }
+        }
       }
-    }
-  );
+    );
+  }
 
-  // ✅ Cập nhật trạng thái thanh toán và đơn hàng
+  // Cập nhật trạng thái đơn hàng
   order.paymentStatus = 'paid';
   order.status = 'confirmed';
-
   await order.save();
 };
 
 
-export const createMomoPayment = async (order) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const amount = Math.round(order.total).toString();
-
-      const partnerCode = 'MOMO';
-      const accessKey = 'F8BBA842ECF85';
-      const secretKey = 'K951B6PE1waDMi640xX08PD3vg6EkVlz';
-      const orderInfo = 'Thanh toán đơn hàng FreshFruit';
-      const redirectUrl = 'http://localhost:5173/order-success';
-      const ipnUrl = 'http://localhost:3000/api/momo/ipn';
-      const requestType = 'payWithMethod';
-      const extraData = '';
-
-      const requestId = partnerCode + new Date().getTime();
-      const orderIdMomo = order._id.toString(); // dùng order._id thật
-
-      const rawSignature = `accessKey=${accessKey}&amount=${amount}&extraData=${extraData}` +
-        `&ipnUrl=${ipnUrl}&orderId=${orderIdMomo}&orderInfo=${orderInfo}&partnerCode=${partnerCode}` +
-        `&redirectUrl=${redirectUrl}&requestId=${requestId}&requestType=${requestType}`;
-
-      const signature = crypto.createHmac('sha256', secretKey).update(rawSignature).digest('hex');
-
-      const requestBody = JSON.stringify({
-        partnerCode,
-        accessKey,
-        requestId,
-        amount,
-        orderId: orderIdMomo,
-        orderInfo,
-        redirectUrl,
-        ipnUrl,
-        extraData,
-        requestType,
-        autoCapture: true,
-        signature,
-        lang: 'vi'
-      });
-
-      const options = {
-        hostname: 'test-payment.momo.vn',
-        port: 443,
-        path: '/v2/gateway/api/create',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(requestBody),
-        }
-      };
-
-      const req = https.request(options, (res) => {
-        res.setEncoding('utf8');
-        let body = '';
-
-        res.on('data', (chunk) => { body += chunk; });
-        res.on('end', () => {
-          try {
-            const response = JSON.parse(body);
-            if (response?.payUrl) {
-              resolve(response.payUrl);
-            } else {
-              reject(new Error(response.message || 'Không tạo được thanh toán MoMo'));
-            }
-          } catch (err) {
-            reject(new Error('Lỗi phân tích phản hồi từ MoMo'));
-          }
-        });
-      });
-
-      req.on('error', (e) => {
-        reject(new Error('Lỗi kết nối tới MoMo: ' + e.message));
-      });
-
-      req.write(requestBody);
-      req.end();
-    } catch (err) {
-      reject(err);
-    }
-  });
+export default {
+  createOrderTemp,
+  createMomoPayment,
+  confirmMomoOrder
 };

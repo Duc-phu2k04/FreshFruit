@@ -9,8 +9,7 @@ const isSameVariant = (a, b) => {
 };
 
 // Tạo đơn hàng
-
-export const createOrder = async ({ userId, cartItems, voucher, address }) => {
+export const createOrder = async ({ userId, cartItems, voucher, address, paymentMethod = "cod" }) => {
   if (!address || !address.fullName || !address.phone || !address.province) {
     throw new Error("Thiếu thông tin địa chỉ giao hàng");
   }
@@ -74,7 +73,10 @@ export const createOrder = async ({ userId, cartItems, voucher, address }) => {
     items,
     total,
     voucher: appliedVoucher || null,
-    shippingAddress: address, // ✅ Lưu địa chỉ giao hàng tại thời điểm đặt
+    shippingAddress: address,
+    status: "pending",
+    paymentStatus: "unpaid",
+    paymentMethod, // ✅ thêm dòng này
   });
 
   await order.save();
@@ -104,7 +106,6 @@ export const createOrder = async ({ userId, cartItems, voucher, address }) => {
 
   return order;
 };
-
 
 // Lấy tất cả đơn hàng (dành cho admin)
 export const getAllOrders = async () => {

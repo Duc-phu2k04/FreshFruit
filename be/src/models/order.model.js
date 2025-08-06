@@ -49,6 +49,12 @@ const orderSchema = new mongoose.Schema({
     enum: ["unpaid", "paid", "failed"],
     default: "unpaid",
   },
+  paymentMethod: {
+  type: String,
+  enum: ["momo", "cod"],
+  default: "cod",
+},
+
   voucher: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Voucher",
