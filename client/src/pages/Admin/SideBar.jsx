@@ -11,6 +11,7 @@ import {
     UsersIcon,
     StarIcon,
     TicketIcon, // Icon mới cho Vouchers
+    TruckIcon,
     ArrowLeftOnRectangleIcon
 } from '@heroicons/react/24/solid';
 
@@ -76,6 +77,17 @@ const Sidebar = () => {
                                 Quản lý vị trí
                             </Link>
                         </li>
+                        {/* --- MỤC: QUẢN LÝ ĐỊA CHỈ NHẬN HÀNG --- */}
+                        <li>
+                            <Link
+                                to="/admin/address"
+                                className={`${linkClasses} ${isLinkActive('/admin/address') ? activeLinkClasses : hoverClasses}`}
+                            >
+                                <TruckIcon className={iconClasses} />
+                                Quản lý địa chỉ
+                            </Link>
+                        </li>
+
                         <li>
                             <Link
                                 to="/admin/orders"

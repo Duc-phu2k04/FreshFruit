@@ -1,16 +1,8 @@
 import Product from "../models/product.model.js";
-
-const isEqualVariant = (v1, v2) => {
-  return (
-    v1.grade === v2.grade &&
-    v1.weight === v2.weight &&
-    v1.ripeness === v2.ripeness
-  );
-};
+import mongoose from "mongoose";
 
 const generateVariants = (weights, ripenesses, baseVariant) => {
   const variants = [];
-
   const basePrice = Number(baseVariant.price);
   if (isNaN(basePrice)) throw new Error("Giá baseVariant không hợp lệ");
 
@@ -19,28 +11,25 @@ const generateVariants = (weights, ripenesses, baseVariant) => {
 
   for (const weight of weights) {
     for (const ripeness of ripenesses) {
+      // Bỏ qua chính baseVariant
       if (
         weight === baseVariant.attributes.weight &&
         ripeness === baseVariant.attributes.ripeness
-      ) {
+      )
         continue;
-      }
 
       let price = basePrice;
-      const targetWeightMultiplier = weightMultiplier[weight] ?? 1;
-      price = Math.round(basePrice * (targetWeightMultiplier / baseWeightMultiplier));
 
-      variants.push({
-        attributes: {
-          weight,
-          ripeness
-        },
-        price,
-        stock: 0
-      });
+      if (weight !== baseVariant.attributes.weight) {
+        const targetWeightMultiplier = weightMultiplier[weight] ?? 1;
+        price = Math.round(
+          basePrice * (targetWeightMultiplier / baseWeightMultiplier)
+        );
+      }
+
+      variants.push({ attributes: { weight, ripeness }, price, stock: 0 });
     }
   }
-
   return variants;
 };
 
@@ -52,32 +41,32 @@ const productService = {
       image,
       category,
       location,
-      gradeOptions = [],
       weightOptions = [],
       ripenessOptions = [],
       baseVariant,
-      variants: inputVariants
+      variants: inputVariants,
     } = data;
 
     let variants = [];
     let displayVariant = null;
 
     if (Array.isArray(inputVariants) && inputVariants.length > 0) {
-      variants = inputVariants.map(v => ({
-        attributes: {
-          grade: v.grade,
-          weight: v.weight,
-          ripeness: v.ripeness
-        },
-        price: Number(v.price),
-        stock: Number(v.stock)
-      }));
-      displayVariant = variants[0];
-    } else if (baseVariant?.attributes && typeof baseVariant.price !== "undefined") {
+      variants = inputVariants;
+      displayVariant = inputVariants[0];
+    } else if (
+      baseVariant?.attributes &&
+      typeof baseVariant.price !== "undefined"
+    ) {
       baseVariant.price = Number(baseVariant.price);
-      if (isNaN(baseVariant.price)) throw new Error("Giá baseVariant không hợp lệ");
+      if (isNaN(baseVariant.price))
+        throw new Error("Giá baseVariant không hợp lệ");
 
-      variants = generateVariants(weightOptions, ripenessOptions, baseVariant);
+      // ✅ Generate and include baseVariant into variants
+      const autoVariants = generateVariants(weightOptions, ripenessOptions, baseVariant);
+      variants = [
+        { ...baseVariant }, // add baseVariant as a real variant
+        ...autoVariants,
+      ];
       displayVariant = baseVariant;
     }
 
@@ -87,30 +76,50 @@ const productService = {
       image,
       category,
       location,
-      gradeOptions,
       weightOptions,
       ripenessOptions,
       baseVariant,
       variants,
-      displayVariant
+      displayVariant,
     });
 
     await product.save();
     return product;
   },
 
-  // ✅ SỬA Ở ĐÂY: Trả về mảng trực tiếp thay vì object { data: products }
   getAllProducts: async () => {
     const products = await Product.find()
       .populate("category", "name")
       .populate("location", "name");
-    return products;
+
+    const productsWithBaseId = products.map((p) => {
+      if (p.baseVariant && !p.baseVariant._id) {
+        p.baseVariant = {
+          ...p.baseVariant.toObject?.() || p.baseVariant,
+          _id: new mongoose.Types.ObjectId(),
+        };
+      }
+      return p;
+    });
+
+    return { data: productsWithBaseId };
   },
 
   getProductById: async (id) => {
-    return await Product.findById(id)
+    const product = await Product.findById(id)
       .populate("category", "name")
       .populate("location", "name");
+
+    if (!product) return null;
+
+    if (product.baseVariant && !product.baseVariant._id) {
+      product.baseVariant = {
+        ...product.baseVariant.toObject?.() || product.baseVariant,
+        _id: new mongoose.Types.ObjectId(),
+      };
+    }
+
+    return product;
   },
 
   updateProduct: async (id, data) => {
@@ -124,14 +133,14 @@ const productService = {
   deleteVariants: async (productId, attributesList) => {
     const product = await Product.findById(productId);
     if (!product) return null;
-
-    product.variants = product.variants.filter(v =>
-      !attributesList.some(attr =>
-        v.attributes.weight === attr.weight &&
-        v.attributes.ripeness === attr.ripeness
-      )
+    product.variants = product.variants.filter(
+      (v) =>
+        !attributesList.some(
+          (attr) =>
+            v.attributes.weight === attr.weight &&
+            v.attributes.ripeness === attr.ripeness
+        )
     );
-
     await product.save();
     return product;
   },
@@ -139,7 +148,6 @@ const productService = {
   updateVariant: async (productId, variantId, updateData) => {
     const product = await Product.findById(productId);
     if (!product) return null;
-
     const variant = product.variants.id(variantId);
     if (!variant) return null;
 
@@ -160,7 +168,7 @@ const productService = {
     product.variants.pull({ _id: variantId });
     await product.save();
     return product;
-  }
+  },
 };
 
 export default productService;

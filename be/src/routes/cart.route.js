@@ -1,3 +1,4 @@
+// ✅ routes/cart.route.js
 import express from "express";
 import {
   addToCart,
@@ -13,7 +14,7 @@ const router = express.Router();
 router.get("/", verifyToken, getCartByUser);
 router.post("/add", verifyToken, addToCart);
 router.put("/update", verifyToken, updateCartItem);
-router.delete("/:productId", verifyToken, removeCartItem);
-router.delete("/clear", verifyToken, clearCart); 
+router.delete("/:productId/:variantId", verifyToken, removeCartItem);
+router.delete("/clear", verifyToken, clearCart);
 
 export default router;

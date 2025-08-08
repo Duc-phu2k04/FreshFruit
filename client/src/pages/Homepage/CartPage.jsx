@@ -1,411 +1,304 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
-import styles from "./CartPage.module.css";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-function CartPage() {
-  const { user } = useAuth();
-  const [cartItems, setCartItems] = useState([]);
+export default function CartPage() {
+  const [items, setItems] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
-  const [selectAll, setSelectAll] = useState(false);
-  const [successMsg, setSuccessMsg] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
-  const [editingItemKey, setEditingItemKey] = useState(null);
-  const [editedItem, setEditedItem] = useState({});
   const navigate = useNavigate();
 
-  const generateItemKey = (item) =>
-    `${item.product._id}-${item.weight}-${item.ripeness}`;
-
-  useEffect(() => {
-    async function fetchCartItems() {
-      try {
-        const response = await fetch(`http://localhost:3000/api/cart`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        });
-        if (!response.ok) throw new Error("Lấy giỏ hàng thất bại");
-        const data = await response.json();
-        setCartItems(data.items || []);
-      } catch (error) {
-        console.error(error);
-        setErrorMsg("Không thể tải giỏ hàng");
-      }
-    }
-
-    if (user?._id) fetchCartItems();
-  }, [user]);
-
-  const updateQuantity = async (itemKey, newQuantity) => {
-    if (newQuantity < 1) return;
-    setCartItems((prevItems) =>
-      prevItems.map((item) =>
-        generateItemKey(item) === itemKey
-          ? { ...item, quantity: newQuantity }
-          : item
-      )
-    );
-
-    const [productId, weight, ripeness] = itemKey.split("-");
-
+  const fetchCart = async () => {
     try {
-      await fetch(`http://localhost:3000/api/cart/update`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({
-          productId,
-          weight,
-          ripeness,
-          quantity: newQuantity,
-        }),
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:3000/api/cart", {
+        headers: { Authorization: `Bearer ${token}` },
       });
-    } catch (err) {
-      console.error("Lỗi cập nhật số lượng:", err);
-    }
-  };
+      const data = await res.json();
+      setItems(data.items);
 
-  const removeFromCart = async (itemKey) => {
-    const [productId, weight, ripeness] = itemKey.split("-");
-    setCartItems((prevItems) =>
-      prevItems.filter((item) => generateItemKey(item) !== itemKey)
-    );
-    setSelectedItems((prev) => prev.filter((id) => id !== itemKey));
-    try {
-      await fetch(
-        `http://localhost:3000/api/cart/${productId}?weight=${weight}&ripeness=${ripeness}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        }
+      setSelectedItems((prev) =>
+        data.items
+          .filter((item) =>
+            prev.find(
+              (sel) =>
+                sel.productId === item.product._id &&
+                sel.variantId === item.variantId
+            )
+          )
+          .map((item) => ({
+            productId: item.product._id,
+            variantId: item.variantId,
+          }))
       );
     } catch (err) {
-      console.error("Lỗi xoá sản phẩm:", err);
+      console.error("Lỗi khi tải giỏ hàng:", err);
     }
   };
 
-  const saveEdit = async (originalItem) => {
-    const updated = {
-      productId: originalItem.product._id,
-      weight: editedItem.weight,
-      ripeness: editedItem.ripeness,
-      quantity: editedItem.quantity,
-    };
+  useEffect(() => {
+    fetchCart();
+  }, []);
 
+  const updateQuantity = async (productId, variantId, quantity) => {
     try {
-      await fetch(`http://localhost:3000/api/cart/update`, {
+      const token = localStorage.getItem("token");
+      await fetch("http://localhost:3000/api/cart/update", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(updated),
+        body: JSON.stringify({ productId, variantId, quantity }),
       });
 
-      const response = await fetch(`http://localhost:3000/api/cart`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
-      const data = await response.json();
-      setCartItems(data.items || []);
-      setEditingItemKey(null);
+      fetchCart();
     } catch (err) {
-      console.error("Lỗi khi lưu chỉnh sửa:", err);
-      setErrorMsg("Không thể lưu chỉnh sửa");
+      console.error("Lỗi khi cập nhật số lượng:", err);
     }
   };
 
-  const handleSelectItem = (itemKey) => {
+  const removeItem = async (productId, variantId) => {
+    try {
+      const token = localStorage.getItem("token");
+      await fetch(`http://localhost:3000/api/cart/${productId}/${variantId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      fetchCart();
+    } catch (err) {
+      console.error("Lỗi khi xoá sản phẩm:", err);
+    }
+  };
+
+  const changeVariant = async (productId, oldVariantId, newVariantId, quantity) => {
+    try {
+      const token = localStorage.getItem("token");
+
+      await fetch(`http://localhost:3000/api/cart/${productId}/${oldVariantId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      await fetch("http://localhost:3000/api/cart/add", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ productId, variantId: newVariantId, quantity }),
+      });
+
+      fetchCart();
+    } catch (err) {
+      console.error("Lỗi khi đổi biến thể:", err);
+    }
+  };
+
+  const isSelected = (productId, variantId) =>
+    selectedItems.some(
+      (item) => item.productId === productId && item.variantId === variantId
+    );
+
+  const handleSelectItem = (productId, variantId) => {
+    const exists = isSelected(productId, variantId);
     setSelectedItems((prev) =>
-      prev.includes(itemKey)
-        ? prev.filter((id) => id !== itemKey)
-        : [...prev, itemKey]
+      exists
+        ? prev.filter(
+            (item) =>
+              item.productId !== productId || item.variantId !== variantId
+          )
+        : [...prev, { productId, variantId }]
     );
   };
 
   const handleSelectAll = () => {
-    if (selectAll) {
+    if (selectedItems.length === items.length) {
       setSelectedItems([]);
     } else {
-      const validKeys = cartItems
-        .filter((item) => item.product && item.product._id)
-        .map((item) => generateItemKey(item));
-      setSelectedItems(validKeys);
+      const all = items.map((item) => ({
+        productId: item.product._id,
+        variantId: item.variantId,
+      }));
+      setSelectedItems(all);
     }
-    setSelectAll(!selectAll);
+  };
+
+  const handleRemoveSelected = () => {
+    selectedItems.forEach((item) => removeItem(item.productId, item.variantId));
+    setSelectedItems([]);
   };
 
   const handleCheckout = () => {
-    const selectedProducts = cartItems.filter((item) =>
-      selectedItems.includes(generateItemKey(item))
+    const selectedData = items.filter((item) =>
+      isSelected(item.product._id, item.variantId)
     );
-
-    if (selectedProducts.length === 0) {
-      setErrorMsg("Vui lòng chọn ít nhất 1 sản phẩm để đặt hàng.");
-      return;
-    }
-
-    const sumPrice = selectedProducts.reduce((total, item) => {
-      return total + (item.price || 0) * item.quantity;
-    }, 0);
-
-    const payload = {
-      products: selectedProducts.map((item) => ({
-        _id: item.product._id,
-        nameProduct: item.product.name,
-        quantity: item.quantity,
-        price: item.price,
-        weight: item.weight,
-        ripeness: item.ripeness,
-      })),
-      sumPrice,
-    };
-
-    navigate("/checkout", { state: { cartData: payload } });
+    navigate("/checkout", {
+      state: {
+        selectedItems: selectedData.map((item) => ({
+          ...item,
+          variantInfo: {
+            weight: item.variant.attributes.weight,
+            ripeness: item.variant.attributes.ripeness,
+          },
+        })),
+      },
+    });
   };
 
-  const totalPrice = cartItems.reduce((acc, item) => {
-    if (selectedItems.includes(generateItemKey(item))) {
-      return acc + (item.price || 0) * item.quantity;
-    }
-    return acc;
-  }, 0);
+  const total = items.reduce(
+    (sum, item) =>
+      isSelected(item.product._id, item.variantId)
+        ? sum + item.variant.price * item.quantity
+        : sum,
+    0
+  );
 
   return (
-    <div className={`${styles.container} mx-auto max-w-[1300px]`}>
-      <h1 className={styles.title}>Giỏ hàng của bạn</h1>
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-6">Giỏ hàng của bạn</h1>
 
-      {errorMsg && <div className="text-red-500 mb-2">{errorMsg}</div>}
-      {successMsg && <div className="text-green-600 mb-2">{successMsg}</div>}
-
-      {cartItems.length === 0 ? (
-        <div className="text-center text-gray-500">
-          Giỏ hàng trống.{" "}
-          <Link to="/" className="text-[#00613C] underline">
-            Quay lại trang chủ
-          </Link>
-        </div>
+      {items.length === 0 ? (
+        <p>Giỏ hàng trống.</p>
       ) : (
         <>
-          <div className="overflow-x-auto">
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>
-                    <input
-                      type="checkbox"
-                      className={styles.checkbox}
-                      checked={selectAll}
-                      onChange={handleSelectAll}
-                    />
-                  </th>
-                  <th>Sản phẩm</th>
-                  <th>Giá</th>
-                  <th>Khối lượng</th>
-                  <th>Tình trạng</th>
-                  <th>Số lượng</th>
-                  <th className="text-center">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cartItems.map((item) =>
-                  item.product ? (
-                    <tr key={generateItemKey(item)}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          className={styles.checkbox}
-                          checked={selectedItems.includes(generateItemKey(item))}
-                          onChange={() =>
-                            handleSelectItem(generateItemKey(item))
-                          }
-                        />
-                      </td>
-                      <td className="flex items-center gap-4">
-                        <img
-                          src={`http://localhost:3000${item.product.image}`}
-                          alt={item.product.name}
-                          className={styles.productImage}
-                        />
-                        <span className={styles.productName}>
-                          {item.product.name}
-                        </span>
-                      </td>
-                      <td className={styles.price}>
-                        {item.price
-                          ? `${item.price.toLocaleString()}đ`
-                          : "Giá: Đang cập nhật"}
-                      </td>
-                      <td>
-                        {editingItemKey === generateItemKey(item) ? (
-                          <select
-                            value={editedItem.weight}
-                            onChange={(e) =>
-                              setEditedItem((prev) => ({
-                                ...prev,
-                                weight: e.target.value,
-                              }))
-                            }
-                          >
-                            {[...new Set(item.product.variants.map((v) => v.attributes.weight))].map(
-                              (weight, i) => (
-                                <option key={i} value={weight}>
-                                  {weight}
-                                </option>
-                              )
-                            )}
-                          </select>
-                        ) : (
-                          item.weight || "Không rõ"
-                        )}
-                      </td>
-                      <td>
-                        {editingItemKey === generateItemKey(item) ? (
-                          <select
-                            value={editedItem.ripeness}
-                            onChange={(e) =>
-                              setEditedItem((prev) => ({
-                                ...prev,
-                                ripeness: e.target.value,
-                              }))
-                            }
-                          >
-                            {item.product.variants
-                              .filter(
-                                (v) =>
-                                  v.attributes.weight === editedItem.weight
-                              )
-                              .map((v, i) => (
-                                <option
-                                  key={i}
-                                  value={v.attributes.ripeness}
-                                >
-                                  {v.attributes.ripeness}
-                                </option>
-                              ))}
-                          </select>
-                        ) : (
-                          item.ripeness || "Không rõ"
-                        )}
-                      </td>
-                      <td>
-                        {editingItemKey === generateItemKey(item) ? (
-                          <input
-                            type="number"
-                            min={1}
-                            value={editedItem.quantity}
-                            onChange={(e) =>
-                              setEditedItem((prev) => ({
-                                ...prev,
-                                quantity: +e.target.value,
-                              }))
-                            }
-                            className="border w-16 px-2 py-1"
-                          />
-                        ) : (
-                          <div className={styles.quantityControl}>
-                            <button
-                              onClick={() =>
-                                updateQuantity(
-                                  generateItemKey(item),
-                                  item.quantity - 1
-                                )
-                              }
-                              className={styles.quantityButton}
-                            >
-                              -
-                            </button>
-                            <span>{item.quantity}</span>
-                            <button
-                              onClick={() =>
-                                updateQuantity(
-                                  generateItemKey(item),
-                                  item.quantity + 1
-                                )
-                              }
-                              className={styles.quantityButton}
-                            >
-                              +
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                      <td className="text-center">
-                        {editingItemKey === generateItemKey(item) ? (
-                          <>
-                            <button
-                              onClick={() => saveEdit(item)}
-                              className="text-green-600 mr-2 underline"
-                            >
-                              Lưu
-                            </button>
-                            <button
-                              onClick={() => setEditingItemKey(null)}
-                              className="text-gray-500 underline"
-                            >
-                              Hủy
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => {
-                                setEditingItemKey(generateItemKey(item));
-                                setEditedItem({
-                                  weight: item.weight,
-                                  ripeness: item.ripeness,
-                                  quantity: item.quantity,
-                                });
-                              }}
-                              className="text-blue-600 mr-2 underline"
-                            >
-                              Sửa
-                            </button>
-                            <button
-                              onClick={() =>
-                                removeFromCart(generateItemKey(item))
-                              }
-                              className={styles.removeButton}
-                            >
-                              Hủy đơn
-                            </button>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ) : null
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className={styles.checkoutSection}>
-            <div className={styles.totalPrice}>
-              Tổng:{" "}
-              <span className="font-semibold text-green-700">
-                {totalPrice.toLocaleString()}đ
-              </span>
-            </div>
-            <button onClick={handleCheckout} className={styles.orderButton}>
-              Đặt hàng
+          <div className="flex items-center mb-4 gap-4">
+            <input
+              type="checkbox"
+              checked={selectedItems.length === items.length}
+              onChange={handleSelectAll}
+            />
+            <span className="text-sm font-medium">
+              Chọn tất cả ({selectedItems.length}/{items.length})
+            </span>
+            <button
+              onClick={handleRemoveSelected}
+              className="text-red-600 text-sm hover:underline"
+            >
+              Xoá sản phẩm đã chọn
             </button>
           </div>
 
-          <div>
-            <Link to="/" className={styles.backLink}>
-              ← Quay lại trang chủ
-            </Link>
+          <div className="space-y-6">
+            {items.map((item) => (
+              <div
+                key={`${item.product._id}-${item.variantId}`}
+                className="grid grid-cols-[40px_80px_1fr_100px_150px_80px] items-center gap-4 border-b pb-4"
+              >
+                <input
+                  type="checkbox"
+                  checked={isSelected(item.product._id, item.variantId)}
+                  onChange={() =>
+                    handleSelectItem(item.product._id, item.variantId)
+                  }
+                />
+
+                <img
+                  src={`http://localhost:3000${item.product.image}`}
+                  alt={item.product.name}
+                  className="w-20 h-20 object-cover rounded"
+                />
+
+                <div>
+                  <h3
+                    className="font-semibold cursor-pointer hover:underline"
+                    onClick={() => navigate(`/san-pham/${item.product._id}`)}
+                  >
+                    {item.product.name}
+                  </h3>
+
+                  <select
+                    value={item.variantId}
+                    onChange={(e) =>
+                      changeVariant(
+                        item.product._id,
+                        item.variantId,
+                        e.target.value,
+                        item.quantity
+                      )
+                    }
+                    className="mt-1 border rounded px-2 py-1 text-sm"
+                  >
+                    {item.product.variants.map((v) => (
+                      <option key={v._id} value={v._id}>
+                        {v.attributes.weight} / {v.attributes.ripeness}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="text-red-600 font-semibold">
+                  {item.variant.price.toLocaleString()}đ
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() =>
+                      updateQuantity(
+                        item.product._id,
+                        item.variantId,
+                        item.quantity - 1
+                      )
+                    }
+                    disabled={item.quantity <= 1}
+                    className="px-2 border rounded"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    value={item.quantity}
+                    min={1}
+                    max={item.variant.stock}
+                    onChange={(e) =>
+                      updateQuantity(
+                        item.product._id,
+                        item.variantId,
+                        Number(e.target.value)
+                      )
+                    }
+                    className="w-12 border rounded text-center"
+                  />
+                  <button
+                    onClick={() =>
+                      updateQuantity(
+                        item.product._id,
+                        item.variantId,
+                        item.quantity + 1
+                      )
+                    }
+                    disabled={item.quantity >= item.variant.stock}
+                    className="px-2 border rounded"
+                  >
+                    +
+                  </button>
+                </div>
+
+                <button
+                  onClick={() =>
+                    removeItem(item.product._id, item.variantId)
+                  }
+                  className="text-red-500 hover:underline text-sm"
+                >
+                  Xoá
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 flex justify-between items-center">
+            <div className="text-xl font-bold">
+              Tổng: <span className="text-red-600">{total.toLocaleString()}đ</span>
+            </div>
+            <button
+              className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+              disabled={selectedItems.length === 0}
+              onClick={handleCheckout}
+            >
+              Đặt hàng
+            </button>
           </div>
         </>
       )}
     </div>
   );
 }
-
-export default CartPage;

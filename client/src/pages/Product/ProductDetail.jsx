@@ -1,5 +1,3 @@
-// ✅ ProductDetail.jsx (có hiển thị tồn kho theo biến thể)
-
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FaStar } from "react-icons/fa";
@@ -16,27 +14,31 @@ export default function ProductDetail() {
   const [comments, setComments] = useState([]);
   const [successMessage, setSuccessMessage] = useState("");
 
-  const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [selectedWeight, setSelectedWeight] = useState("");
   const [selectedRipeness, setSelectedRipeness] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  const [currentVariant, setCurrentVariant] = useState(null);
 
   useEffect(() => {
-    const fetchProduct = async () => {
-      try {
-        const res = await fetch(`http://localhost:3000/api/product/${id}`);
-        const data = await res.json();
-        setProduct(data);
+ const fetchProduct = async () => {
+  try {
+    const res = await fetch(`http://localhost:3000/api/product/${id}`);
+    const data = await res.json();
 
-        const relatedRes = await fetch(
-          `http://localhost:3000/api/product?category=${data.category._id}`
-        );
-        const related = await relatedRes.json();
-        const filtered = related.filter((item) => item._id !== id);
-        setRelatedProducts(filtered);
-      } catch (err) {
-        console.error("Lỗi khi lấy sản phẩm:", err);
-      }
-    };
+    setProduct(data);
+
+    const relatedRes = await fetch(
+      `http://localhost:3000/api/product?category=${data.category._id}`
+    );
+    const related = await relatedRes.json();
+    const filtered = related.filter((item) => item._id !== id);
+    setRelatedProducts(filtered);
+  } catch (err) {
+    console.error("Lỗi khi lấy sản phẩm:", err);
+  }
+};
+
+
 
     setProduct(null);
     fetchProduct();
@@ -52,6 +54,103 @@ export default function ProductDetail() {
       console.error("Lỗi khi lấy đánh giá:", err);
     }
   };
+
+  const handleSelectVariant = (type, value) => {
+    if (type === "weight") setSelectedWeight(value);
+    if (type === "ripeness") setSelectedRipeness(value);
+  };
+
+  useEffect(() => {
+    if (product && selectedWeight && selectedRipeness) {
+      const found = product.variants.find(
+        (v) =>
+          v.attributes.weight === selectedWeight &&
+          v.attributes.ripeness === selectedRipeness
+      );
+      setCurrentVariant(found || null);
+      setQuantity(1);
+    } else {
+      setCurrentVariant(null);
+    }
+  }, [selectedWeight, selectedRipeness, product]);
+
+  const addToCartServer = async () => {
+    if (!currentVariant) {
+      alert("Vui lòng chọn biến thể trước khi thêm vào giỏ hàng");
+      return;
+    }
+    if (currentVariant.stock <= 0) {
+      alert("Sản phẩm này đã hết hàng");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        alert("Bạn cần đăng nhập để thêm vào giỏ hàng.");
+        return;
+      }
+
+      const payload = {
+        productId: product._id,
+        variantId: currentVariant._id,
+        quantity,
+      };
+
+      const res = await fetch("http://localhost:3000/api/cart/add", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Lỗi khi thêm vào giỏ hàng");
+
+      setSuccessMessage("Đã thêm vào giỏ hàng ✔️");
+      setTimeout(() => setSuccessMessage(""), 2500);
+    } catch (error) {
+      alert("Lỗi: " + error.message);
+    }
+  };
+
+ const handleBuyNow = () => {
+  if (!currentVariant) {
+    alert("Vui lòng chọn biến thể trước khi mua");
+    return;
+  }
+  if (currentVariant.stock <= 0) {
+    alert("Sản phẩm này đã hết hàng");
+    return;
+  }
+
+  navigate("/checkout", {
+    state: {
+      selectedItems: [
+        {
+          product: {
+            _id: product._id,
+            name: product.name,
+          },
+          variant: {
+            _id: currentVariant._id,
+            price: currentVariant.price,
+            attributes: currentVariant.attributes,
+          },
+          variantInfo: {
+            weight: currentVariant.attributes.weight,
+            ripeness: currentVariant.attributes.ripeness,
+          },
+          quantity,
+        },
+      ],
+    },
+  });
+};
+
+
 
   const handleSubmitComment = async (e) => {
     e.preventDefault();
@@ -92,120 +191,8 @@ export default function ProductDetail() {
     }
   };
 
-  const addToCartServer = async (product, e) => {
-    if (!product || !product._id) {
-      alert("Không tìm thấy sản phẩm hợp lệ để thêm vào giỏ.");
-      return;
-    }
-
-    if (!selectedQuantity || !selectedWeight || !selectedRipeness) {
-      alert("Vui lòng chọn đầy đủ Số lượng, Khối lượng và Tình trạng.");
-      return;
-    }
-
-    const img =
-      e?.currentTarget?.closest(".product-actions")?.parentElement?.parentElement?.querySelector("img");
-    if (img) {
-      const flyImg = img.cloneNode(true);
-      const rect = img.getBoundingClientRect();
-      const targetX = window.innerWidth - 80;
-      const targetY = 20;
-
-      flyImg.style.position = "fixed";
-      flyImg.style.left = `${rect.left}px`;
-      flyImg.style.top = `${rect.top}px`;
-      flyImg.style.width = `${rect.width}px`;
-      flyImg.style.height = `${rect.height}px`;
-      flyImg.style.zIndex = 9999;
-      flyImg.style.transition = "all 0.8s ease-in-out";
-      flyImg.style.borderRadius = "12px";
-
-      document.body.appendChild(flyImg);
-
-      requestAnimationFrame(() => {
-        flyImg.style.left = `${targetX}px`;
-        flyImg.style.top = `${targetY}px`;
-        flyImg.style.width = "20px";
-        flyImg.style.height = "20px";
-        flyImg.style.opacity = "0.3";
-      });
-
-      setTimeout(() => flyImg.remove(), 900);
-    }
-
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        alert("Bạn cần đăng nhập để thêm vào giỏ hàng.");
-        return;
-      }
-
-      const payload = {
-        productId: product._id,
-        quantity: parseInt(selectedQuantity),
-        weight: selectedWeight,
-        ripeness: selectedRipeness,
-      };
-
-      const res = await fetch("http://localhost:3000/api/cart/add", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Lỗi khi thêm vào giỏ hàng");
-
-      setSuccessMessage("Đã thêm vào giỏ hàng ✔️");
-      setTimeout(() => setSuccessMessage(""), 2500);
-
-      setSelectedWeight("");
-      setSelectedQuantity(1);
-      setSelectedRipeness("");
-    } catch (error) {
-      alert("Lỗi: " + error.message);
-    }
-  };
-
-  const handleBuyNow = async (product, e) => {
-    if (!selectedQuantity || !selectedWeight || !selectedRipeness) {
-      alert("Vui lòng chọn đầy đủ Số lượng, Khối lượng và Tình trạng.");
-      return;
-    }
-
-    const token = localStorage.getItem("token");
-    if (!token) {
-      alert("Bạn cần đăng nhập để mua sản phẩm.");
-      return;
-    }
-
-    const cartData = {
-      products: [
-        {
-          _id: product._id,
-          nameProduct: product.name,
-          quantity: parseInt(selectedQuantity),
-          price: product.price,
-          weight: selectedWeight,
-          ripeness: selectedRipeness,
-        },
-      ],
-      sumPrice: product.price * parseInt(selectedQuantity),
-    };
-
-    navigate("/checkout", { state: { cartData } });
-  };
-
   if (!product)
     return <p className="text-center mt-10">Đang tải dữ liệu sản phẩm...</p>;
-
-  // ✅ Tìm biến thể phù hợp với lựa chọn để hiển thị tồn kho
-  const selectedVariant = product.variants?.find(
-    (v) => v.weight === selectedWeight && v.ripeness === selectedRipeness
-  );
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
@@ -216,76 +203,114 @@ export default function ProductDetail() {
       )}
 
       <div className="grid md:grid-cols-2 gap-8 bg-white p-6 rounded shadow">
-        <img src={product.image} alt={product.name} className="w-full rounded-lg shadow" />
+        <img
+          src={`http://localhost:3000${product.image}`}
+          alt={product.name}
+          className="w-full rounded-lg shadow"
+        />
         <div>
           <h1 className="text-4xl font-bold mb-3">{product.name}</h1>
-          <p className="text-green-700 text-2xl font-semibold mb-4">
-            {product.price ? `${product.price.toLocaleString()}đ` : "Giá: Đang cập nhật"}
-          </p>
-          <p className="mb-4">{product.description}</p>
 
-          {/* ✅ Hiển thị tồn kho */}
-          <p className="mb-2 text-sm text-gray-600">
-            Tồn kho: {selectedVariant?.inventory ?? product.inventory ?? "Đang cập nhật"}
-          </p>
+          {currentVariant ? (
+            <p className="text-green-700 text-2xl font-semibold mb-2">
+              {currentVariant.price.toLocaleString()}đ
+            </p>
+          ) : (
+            <p className="text-gray-500 mb-2">Vui lòng chọn biến thể</p>
+          )}
 
+          {currentVariant && (
+            <p className="mb-4 text-sm text-gray-600">
+              Tồn kho:{" "}
+              {currentVariant.stock > 0
+                ? `${currentVariant.stock} sản phẩm`
+                : "Hết hàng"}
+            </p>
+          )}
+
+          {/* Chọn Weight */}
           <div className="mb-4">
-            <label className="block font-medium mb-1">Khối lượng:</label>
-            <select
-              value={selectedWeight}
-              onChange={(e) => setSelectedWeight(e.target.value)}
-              className="border rounded px-3 py-2 w-full"
-            >
-              <option value="">-- Chọn khối lượng --</option>
-              {product.weightOptions?.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
+            <p className="font-medium mb-1">Khối lượng:</p>
+            <div className="flex flex-wrap gap-2">
+              {product.weightOptions.map((w) => (
+                <button
+                  key={w}
+                  onClick={() => handleSelectVariant("weight", w)}
+                  className={`px-4 py-2 border rounded relative ${
+                    selectedWeight === w
+                      ? "border-green-600 text-green-600"
+                      : "border-gray-300"
+                  }`}
+                >
+                  {w}
+                  {selectedWeight === w && (
+                    <span className="absolute top-0 right-0 text-green-600 font-bold">
+                      ✓
+                    </span>
+                  )}
+                </button>
               ))}
-            </select>
+            </div>
           </div>
 
+          {/* Chọn Ripeness */}
           <div className="mb-4">
-            <label className="block font-medium mb-1">Số lượng:</label>
-            <input
-              type="number"
-              min={1}
-              value={selectedQuantity}
-              onChange={(e) => setSelectedQuantity(e.target.value)}
-              className="border rounded px-3 py-2 w-full"
-              placeholder="Nhập số lượng"
-            />
+            <p className="font-medium mb-1">Tình trạng:</p>
+            <div className="flex flex-wrap gap-2">
+              {product.ripenessOptions.map((r) => (
+                <button
+                  key={r}
+                  onClick={() => handleSelectVariant("ripeness", r)}
+                  className={`px-4 py-2 border rounded relative ${
+                    selectedRipeness === r
+                      ? "border-green-600 text-green-600"
+                      : "border-gray-300"
+                  }`}
+                >
+                  {r}
+                  {selectedRipeness === r && (
+                    <span className="absolute top-0 right-0 text-green-600 font-bold">
+                      ✓
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="mb-4">
-            <label className="block font-medium mb-1">Tình trạng:</label>
-            <select
-              value={selectedRipeness}
-              onChange={(e) => setSelectedRipeness(e.target.value)}
-              className="border rounded px-3 py-2 w-full"
-            >
-              <option value="">-- Chọn tình trạng --</option>
-              <option value="Xanh">Xanh</option>
-              <option value="Chín vừa">Chín vừa</option>
-              <option value="Chín">Chín</option>
-            </select>
-          </div>
+          {/* Số lượng */}
+          {currentVariant && currentVariant.stock > 0 && (
+            <div className="mb-4 flex items-center gap-3">
+              <p className="font-medium">Số lượng:</p>
+              <input
+                type="number"
+                value={quantity}
+                min={1}
+                max={currentVariant.stock}
+                onChange={(e) => setQuantity(Number(e.target.value))}
+                className="border rounded px-3 py-1 w-20"
+              />
+            </div>
+          )}
 
-          <div className="flex gap-3 mb-4 product-actions">
+          <div className="flex gap-3 mb-4">
             <button
-              className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600"
-              onClick={(e) => addToCartServer(product, e)}
+              className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 disabled:opacity-50"
+              onClick={addToCartServer}
+              disabled={!currentVariant || currentVariant.stock <= 0}
             >
               Thêm vào giỏ
             </button>
             <button
-              className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-              onClick={(e) => handleBuyNow(product, e)}
+              className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 disabled:opacity-50"
+              onClick={handleBuyNow}
+              disabled={!currentVariant || currentVariant.stock <= 0}
             >
               Mua ngay
             </button>
           </div>
 
+          {/* Phần đánh giá sản phẩm giữ nguyên */}
           <div className="mb-6">
             <h3 className="font-semibold mb-2">Đánh giá sản phẩm:</h3>
             <div className="flex">
@@ -324,6 +349,7 @@ export default function ProductDetail() {
         </div>
       </div>
 
+      {/* Đánh giá của khách hàng */}
       <div className="mt-10">
         <h3 className="text-2xl font-semibold mb-4">Đánh giá của khách hàng:</h3>
         {comments.length === 0 ? (
@@ -366,6 +392,7 @@ export default function ProductDetail() {
         )}
       </div>
 
+      {/* Sản phẩm liên quan */}
       <div className="mt-12">
         <h3 className="text-2xl font-semibold mb-4">Sản phẩm liên quan:</h3>
         <div className="grid md:grid-cols-4 gap-6">
@@ -375,10 +402,14 @@ export default function ProductDetail() {
               className="border rounded p-4 cursor-pointer hover:shadow"
               onClick={() => navigate(`/san-pham/${item._id}`)}
             >
-              <img src={item.image} alt={item.name} className="w-full h-40 object-cover rounded" />
+              <img
+                src={`http://localhost:3000${item.image}`}
+                alt={item.name}
+                className="w-full h-40 object-cover rounded"
+              />
               <h4 className="mt-2 font-semibold text-lg">{item.name}</h4>
               <p className="text-green-700 font-semibold">
-                {item.price ? `${item.price.toLocaleString()}đ` : "Giá: Đang cập nhật"}
+                {item.price.toLocaleString()}đ
               </p>
             </div>
           ))}

@@ -14,6 +14,7 @@ import reviewRoute from './src/routes/review.route.js';
 import voucherRoutes from "./src/routes/voucher.route.js";
 import momoRoutes from "./src/routes/momo.route.js";
 import uploadRoute from './src/routes/upload.route.js';
+import addressRoute from './src/routes/address.route.js';
 
 dotenv.config();
 
@@ -40,6 +41,7 @@ app.use('/api/review', reviewRoute);
 app.use('/api/voucher', voucherRoutes);
 app.use('/api/momo', momoRoutes);
 app.use('/api/upload', uploadRoute);
+app.use('/api/address', addressRoute);
 
 // Static file route
 app.use('/images', express.static('public/images'));

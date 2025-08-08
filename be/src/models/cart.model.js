@@ -1,27 +1,24 @@
+// ✅ models/cart.model.js (đã fix)
 import mongoose from "mongoose";
 
-const cartItemSchema = new mongoose.Schema(
-  {
-    product: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Product",
-      required: true,
-    },
-    quantity: {
-      type: Number,
-      required: true,
-      min: [1, "Số lượng phải lớn hơn 0"],
-      default: 1,
-    },
-    weight: {
-      type: String,
-    },
-    ripeness: {
-      type: String,
-    },
+// Không dùng { _id: false } để tránh lỗi validate
+const cartItemSchema = new mongoose.Schema({
+  product: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Product",
+    required: true,
   },
-  { _id: false }
-);
+  variantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: true,
+  },
+  quantity: {
+    type: Number,
+    required: true,
+    min: [1, "Số lượng phải lớn hơn 0"],
+    default: 1,
+  },
+});
 
 const cartSchema = new mongoose.Schema(
   {
