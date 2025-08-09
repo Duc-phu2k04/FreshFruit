@@ -2,20 +2,31 @@ import voucherService from "../services/voucher.service.js";
 
 const voucherController = {
   create: async (req, res) => {
-    try {
-      const { code, discount, quantity, expiration, assignedUsers } = req.body;
-      const voucher = await voucherService.create({
-        code,
-        discount,
-        quantity,
-        expiration,
-        assignedUsers
-      });
-      res.status(201).json(voucher);
-    } catch (err) {
-      res.status(400).json({ message: err.message });
+  try {
+    const { code, discount, quantity, expiresInDays, assignedUsers } = req.body;
+
+    // ✅ Tính expiration từ expiresInDays
+    let expiration = null;
+    if (expiresInDays) {
+      expiration = new Date();
+      expiration.setDate(expiration.getDate() + Number(expiresInDays));
     }
-  },
+
+    // ✅ Ép kiểu số cho discount và quantity
+    const voucher = await voucherService.create({
+      code,
+      discount: Number(discount),
+      quantity: quantity === '' || quantity === null ? null : Number(quantity),
+      expiration,
+      assignedUsers
+    });
+
+    res.status(201).json(voucher);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+},
+
 
   getAll: async (req, res) => {
     try {
