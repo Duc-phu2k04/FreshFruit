@@ -1,7 +1,10 @@
+// services/order.service.js
 import Order from "../models/order.model.js";
 import Voucher from "../models/voucher.model.js";
 import Product from "../models/product.model.js";
 import Cart from "../models/cart.model.js";
+import mongoose from "mongoose";
+import voucherService from "./voucher.service.js"; // import service vừa sửa
 
 // So sánh biến thể
 const isSameVariant = (a, b) => {
@@ -54,9 +57,18 @@ export const createOrder = async ({ userId, cartItems, voucher, address, payment
   let appliedVoucher = null;
 
   if (voucher) {
+    // Voucher phải thuộc về user nếu voucher.assignedUsers không rỗng
     const foundVoucher = await Voucher.findOne({ code: voucher.toUpperCase() });
     if (!foundVoucher) throw new Error("Mã giảm giá không hợp lệ");
 
+    if (foundVoucher.assignedUsers && foundVoucher.assignedUsers.length > 0) {
+      const assigned = foundVoucher.assignedUsers.map(x => x.toString());
+      if (!assigned.includes(userId.toString())) {
+        throw new Error("Mã giảm giá không thuộc về bạn hoặc bạn chưa được phân phát mã này");
+      }
+    }
+
+    // áp dụng giảm
     discountAmount = (subtotal * foundVoucher.discount) / 100;
     appliedVoucher = foundVoucher._id;
 
@@ -76,7 +88,7 @@ export const createOrder = async ({ userId, cartItems, voucher, address, payment
     shippingAddress: address,
     status: "pending",
     paymentStatus: "unpaid",
-    paymentMethod, // ✅ thêm dòng này
+    paymentMethod,
   });
 
   await order.save();
@@ -104,6 +116,10 @@ export const createOrder = async ({ userId, cartItems, voucher, address, payment
     }
   );
 
+  // IMPORTANT:
+  // Không gán voucher ở đây — vì:
+  // - Với momo: cần đợi paymentStatus = 'paid' (momo callback/FE cập nhật)
+  // - Với cod: sẽ gán khi admin/shipper cập nhật status => 'delivered' (xem updateOrderStatus)
   return order;
 };
 
@@ -118,12 +134,55 @@ export const getAllOrders = async () => {
   return orders;
 };
 
-// Cập nhật trạng thái đơn hàng
-export const updateOrderStatus = async (orderId, status) => {
-  const updated = await Order.findByIdAndUpdate(
-    orderId,
-    { status },
-    { new: true }
-  );
-  return updated;
+/**
+ * Cập nhật trạng thái đơn hàng
+ * - Nếu admin cập nhật status -> nếu chuyển sang 'delivered' và paymentMethod === 'cod',
+ *   auto set paymentStatus = 'paid' (gồm trường hợp shipper xác nhận thu tiền).
+ * - Nếu paymentStatus được set = 'paid' (ví dụ callback Momo), thì cũng trigger assign voucher.
+ *
+ * @param {String} orderId
+ * @param {Object} updates - { status, paymentStatus }
+ * @returns updated order
+ */
+export const updateOrderStatus = async (orderId, updates = {}) => {
+  const { status, paymentStatus } = updates;
+
+  const order = await Order.findById(orderId);
+  if (!order) throw new Error("Order not found");
+
+  let changed = false;
+
+  if (status && status !== order.status) {
+    order.status = status;
+    changed = true;
+  }
+
+  if (paymentStatus && paymentStatus !== order.paymentStatus) {
+    order.paymentStatus = paymentStatus;
+    changed = true;
+  }
+
+  // Special: nếu status chuyển thành delivered và phương thức là COD, set paymentStatus = 'paid'
+  if (status === "delivered" && order.paymentMethod === "cod") {
+    if (order.paymentStatus !== "paid") {
+      order.paymentStatus = "paid";
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    await order.save();
+
+    // Nếu đơn hiện đã được trả (paymentStatus === 'paid') -> trigger assign voucher
+    if (order.paymentStatus === "paid") {
+      try {
+        await voucherService.assignVoucherBasedOnSpending(order.user);
+      } catch (err) {
+        // Không throw lỗi lên client nếu fail assign voucher; log để debug.
+        console.error("Lỗi khi gán voucher tự động:", err.message);
+      }
+    }
+  }
+
+  return order;
 };

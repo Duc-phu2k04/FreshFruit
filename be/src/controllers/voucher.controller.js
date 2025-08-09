@@ -1,75 +1,87 @@
-import Voucher from '../models/voucher.model.js';
+import voucherService from "../services/voucher.service.js";
 
 const voucherController = {
-  createVoucher: async (req, res) => {
+  create: async (req, res) => {
     try {
-      const { code, discount, expiresInDays, quantity } = req.body;
-
-      if (!code || !discount || !expiresInDays) {
-        return res.status(400).json({ message: 'Vui lòng nhập đầy đủ thông tin.' });
-      }
-
-      const expiration = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
-
-      const newVoucher = new Voucher({
+      const { code, discount, quantity, expiration, assignedUsers } = req.body;
+      const voucher = await voucherService.create({
         code,
         discount,
+        quantity,
         expiration,
-        quantity: quantity !== undefined ? quantity : null, // null = vô hạn
+        assignedUsers
       });
-
-      await newVoucher.save();
-      res.status(201).json({ message: 'Tạo mã giảm giá thành công', voucher: newVoucher });
+      res.status(201).json(voucher);
     } catch (err) {
-      res.status(500).json({ message: 'Lỗi server', error: err.message });
+      res.status(400).json({ message: err.message });
     }
   },
 
-
-
-  getAllVouchers: async (req, res) => {
+  getAll: async (req, res) => {
     try {
-      const vouchers = await Voucher.find();
+      const vouchers = await voucherService.getAll();
       res.json(vouchers);
     } catch (err) {
-      res.status(500).json({ message: 'Lỗi khi lấy danh sách voucher', error: err.message });
+      res.status(500).json({ message: err.message });
     }
   },
 
-  deleteVoucher: async (req, res) => {
+  remove: async (req, res) => {
+    try {
+      const deleted = await voucherService.remove(req.params.id);
+      res.json(deleted);
+    } catch (err) {
+      res.status(404).json({ message: err.message });
+    }
+  },
+
+  validate: async (req, res) => {
+    try {
+      const { code } = req.body;
+      const userId = req.user?._id;
+      const voucher = await voucherService.validate(code, userId);
+      res.json(voucher);
+    } catch (err) {
+      res.status(400).json({ message: err.message });
+    }
+  },
+
+  assignVoucherBasedOnSpending: async (req, res) => {
+    try {
+      const userId = req.params.userId || req.user?._id;
+      const result = await voucherService.assignVoucherBasedOnSpending(userId);
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ message: err.message });
+    }
+  },
+
+  getAssignedUsers: async (req, res) => {
     try {
       const { id } = req.params;
-      const deleted = await Voucher.findByIdAndDelete(id);
-
-      if (!deleted) return res.status(404).json({ message: 'Không tìm thấy voucher' });
-
-      res.json({ message: 'Xóa voucher thành công', voucher: deleted });
+      const users = await voucherService.getAssignedUsers(id);
+      res.json(users);
     } catch (err) {
-      res.status(500).json({ message: 'Lỗi khi xóa voucher', error: err.message });
+      res.status(500).json({ message: err.message });
     }
   },
-  validateVoucher: async (req, res) => {
+
+  // THÊM MỚI: Gán voucher cho user
+  assign: async (req, res) => {
     try {
-      const code = req.params.code?.toUpperCase().trim();
-      const voucher = await Voucher.findOne({ code });
+      const { id } = req.params;        // voucher id
+      const { userIds } = req.body;     // danh sách user id
 
-      if (!voucher) {
-        return res.status(404).json({ message: 'Mã giảm giá không tồn tại' });
+      if (!Array.isArray(userIds) || userIds.length === 0) {
+        return res.status(400).json({ message: "Danh sách userIds không hợp lệ" });
       }
 
-      if (voucher.expiration < new Date()) {
-        return res.status(400).json({ message: 'Mã đã hết hạn' });
-      }
-
-      if (voucher.quantity !== null && voucher.quantity <= 0) {
-        return res.status(400).json({ message: 'Mã đã hết lượt sử dụng' });
-      }
-
-      return res.status(200).json(voucher);
+      const updatedVoucher = await voucherService.assignUsersToVoucher(id, userIds);
+      res.json({ message: "Gán voucher thành công", voucher: updatedVoucher });
     } catch (err) {
-      res.status(500).json({ message: 'Lỗi server', error: err.message });
+      res.status(500).json({ message: err.message });
     }
-  },
+  }
 };
 
 export default voucherController;

@@ -66,9 +66,10 @@ export const getAllOrders = async (req, res) => {
 export const updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    // Cho phép admin/shipper truyền status, paymentStatus hoặc cả hai
+    const { status, paymentStatus } = req.body;
 
-    const updated = await orderService.updateOrderStatus(id, status);
+    const updated = await orderService.updateOrderStatus(id, { status, paymentStatus });
     res.json({
       message: "Cập nhật trạng thái thành công",
       order: updated,
