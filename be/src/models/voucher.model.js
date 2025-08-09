@@ -1,28 +1,37 @@
 import mongoose from "mongoose";
 
-const voucherSchema = new mongoose.Schema({
-  code: {
-    type: String,
-    required: true,
-    unique: true,
-    uppercase: true,
-    trim: true,
+const voucherSchema = new mongoose.Schema(
+  {
+    code: {
+      type: String,
+      required: true,
+      unique: true,
+      uppercase: true,
+      trim: true,
+    },
+    discount: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 100,
+    },
+    expiration: {
+      type: Date,
+      required: false,
+    },
+    quantity: {
+      type: Number,
+      default: null, // null = vô hạn
+    },
+    assignedUsers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
   },
-  discount: {
-    type: Number,
-    required: true,
-    min: 1,
-    max: 100,
-  },
-  expiration: {
-    type: Date,
-    required: true,
-  },
-  quantity: {
-    type: Number,
-    default: null,
-  },
-}, { timestamps: true });
+  { timestamps: true }
+);
 
 const Voucher = mongoose.model("Voucher", voucherSchema);
 export default Voucher;
