@@ -9,13 +9,49 @@ import Navbar from '../button/Navbar';
 import { Link } from 'react-router-dom';
 import CartIcon from '../button/CartButton';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import UserMenu from '../button/UserMenu';
-import { useAuth } from '../../context/AuthContext'; // 💡 import context
+import { useAuth } from '../../context/AuthContext';
 
 export const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { user } = useAuth(); // 💡 Lấy user từ context
+  const { user } = useAuth();
+  const [cartCount, setCartCount] = useState(0);
+
+  // Hàm lấy số đơn hàng trong giỏ hàng
+  const fetchCartCount = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const res = await fetch("http://localhost:3000/api/cart", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Lỗi khi lấy giỏ hàng");
+
+      const data = await res.json();
+      // ✅ Tính số đơn hàng (mỗi item tính là 1, không cộng dồn quantity)
+      setCartCount(data.items.length);
+    } catch (err) {
+      console.error("Lỗi khi lấy số lượng giỏ hàng:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchCartCount();
+
+    // Lắng nghe sự kiện cập nhật giỏ hàng từ localStorage
+    const handleStorageChange = (e) => {
+      if (e.key === "cartUpdated") {
+        fetchCartCount();
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, []);
+
   return (
     <header>
       {/* ======================= HEADER CHO THIẾT BỊ DI ĐỘNG ===================== */}
@@ -30,7 +66,7 @@ export const Header = () => {
             </a>
           </div>
           <div className="p-2">
-            <Link to="/gio-hang"><CartIcon cartCount={3} /></Link>
+            <Link to="/gio-hang"><CartIcon cartCount={cartCount} /></Link>
           </div>
         </div>
 
@@ -51,7 +87,7 @@ export const Header = () => {
                 <Navbar />
               </div>
               <div className="border-t pt-4 w-full">
-                {user ? <UserMenu /> : <AccountButton />} {/*  Logic phân nhánh */}
+                {user ? <UserMenu /> : <AccountButton />}
               </div>
               <div className="flex justify-center gap-x-4 mt-auto py-4">
                 <FontAwesomeIcon icon={faFacebook} className='h-6 w-6 text-gray-600' />
@@ -87,7 +123,7 @@ export const Header = () => {
               <a href="/"><img src="./public/image/logo2-bg.png" alt="" className='w-[150px]' /></a>
             </div>
             <div className='h-[74px] flex items-center justify-end'>
-              {user ? <UserMenu /> : <AccountButton />} {/* Logic phân nhánh */}
+              {user ? <UserMenu /> : <AccountButton />}
             </div>
           </div>
         </div>
@@ -98,7 +134,7 @@ export const Header = () => {
               <Navbar />
             </div>
             <div>
-              <Link to="/gio-hang"><CartIcon cartCount={3} /></Link>
+              <Link to="/gio-hang"><CartIcon cartCount={cartCount} /></Link>
             </div>
           </div>
         </div>
