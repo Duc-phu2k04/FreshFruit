@@ -6,5 +6,6 @@ const router = express.Router();
 
 router.post('/create-payment', verifyToken, momoController.createPayment); // Cần middleware ở đây
 router.post('/ipn', momoController.handleIPN); // IPN từ MoMo thì không cần verifyToken
-
+// Trong momo.routes.js
+router.delete('/cancel/:orderId', verifyToken, momoController.cancelOrder);
 export default router;
