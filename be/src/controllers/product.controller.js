@@ -3,39 +3,7 @@ import productService from "../services/product.service.js";
 const productController = {
   create: async (req, res) => {
     try {
-      const {
-        name,
-        description,
-        image,
-        category,
-        location,
-        gradeOptions,
-        weightOptions,
-        ripenessOptions,
-        baseVariant,
-        variants,
-      } = req.body;
-
-      if (!name || !category || !location || !gradeOptions || !weightOptions || !ripenessOptions) {
-        return res.status(400).json({ message: "Thiếu thông tin bắt buộc." });
-      }
-
-      if (!baseVariant && (!variants || variants.length === 0)) {
-        return res.status(400).json({ message: "Phải có baseVariant hoặc ít nhất 1 biến thể trong variants." });
-      }
-
-      const newProduct = await productService.createProduct({
-        name,
-        description,
-        image,
-        category,
-        location,
-        gradeOptions,
-        weightOptions,
-        ripenessOptions,
-        baseVariant,
-        variants,
-      });
+      const newProduct = await productService.createProduct(req.body);
       res.status(201).json(newProduct);
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
@@ -45,17 +13,7 @@ const productController = {
   getAll: async (req, res) => {
     try {
       const products = await productService.getAllProducts();
-
-      // Gắn thêm trường price từ displayVariant hoặc baseVariant
-      const transformedProducts = products.map((product) => {
-        const price = product.displayVariant?.price ?? product.baseVariant?.price ?? 0;
-        return {
-          ...product.toObject?.() || product,
-          price,
-        };
-      });
-
-      res.json(transformedProducts);
+      res.json(products);
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
     }
@@ -67,15 +25,7 @@ const productController = {
       if (!product) {
         return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
       }
-
-      // Gắn thêm trường price vào sản phẩm đơn lẻ
-      const price = product.displayVariant?.price ?? product.baseVariant?.price ?? 0;
-      const transformedProduct = {
-        ...product.toObject?.() || product,
-        price,
-      };
-
-      res.json(transformedProduct);
+      res.json(product);
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
     }
@@ -105,6 +55,7 @@ const productController = {
     }
   },
 
+  // Xóa nhiều biến thể theo attributesList
   removeVariants: async (req, res) => {
     try {
       const { attributesList } = req.body;
@@ -121,6 +72,7 @@ const productController = {
     }
   },
 
+  // ✅ Cập nhật tồn kho / giá cho 1 biến thể
   updateVariant: async (req, res) => {
     try {
       const updatedProduct = await productService.updateVariant(
@@ -137,6 +89,7 @@ const productController = {
     }
   },
 
+  // ✅ Xóa 1 biến thể theo ID
   removeVariantById: async (req, res) => {
     try {
       const updatedProduct = await productService.deleteVariantById(
