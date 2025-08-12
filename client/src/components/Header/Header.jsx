@@ -10,7 +10,7 @@ import { Link } from 'react-router-dom';
 import CartIcon from '../button/CartButton';
 import { useState, useEffect } from 'react';
 import UserMenu from '../button/UserMenu';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 
 export const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);

@@ -295,12 +295,14 @@
   text-align: left;
 }
 
-/* Fix phần trạng thái trong bảng: không cho xuống dòng, thêm overflow ẩn và dấu ... */
-.order-table td.status-cell {
-  max-width: 120px; /* giữ nguyên */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.order-table tbody tr {
+  background-color: #fff;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.2s ease;
+}
+
+.order-table tbody tr:hover {
+  background-color: #f9f9f9;
 }
 
 /* Mã đơn */
@@ -332,12 +334,6 @@
   font-weight: 600;
   font-size: 0.85em;
   color: white;
-  white-space: nowrap;     /* fix không xuống dòng */
-  overflow: hidden;        /* ẩn phần thừa */
-  text-overflow: ellipsis; /* dấu ... nếu chữ dài */
-  display: inline-block;
-  max-width: 100%;
-  box-sizing: border-box;
 }
 
 .status-badge.pending {
@@ -421,3 +417,4 @@
   border-radius: 6px;
   font-size: 12px;
 }
+

@@ -15,6 +15,13 @@ const userSchema = new mongoose.Schema({
   fullName: { type: String },
   phone: { type: String },
   address: { type: String },
+
+  // Trường defaultAddressId kiểu ObjectId tham chiếu đến Address
+  defaultAddressId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Address',
+    default: null,
+  },
 }, { timestamps: true });
 
 export default mongoose.model('User', userSchema);
