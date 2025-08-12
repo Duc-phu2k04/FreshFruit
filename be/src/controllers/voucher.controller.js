@@ -2,31 +2,30 @@ import voucherService from "../services/voucher.service.js";
 
 const voucherController = {
   create: async (req, res) => {
-  try {
-    const { code, discount, quantity, expiresInDays, assignedUsers } = req.body;
+    try {
+      const { code, discount, quantity, expiresInDays, assignedUsers } = req.body;
 
-    // ✅ Tính expiration từ expiresInDays
-    let expiration = null;
-    if (expiresInDays) {
-      expiration = new Date();
-      expiration.setDate(expiration.getDate() + Number(expiresInDays));
+      // ✅ Tính expiration từ expiresInDays
+      let expiration = null;
+      if (expiresInDays) {
+        expiration = new Date();
+        expiration.setDate(expiration.getDate() + Number(expiresInDays));
+      }
+
+      // ✅ Ép kiểu số cho discount và quantity
+      const voucher = await voucherService.create({
+        code,
+        discount: Number(discount),
+        quantity: quantity === '' || quantity === null ? null : Number(quantity),
+        expiration,
+        assignedUsers
+      });
+
+      res.status(201).json(voucher);
+    } catch (err) {
+      res.status(400).json({ message: err.message });
     }
-
-    // ✅ Ép kiểu số cho discount và quantity
-    const voucher = await voucherService.create({
-      code,
-      discount: Number(discount),
-      quantity: quantity === '' || quantity === null ? null : Number(quantity),
-      expiration,
-      assignedUsers
-    });
-
-    res.status(201).json(voucher);
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
-},
-
+  },
 
   getAll: async (req, res) => {
     try {
@@ -77,7 +76,7 @@ const voucherController = {
     }
   },
 
-  // THÊM MỚI: Gán voucher cho user
+  // Gán voucher cho user
   assign: async (req, res) => {
     try {
       const { id } = req.params;        // voucher id
@@ -89,6 +88,26 @@ const voucherController = {
 
       const updatedVoucher = await voucherService.assignUsersToVoucher(id, userIds);
       res.json({ message: "Gán voucher thành công", voucher: updatedVoucher });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  },
+
+  // ✅ THÊM MỚI: Lấy voucher của user hiện tại
+  getUserVouchers: async (req, res) => {
+    try {
+      // Lấy userId từ token (user đã đăng nhập)
+      const userId = req.user?._id;
+      
+      if (!userId) {
+        return res.status(400).json({ message: "Không tìm thấy thông tin user" });
+      }
+
+      const result = await voucherService.getUserVouchers(userId);
+      res.json({
+        message: "Lấy voucher thành công",
+        data: result
+      });
     } catch (err) {
       res.status(500).json({ message: err.message });
     }

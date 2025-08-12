@@ -4,6 +4,9 @@ import { verifyToken, isAdmin } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
+// ✅ THÊM MỚI: Lấy voucher của user hiện tại (đặt ở đầu để tránh conflict)
+router.get("/my-vouchers", verifyToken, voucherController.getUserVouchers);
+
 // Validate voucher
 router.get("/validate/:code", verifyToken, voucherController.validate);
 

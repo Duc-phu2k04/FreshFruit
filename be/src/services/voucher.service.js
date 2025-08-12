@@ -93,24 +93,65 @@ const voucherService = () => {
     if (!voucher) throw new Error("Không tìm thấy voucher");
     return voucher.assignedUsers;
   };
+
   const assignUsersToVoucher = async (voucherId, userIds) => {
-  if (!mongoose.Types.ObjectId.isValid(voucherId)) {
-    throw new Error("voucherId không hợp lệ");
-  }
+    if (!mongoose.Types.ObjectId.isValid(voucherId)) {
+      throw new Error("voucherId không hợp lệ");
+    }
 
-  const voucher = await Voucher.findById(voucherId);
-  if (!voucher) {
-    throw new Error("Không tìm thấy voucher");
-  }
+    const voucher = await Voucher.findById(voucherId);
+    if (!voucher) {
+      throw new Error("Không tìm thấy voucher");
+    }
 
-  const existingIds = voucher.assignedUsers.map(uid => uid.toString());
-  const newIds = userIds.filter(uid => !existingIds.includes(uid));
+    const existingIds = voucher.assignedUsers.map(uid => uid.toString());
+    const newIds = userIds.filter(uid => !existingIds.includes(uid));
 
-  voucher.assignedUsers.push(...newIds);
-  await voucher.save();
+    voucher.assignedUsers.push(...newIds);
+    await voucher.save();
 
-  return voucher.populate("assignedUsers", "username email fullName");
-};
+    return voucher.populate("assignedUsers", "username email fullName");
+  };
+
+  // ✅ THÊM MỚI: Lấy voucher của user
+  const getUserVouchers = async (userId) => {
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw new Error("userId không hợp lệ");
+    }
+
+    // Tìm tất cả voucher mà user được gán (userId nằm trong assignedUsers array)
+    const vouchers = await Voucher.find({
+      assignedUsers: userId
+    }).select('code discount expiration quantity createdAt');
+
+    // Phân loại voucher
+    const now = new Date();
+    const validVouchers = [];
+    const expiredVouchers = [];
+    const usedUpVouchers = [];
+
+    vouchers.forEach(voucher => {
+      // Kiểm tra hết hạn
+      if (voucher.expiration && voucher.expiration < now) {
+        expiredVouchers.push(voucher);
+      }
+      // Kiểm tra hết lượt sử dụng
+      else if (voucher.quantity !== null && voucher.quantity <= 0) {
+        usedUpVouchers.push(voucher);
+      }
+      // Voucher còn sử dụng được
+      else {
+        validVouchers.push(voucher);
+      }
+    });
+
+    return {
+      total: vouchers.length,
+      validVouchers,
+      expiredVouchers,
+      usedUpVouchers
+    };
+  };
 
   return {
     create,
@@ -119,7 +160,8 @@ const voucherService = () => {
     validate,
     assignVoucherBasedOnSpending,
     getAssignedUsers,
-    assignUsersToVoucher
+    assignUsersToVoucher,
+    getUserVouchers  // ✅ THÊM MỚI
   };
 };
 
