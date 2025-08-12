@@ -1,4 +1,4 @@
-import { createContext, useContext, useState,} from "react";
+import { createContext, useState } from "react";
 
 const AuthContext = createContext(null);
 
@@ -18,17 +18,16 @@ export function AuthProvider({ children }) {
     localStorage.removeItem("user");
   };
 
+  const updateUser = (newUserData) => {
+    setUser(newUserData);
+    localStorage.setItem("user", JSON.stringify(newUserData));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === null) {
-    throw new Error("useAuth phải được sử dụng bên trong <AuthProvider>");
-  }
-  return context;
-}
+export { AuthContext };

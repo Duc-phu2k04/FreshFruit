@@ -35,16 +35,37 @@ export default function Checkout() {
   useEffect(() => {
     const fetchDefaultAddress = async () => {
       try {
-        const res = await axios.get('http://localhost:3000/api/address', {
+        // 1. Lấy thông tin user để lấy defaultAddressId
+        const userRes = await axios.get('http://localhost:3000/auth/profile', {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('token')}`,
           },
         });
-        const addressList = res.data;
-        const defaultAddr = addressList.find(a => a.isDefault);
-        setDefaultAddress(defaultAddr || null);
+        const user = userRes.data;
+        const defaultAddressId = user.defaultAddressId;
+
+        if (defaultAddressId) {
+          // 2. Lấy địa chỉ mặc định riêng theo ID
+          const addressRes = await axios.get(`http://localhost:3000/api/address/${defaultAddressId}`, {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('token')}`,
+            },
+          });
+          setDefaultAddress(addressRes.data);
+        } else {
+          // 3. Nếu user chưa có defaultAddressId, fallback lấy địa chỉ có isDefault=true
+          const addressesRes = await axios.get('http://localhost:3000/api/address', {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('token')}`,
+            },
+          });
+          const addressList = addressesRes.data;
+          const defaultAddr = addressList.find(a => a.isDefault);
+          setDefaultAddress(defaultAddr || null);
+        }
       } catch (err) {
-        console.error("Lỗi khi lấy địa chỉ:", err);
+        console.error("Lỗi khi lấy địa chỉ mặc định:", err);
+        setDefaultAddress(null);
       }
     };
     fetchDefaultAddress();
@@ -119,40 +140,39 @@ export default function Checkout() {
   };
 
   const handlePaymentMomo = async () => {
-  if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
+    if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
 
-  try {
-    const cartItems = dataCart.products.map(item => ({
-      productId: item._id,
-      quantity: item.quantity,
-      variant: {
-        weight: item.variantInfo?.weight,
-        ripeness: item.variantInfo?.ripeness
+    try {
+      const cartItems = dataCart.products.map(item => ({
+        productId: item._id,
+        quantity: item.quantity,
+        variant: {
+          weight: item.variantInfo?.weight,
+          ripeness: item.variantInfo?.ripeness
+        }
+      }));
+
+      const response = await axios.post('http://localhost:3000/api/momo/create-payment', {
+        cartItems,
+        voucher: appliedVoucher?.code || null,
+        address: buildShippingAddress(),
+        paymentMethod: "momo"
+      }, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        }
+      });
+
+      if (response.data.paymentUrl) {
+        window.location.href = response.data.paymentUrl;
+      } else {
+        alert("Không thể tạo thanh toán MoMo");
       }
-    }));
-
-    const response = await axios.post('http://localhost:3000/api/momo/create-payment', {
-      cartItems,
-      voucher: appliedVoucher?.code || null,
-      address: buildShippingAddress(),
-      paymentMethod: "momo"
-    }, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
-      }
-    });
-
-    if (response.data.paymentUrl) {
-      window.location.href = response.data.paymentUrl;
-    } else {
-      alert("Không thể tạo thanh toán MoMo");
+    } catch (err) {
+      console.error("Lỗi MoMo:", err);
+      alert("Thanh toán MoMo thất bại.");
     }
-  } catch (err) {
-    console.error("Lỗi MoMo:", err);
-    alert("Thanh toán MoMo thất bại.");
-  }
-};
-
+  };
 
   const removeVoucher = () => {
     setAppliedVoucher(null);
