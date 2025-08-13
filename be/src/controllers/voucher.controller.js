@@ -5,14 +5,14 @@ const voucherController = {
     try {
       const { code, discount, quantity, expiresInDays, assignedUsers } = req.body;
 
-      // ✅ Tính expiration từ expiresInDays
+      // Tính expiration từ expiresInDays
       let expiration = null;
       if (expiresInDays) {
         expiration = new Date();
         expiration.setDate(expiration.getDate() + Number(expiresInDays));
       }
 
-      // ✅ Ép kiểu số cho discount và quantity
+      // Ép kiểu số cho discount và quantity (null = vô hạn)
       const voucher = await voucherService.create({
         code,
         discount: Number(discount),
@@ -47,10 +47,24 @@ const voucherController = {
 
   validate: async (req, res) => {
     try {
-      const { code } = req.body;
+      const { code } = req.params;
       const userId = req.user?._id;
       const voucher = await voucherService.validate(code, userId);
       res.json(voucher);
+    } catch (err) {
+      res.status(400).json({ message: err.message });
+    }
+  },
+
+  //  Dùng voucher và tự động trừ userQuantity
+  useVoucher: async (req, res) => {
+    try {
+      const { code } = req.body;
+      const userId = req.user?._id;
+      if (!userId) return res.status(400).json({ message: "Không tìm thấy thông tin user" });
+
+      const voucher = await voucherService.useVoucher(code, userId); // service sẽ validate và trừ lượt
+      res.json({ message: "Sử dụng voucher thành công", voucher });
     } catch (err) {
       res.status(400).json({ message: err.message });
     }
@@ -76,29 +90,25 @@ const voucherController = {
     }
   },
 
-  // Gán voucher cho user
   assign: async (req, res) => {
     try {
       const { id } = req.params;        // voucher id
-      const { userIds } = req.body;     // danh sách user id
+      const { assignments } = req.body; // [{ userId, quantity }]
 
-      if (!Array.isArray(userIds) || userIds.length === 0) {
-        return res.status(400).json({ message: "Danh sách userIds không hợp lệ" });
+      if (!Array.isArray(assignments) || assignments.length === 0) {
+        return res.status(400).json({ message: "Danh sách gán voucher không hợp lệ" });
       }
 
-      const updatedVoucher = await voucherService.assignUsersToVoucher(id, userIds);
+      const updatedVoucher = await voucherService.assignUsersToVoucher(id, assignments);
       res.json({ message: "Gán voucher thành công", voucher: updatedVoucher });
     } catch (err) {
       res.status(500).json({ message: err.message });
     }
   },
 
-  // ✅ THÊM MỚI: Lấy voucher của user hiện tại
   getUserVouchers: async (req, res) => {
     try {
-      // Lấy userId từ token (user đã đăng nhập)
       const userId = req.user?._id;
-      
       if (!userId) {
         return res.status(400).json({ message: "Không tìm thấy thông tin user" });
       }

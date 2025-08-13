@@ -14,13 +14,13 @@ const voucherService = () => {
       discount,
       quantity,
       expiration,
-      assignedUsers
+      assignedUsers // [{ user, quantity }]
     });
     return await newVoucher.save();
   };
 
   const getAll = async () => {
-    return await Voucher.find().populate("assignedUsers", "username email fullName");
+    return await Voucher.find().populate("assignedUsers.user", "username email fullName");
   };
 
   const remove = async (id) => {
@@ -32,20 +32,49 @@ const voucherService = () => {
   const validate = async (code, userId) => {
     const normalized = code?.toUpperCase().trim();
     if (!normalized) throw new Error("Code không hợp lệ");
+
     const voucher = await Voucher.findOne({ code: normalized });
     if (!voucher) throw new Error("Mã giảm giá không tồn tại");
 
-    if (voucher.assignedUsers && voucher.assignedUsers.length > 0) {
-      const assigned = voucher.assignedUsers.map(x => x.toString());
-      if (!userId || !assigned.includes(userId.toString())) {
-        throw new Error("Bạn không đủ điều kiện sử dụng mã này");
-      }
+    const userData = voucher.assignedUsers?.find(u => u.user.toString() === userId.toString());
+    if (voucher.assignedUsers?.length > 0 && (!userData || userData.quantity <= 0)) {
+      throw new Error("Bạn không đủ điều kiện sử dụng mã này");
     }
 
-    if (voucher.expiration && voucher.expiration < new Date()) throw new Error("Mã đã hết hạn");
-    if (voucher.quantity !== null && voucher.quantity <= 0) throw new Error("Mã đã hết lượt sử dụng");
+    if (voucher.expiration && voucher.expiration < new Date()) {
+      throw new Error("Mã đã hết hạn");
+    }
+
+    if (voucher.quantity !== null && voucher.quantity <= 0) {
+      throw new Error("Mã đã hết lượt sử dụng");
+    }
 
     return voucher;
+  };
+
+  // ✅ Hàm mới: trừ userQuantity khi dùng voucher
+  const useVoucher = async (code, userId) => {
+    const normalized = code?.toUpperCase().trim();
+    if (!normalized) throw new Error("Code không hợp lệ");
+
+    const voucher = await Voucher.findOne({ code: normalized });
+    if (!voucher) throw new Error("Mã giảm giá không tồn tại");
+
+    const userData = voucher.assignedUsers.find(u => u.user.toString() === userId.toString());
+    if (!userData) throw new Error("User chưa được gán voucher này");
+    if (userData.quantity <= 0) throw new Error("Bạn đã hết lượt sử dụng voucher này");
+
+    userData.quantity -= 1; // trừ số lượt của user
+    if (voucher.quantity !== null && voucher.quantity > 0) {
+      voucher.quantity -= 1; // trừ tổng lượt nếu có
+    }
+
+    await voucher.save();
+    return {
+      code: voucher.code,
+      remainingUserQuantity: userData.quantity,
+      remainingGlobalQuantity: voucher.quantity
+    };
   };
 
   const assignVoucherBasedOnSpending = async (userId) => {
@@ -56,7 +85,7 @@ const voucherService = () => {
       { $group: { _id: null, totalSpent: { $sum: "$total" } } }
     ]);
 
-    const totalSpent = (agg[0] && agg[0].totalSpent) ? agg[0].totalSpent : 0;
+    const totalSpent = agg[0]?.totalSpent || 0;
 
     const toAssign = [];
     if (totalSpent >= 2000000) toAssign.push({ code: "LEVEL5", discount: 5 });
@@ -76,9 +105,9 @@ const voucherService = () => {
         });
       }
 
-      const already = voucher.assignedUsers.map(x => x.toString()).includes(userId.toString());
+      const already = voucher.assignedUsers.some(x => x.user.toString() === userId.toString());
       if (!already) {
-        voucher.assignedUsers.push(userId);
+        voucher.assignedUsers.push({ user: userId, quantity: 1 });
         await voucher.save();
         results.push({ code: voucher.code, discount: voucher.discount });
       }
@@ -89,68 +118,66 @@ const voucherService = () => {
 
   const getAssignedUsers = async (voucherId) => {
     if (!mongoose.Types.ObjectId.isValid(voucherId)) throw new Error("voucherId không hợp lệ");
-    const voucher = await Voucher.findById(voucherId).populate("assignedUsers", "username email fullName");
+    const voucher = await Voucher.findById(voucherId).populate("assignedUsers.user", "username email fullName");
     if (!voucher) throw new Error("Không tìm thấy voucher");
     return voucher.assignedUsers;
   };
 
-  const assignUsersToVoucher = async (voucherId, userIds) => {
+  const assignUsersToVoucher = async (voucherId, userList) => {
     if (!mongoose.Types.ObjectId.isValid(voucherId)) {
       throw new Error("voucherId không hợp lệ");
     }
 
     const voucher = await Voucher.findById(voucherId);
-    if (!voucher) {
-      throw new Error("Không tìm thấy voucher");
+    if (!voucher) throw new Error("Không tìm thấy voucher");
+
+    for (const { userId, quantity } of userList) {
+      const existingUser = voucher.assignedUsers.find(u => u.user.toString() === userId);
+      if (existingUser) {
+        existingUser.quantity += quantity;
+      } else {
+        voucher.assignedUsers.push({ user: userId, quantity });
+      }
     }
 
-    const existingIds = voucher.assignedUsers.map(uid => uid.toString());
-    const newIds = userIds.filter(uid => !existingIds.includes(uid));
-
-    voucher.assignedUsers.push(...newIds);
     await voucher.save();
-
-    return voucher.populate("assignedUsers", "username email fullName");
+    return voucher.populate("assignedUsers.user", "username email fullName");
   };
 
-  // ✅ THÊM MỚI: Lấy voucher của user
   const getUserVouchers = async (userId) => {
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      throw new Error("userId không hợp lệ");
-    }
+    if (!mongoose.Types.ObjectId.isValid(userId)) throw new Error("userId không hợp lệ");
 
-    // Tìm tất cả voucher mà user được gán (userId nằm trong assignedUsers array)
     const vouchers = await Voucher.find({
-      assignedUsers: userId
-    }).select('code discount expiration quantity createdAt');
+      "assignedUsers.user": userId
+    }).select("code discount expiration quantity assignedUsers createdAt");
 
-    // Phân loại voucher
     const now = new Date();
     const validVouchers = [];
     const expiredVouchers = [];
     const usedUpVouchers = [];
 
     vouchers.forEach(voucher => {
-      // Kiểm tra hết hạn
+      const userData = voucher.assignedUsers.find(u => u.user.toString() === userId.toString());
+      const userQuantity = userData?.quantity || 0;
+
+      const voucherData = {
+        code: voucher.code,
+        discount: voucher.discount,
+        expiration: voucher.expiration,
+        quantity: userQuantity,
+        createdAt: voucher.createdAt
+      };
+
       if (voucher.expiration && voucher.expiration < now) {
-        expiredVouchers.push(voucher);
-      }
-      // Kiểm tra hết lượt sử dụng
-      else if (voucher.quantity !== null && voucher.quantity <= 0) {
-        usedUpVouchers.push(voucher);
-      }
-      // Voucher còn sử dụng được
-      else {
-        validVouchers.push(voucher);
+        expiredVouchers.push(voucherData);
+      } else if (userQuantity <= 0) {
+        usedUpVouchers.push(voucherData);
+      } else {
+        validVouchers.push(voucherData);
       }
     });
 
-    return {
-      total: vouchers.length,
-      validVouchers,
-      expiredVouchers,
-      usedUpVouchers
-    };
+    return { total: vouchers.length, validVouchers, expiredVouchers, usedUpVouchers };
   };
 
   return {
@@ -158,10 +185,11 @@ const voucherService = () => {
     getAll,
     remove,
     validate,
+    useVoucher, // thêm hàm này
     assignVoucherBasedOnSpending,
     getAssignedUsers,
     assignUsersToVoucher,
-    getUserVouchers  // ✅ THÊM MỚI
+    getUserVouchers
   };
 };
 

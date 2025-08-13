@@ -21,12 +21,20 @@ const voucherSchema = new mongoose.Schema(
     },
     quantity: {
       type: Number,
-      default: null, // null = vô hạn
+      default: null, // null = vô hạn cho toàn hệ thống
     },
     assignedUsers: [
       {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        quantity: {
+          type: Number,
+          default: 1, // số lượng voucher user này có
+          min: 0,
+        },
       },
     ],
   },
