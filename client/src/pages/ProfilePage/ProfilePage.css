@@ -295,14 +295,12 @@
   text-align: left;
 }
 
-.order-table tbody tr {
-  background-color: #fff;
-  border-bottom: 1px solid #f0f0f0;
-  transition: background-color 0.2s ease;
-}
-
-.order-table tbody tr:hover {
-  background-color: #f9f9f9;
+/* Fix phần trạng thái trong bảng: không cho xuống dòng, thêm overflow ẩn và dấu ... */
+.order-table td.status-cell {
+  max-width: 140px; /* tăng một chút để vừa chữ dài */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Mã đơn */
@@ -334,18 +332,29 @@
   font-weight: 600;
   font-size: 0.85em;
   color: white;
+  white-space: nowrap;     
+  overflow: hidden;        
+  text-overflow: ellipsis; 
+  display: inline-block;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
+/* Status colors */
 .status-badge.pending {
-  background-color: #f39c12;
+  background-color: #f39c12; /* Đang xử lý */
 }
-
-.status-badge.completed {
-  background-color: #27ae60;
+.status-badge.confirmed {
+  background-color: #3498db; /* Đã xác nhận */
 }
-
+.status-badge.shipping {
+  background-color: #9b59b6; /* Đang vận chuyển */
+}
+.status-badge.delivered {
+  background-color: #27ae60; /* Đã giao */
+}
 .status-badge.cancelled {
-  background-color: #e74c3c;
+  background-color: #e74c3c; /* Đã hủy */
 }
 
 /* Nút Hủy */
@@ -364,57 +373,140 @@
   background-color: #c0392b;
   transform: scale(1.05);
 }
-.voucher-section {
-  margin-top: 20px;
-  background: #fff;
-  padding: 20px;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-}
 
-.voucher-title {
-  font-size: 20px;
-  font-weight: bold;
-  margin-bottom: 15px;
+/* --- Voucher Container --- */
+.voucher-container {
+  padding: 32px;
+  background-color: #fdfaf6;
+  border-radius: 16px;
+  max-width: 850px;
+  margin: 0 auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif;
   color: #333;
 }
 
-.voucher-empty {
-  color: #888;
+/* Title */
+.voucher-title {
+  margin-bottom: 24px;
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #1f3a2f;
+  text-align: center;
+}
+
+/* Section */
+.voucher-section {
+  margin-bottom: 28px;
+  background-color: #ffffff;
+  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.voucher-section:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+}
+
+.voucher-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 12px;
+  margin-bottom: 18px;
+  color: #374151;
+}
+
+.voucher-section-title {
+  font-weight: 700;
+  font-size: 1.25rem;
+}
+
+.voucher-section-count {
+  font-size: 0.9rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* Voucher Card */
+.voucher-card {
+  border: 1px solid #e5e7eb;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  background: #fffaf5;
+  transition: background-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.voucher-card:hover {
+  background-color: #fff3e8;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.voucher-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.voucher-code {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #ff6f3c;
+  font-family: 'Inter', sans-serif;
+}
+
+.copy-button {
+  background-color: #34d399;
+  color: #ffffff;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.25s ease, transform 0.2s ease;
+}
+
+.copy-button:hover {
+  background-color: #10b981;
+  transform: translateY(-1px);
+}
+
+/* Voucher quantity dưới nút copy, canh giữa */
+.voucher-quantity {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.875rem;
+  color: #065f46;
+  font-weight: 600;
+  text-align: right; /* Canh về rìa phải */
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+
+
+/* Discount và expiration */
+.voucher-discount {
+  color: #f97316;
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
+
+.voucher-expiration {
+  color: #6b7280;
+  font-size: 0.85rem;
   font-style: italic;
 }
 
-.voucher-table-container {
-  width: 100%;
-  border-collapse: collapse;
+/* Empty state */
+.voucher-empty {
+  font-style: italic;
+  color: #9ca3af;
+  text-align: center;
+  padding: 16px 0;
 }
-
-.voucher-table-container th,
-.voucher-table-container td {
-  padding: 10px 12px;
-  border-bottom: 1px solid #ddd;
-  text-align: left;
-}
-
-.voucher-table-container th {
-  background: #f8f9fa;
-  font-weight: bold;
-}
-
-.voucher-table-container tr:hover {
-  background-color: #f1f7ff;
-}
-
-.voucher-code strong {
-  color: #ff5722;
-}
-
-.voucher-badge.unlimited {
-  display: inline-block;
-  padding: 2px 8px;
-  background: #28a745;
-  color: white;
-  border-radius: 6px;
-  font-size: 12px;
-}
-
