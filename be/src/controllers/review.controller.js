@@ -1,7 +1,7 @@
 import Review from '../models/review.model.js';
 import * as reviewService from '../services/review.service.js';
 
-// ✅ User gửi đánh giá sản phẩm
+// ✅ User gửi đánh giá sản phẩm (với validation mua hàng)
 export const addReview = async (req, res) => {
   try {
     const userId = req.user._id; // Lấy từ token
@@ -13,7 +13,7 @@ export const addReview = async (req, res) => {
     res.status(201).json({ message: 'Đánh giá thành công', review });
   } catch (err) {
     console.error("Lỗi khi thêm đánh giá:", err);
-    res.status(500).json({ message: 'Lỗi khi đánh giá', error: err.message });
+    res.status(400).json({ message: err.message });
   }
 };
 
@@ -53,5 +53,38 @@ export const deleteReview = async (req, res) => {
     res.json({ message: 'Xoá đánh giá thành công' });
   } catch (err) {
     res.status(500).json({ message: 'Lỗi khi xoá đánh giá', error: err.message });
+  }
+};
+
+// ✅ THÊM MỚI: Lấy sản phẩm đã mua của user (cho ProfilePage)
+export const getUserPurchasedProducts = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    const purchasedProducts = await reviewService.getUserPurchasedProducts(userId);
+    
+    res.json({
+      message: 'Lấy danh sách sản phẩm đã mua thành công',
+      data: purchasedProducts
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi khi lấy sản phẩm đã mua', error: err.message });
+  }
+};
+
+// ✅ THÊM MỚI: Kiểm tra user có thể đánh giá sản phẩm không
+export const checkCanReviewProduct = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { productId } = req.params;
+    
+    const result = await reviewService.canUserReviewProduct(userId, productId);
+    
+    res.json({
+      message: 'Kiểm tra quyền đánh giá thành công',
+      data: result
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi khi kiểm tra quyền đánh giá', error: err.message });
   }
 };
