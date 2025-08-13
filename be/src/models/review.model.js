@@ -3,6 +3,10 @@ import mongoose from 'mongoose';
 
 const reviewSchema = new mongoose.Schema(
   {
+    orderId: {
+      type: mongoose.Schema.Types.String, // customId của đơn hàng
+      required: true
+    },
     product: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Product',

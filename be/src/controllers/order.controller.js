@@ -1,13 +1,24 @@
 import * as orderService from "../services/order.service.js";
+import voucherService from "../services/voucher.service.js"; // import voucherService
 import Order from "../models/order.model.js";
 
 // Tạo đơn hàng
 export const checkout = async (req, res) => {
   try {
-    const { cartItems, voucher, address } = req.body; // ✅ nhận thêm address
+    const { cartItems, voucher, address } = req.body; //  nhận thêm address
     const userId = req.user._id;
 
+    //  Nếu có voucher, validate trước
+    if (voucher) {
+      await voucherService.validate(voucher, userId);
+    }
+
     const order = await orderService.createOrder({ userId, cartItems, voucher, address }); // ✅ truyền address
+
+    //  Sau khi tạo order thành công, trừ lượt voucher
+    if (voucher) {
+      await voucherService.useVoucher(voucher, userId);
+    }
 
     res.status(201).json({
       message: "Đặt hàng thành công",
@@ -17,9 +28,9 @@ export const checkout = async (req, res) => {
         items: order.items,
         total: order.total,
         status: order.status,
-        paymentStatus: order.paymentStatus, // ✅ thêm trạng thái thanh toán
+        paymentStatus: order.paymentStatus, //  thêm trạng thái thanh toán
         voucher: order.voucher,
-        shippingAddress: order.shippingAddress, // ✅ phản hồi cả địa chỉ
+        shippingAddress: order.shippingAddress, //  phản hồi cả địa chỉ
         createdAt: order.createdAt,
       },
     });
@@ -66,7 +77,6 @@ export const getAllOrders = async (req, res) => {
 export const updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    // Cho phép admin/shipper truyền status, paymentStatus hoặc cả hai
     const { status, paymentStatus } = req.body;
 
     const updated = await orderService.updateOrderStatus(id, { status, paymentStatus });
@@ -86,7 +96,7 @@ export const updateStatus = async (req, res) => {
 export const deleteOrder = async (req, res) => {
   try {
     const userId = req.user._id;
-    const isAdmin = req.user.role === "admin"; // phải chứa "role" trong token
+    const isAdmin = req.user.role === "admin";
     const { id } = req.params;
 
     const order = await Order.findById(id);
@@ -94,7 +104,6 @@ export const deleteOrder = async (req, res) => {
       return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
     }
 
-    // Nếu không phải admin và không phải chủ đơn -> cấm huỷ
     if (!isAdmin && order.user.toString() !== userId.toString()) {
       return res.status(403).json({ message: "Bạn không có quyền huỷ đơn này" });
     }
