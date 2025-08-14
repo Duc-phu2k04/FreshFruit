@@ -4,7 +4,7 @@ import Voucher from "../models/voucher.model.js";
 import Product from "../models/product.model.js";
 import Cart from "../models/cart.model.js";
 import mongoose from "mongoose";
-import voucherService from "./voucher.service.js"; // ✅ IMPORT
+import voucherService from "./voucher.service.js"; //  IMPORT
 
 // So sánh biến thể
 const isSameVariant = (a, b) => {
@@ -130,7 +130,7 @@ export const getAllOrders = async () => {
 
 /**
  * Cập nhật trạng thái đơn hàng
- * ✅ FIXED: Auto-assign voucher khi paymentStatus = 'paid'
+ *  FIXED: Auto-assign voucher khi paymentStatus = 'paid'
  */
 export const updateOrderStatus = async (orderId, updates = {}) => {
   const { status, paymentStatus } = updates;
@@ -161,19 +161,19 @@ export const updateOrderStatus = async (orderId, updates = {}) => {
   if (changed) {
     await order.save();
 
-    // ✅ FIXED: Nếu đơn hiện đã được trả (paymentStatus === 'paid') -> trigger assign voucher
+    //  FIXED: Nếu đơn hiện đã được trả (paymentStatus === 'paid') -> trigger assign voucher
     if (order.paymentStatus === "paid") {
       try {
-        console.log(`🎁 Đang kiểm tra voucher tự động cho user: ${order.user} (COD/Admin update)`);
+        console.log(` Đang kiểm tra voucher tự động cho user: ${order.user} (COD/Admin update)`);
         const result = await voucherService.assignVoucherBasedOnSpending(order.user);
         
         if (result && result.assigned && result.assigned.length > 0) {
-          console.log(`🎉 Đã gán voucher tự động:`, result.assigned);
+          console.log(`Đã gán voucher tự động:`, result.assigned);
         } else {
-          console.log(`ℹ️ User chưa đủ điều kiện nhận voucher mới (Total spent: ${result?.totalSpent || 0})`);
+          console.log(`ℹUser chưa đủ điều kiện nhận voucher mới (Total spent: ${result?.totalSpent || 0})`);
         }
       } catch (err) {
-        console.error("❌ Lỗi khi gán voucher tự động:", err.message);
+        console.error(" Lỗi khi gán voucher tự động:", err.message);
       }
     }
   }

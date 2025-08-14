@@ -1,0 +1,97 @@
+/* Wrapper cho review + nút xóa ngang hàng */
+.review-wrapper {
+  display: flex;
+  align-items: center; /* canh trục ngang */
+  gap: 8px;            /* khoảng cách giữa các nút */
+  flex-wrap: wrap;      /* xuống dòng khi màn hình nhỏ */
+  margin-top: 6px;
+  font-family: Arial, sans-serif;
+}
+
+/* Nút đánh giá */
+.btn-review {
+  padding: 6px 14px;
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.btn-review:hover {
+  background-color: #1976d2;
+  transform: scale(1.05);
+}
+
+/* Nút xóa / hủy */
+.btn-delete-order,
+.btn-cancel {
+  padding: 6px 12px;
+  background-color: #ef4444;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: filter 0.2s ease, transform 0.1s ease;
+}
+
+.btn-delete-order:hover,
+.btn-cancel:hover {
+  filter: brightness(0.9);
+  transform: scale(1.05);
+}
+
+/* Hiển thị sao ngang hàng */
+.review-stars {
+  display: inline-flex;
+  gap: 2px;
+  font-size: 18px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+/* Sao đánh giá */
+.star {
+  color: #ccc; /* sao chưa đánh giá */
+  cursor: default;
+  transition: transform 0.15s, color 0.2s;
+}
+
+.star.filled {
+  color: gold; /* sao đã đánh giá */
+}
+
+/* Khi muốn sao tương tác */
+.review-form .stars {
+  display: flex;
+  gap: 4px;
+}
+
+.review-form .star {
+  font-size: 22px;
+  cursor: pointer;
+  transition: transform 0.1s, color 0.2s;
+}
+
+.review-form .star.selected,
+.review-form .star:hover {
+  transform: scale(1.3);
+  color: #facc15;
+}
+
+/* Responsive: màn hình nhỏ thì xuống dòng */
+@media (max-width: 768px) {
+  .review-wrapper {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

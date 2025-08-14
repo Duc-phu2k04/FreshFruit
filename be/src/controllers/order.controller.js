@@ -1,13 +1,25 @@
 import * as orderService from "../services/order.service.js";
+import voucherService from "../services/voucher.service.js";
 import Order from "../models/order.model.js";
 
-// Tạo đơn hàng
+// ======================= Tạo đơn hàng =======================
 export const checkout = async (req, res) => {
   try {
-    const { cartItems, voucher, address } = req.body; // ✅ nhận thêm address
+    const { cartItems, voucher, address } = req.body;
     const userId = req.user._id;
 
-    const order = await orderService.createOrder({ userId, cartItems, voucher, address }); // ✅ truyền address
+    // Validate voucher trước khi tạo order
+    if (voucher) {
+      await voucherService.validate(voucher, userId);
+    }
+
+    // Tạo order mới, paymentStatus mặc định "unpaid"
+    const order = await orderService.createOrder({ userId, cartItems, voucher, address });
+
+    // Mark voucher đã dùng sau khi order tạo xong
+    if (voucher) {
+      await voucherService.useVoucher(voucher, userId);
+    }
 
     res.status(201).json({
       message: "Đặt hàng thành công",
@@ -16,10 +28,10 @@ export const checkout = async (req, res) => {
         customId: order.customId,
         items: order.items,
         total: order.total,
-        status: order.status,
-        paymentStatus: order.paymentStatus, // ✅ thêm trạng thái thanh toán
+        status: order.status,          // pending
+        paymentStatus: order.paymentStatus, // unpaid
         voucher: order.voucher,
-        shippingAddress: order.shippingAddress, // ✅ phản hồi cả địa chỉ
+        shippingAddress: order.shippingAddress,
         createdAt: order.createdAt,
       },
     });
@@ -31,11 +43,14 @@ export const checkout = async (req, res) => {
   }
 };
 
-// Lấy đơn hàng của người dùng (lịch sử)
+// ======================= Lấy đơn hàng của người dùng =======================
 export const getUserOrders = async (req, res) => {
   try {
     const userId = req.user._id;
-    const orders = await Order.find({ user: userId })
+    const orders = await Order.find({
+      user: userId,
+      $or: [{ deletedByUser: { $exists: false } }, { deletedByUser: false }]
+    })
       .populate("items.product", "name image price")
       .populate("voucher")
       .sort({ createdAt: -1 });
@@ -49,7 +64,7 @@ export const getUserOrders = async (req, res) => {
   }
 };
 
-// Lấy tất cả đơn hàng (admin)
+// ======================= Lấy tất cả đơn hàng (admin) =======================
 export const getAllOrders = async (req, res) => {
   try {
     const orders = await orderService.getAllOrders();
@@ -62,11 +77,10 @@ export const getAllOrders = async (req, res) => {
   }
 };
 
-// Cập nhật trạng thái đơn (admin)
+// ======================= Cập nhật trạng thái đơn (admin) =======================
 export const updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    // Cho phép admin/shipper truyền status, paymentStatus hoặc cả hai
     const { status, paymentStatus } = req.body;
 
     const updated = await orderService.updateOrderStatus(id, { status, paymentStatus });
@@ -82,11 +96,11 @@ export const updateStatus = async (req, res) => {
   }
 };
 
-// Huỷ đơn hàng (chỉ khi status === "pending" hoặc paymentStatus === 'failed')
+// ======================= Huỷ đơn hàng (thật sự xóa DB) =======================
 export const deleteOrder = async (req, res) => {
   try {
     const userId = req.user._id;
-    const isAdmin = req.user.role === "admin"; // phải chứa "role" trong token
+    const isAdmin = req.user.role === "admin";
     const { id } = req.params;
 
     const order = await Order.findById(id);
@@ -94,7 +108,6 @@ export const deleteOrder = async (req, res) => {
       return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
     }
 
-    // Nếu không phải admin và không phải chủ đơn -> cấm huỷ
     if (!isAdmin && order.user.toString() !== userId.toString()) {
       return res.status(403).json({ message: "Bạn không có quyền huỷ đơn này" });
     }
@@ -108,6 +121,29 @@ export const deleteOrder = async (req, res) => {
   } catch (err) {
     res.status(500).json({
       message: "Lỗi server khi huỷ đơn hàng",
+      error: err.message,
+    });
+  }
+};
+
+// ======================= Ẩn đơn hàng khỏi lịch sử (soft delete) =======================
+export const hideOrderFromHistory = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { id } = req.params;
+
+    const order = await Order.findOne({ _id: id, user: userId });
+    if (!order) {
+      return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+    }
+
+    order.deletedByUser = true; //  đánh dấu đã ẩn
+    await order.save();
+
+    res.json({ message: "Đã ẩn đơn hàng khỏi lịch sử" });
+  } catch (err) {
+    res.status(500).json({
+      message: "Lỗi server khi ẩn đơn hàng",
       error: err.message,
     });
   }
