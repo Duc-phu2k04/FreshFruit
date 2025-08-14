@@ -1,3 +1,4 @@
+// src/services/review.service.js
 import Review from '../models/review.model.js';
 import Order from '../models/order.model.js';
 
@@ -22,14 +23,14 @@ export const hasUserReviewedProduct = async (userId, orderId, productId) => {
 
   const existingReview = await Review.findOne({
     user: userId,
-    orderId: orderId,        // Kiểm tra theo orderId + productId
+    orderId: orderId,
     product: productId
   }).lean();
 
   return Boolean(existingReview);
 };
 
-//  Tạo đánh giá mới (có orderId)
+// Tạo đánh giá mới (có orderId)
 export const createReview = async (userId, orderId, productId, rating, comment) => {
   const hasPurchased = await hasUserPurchasedProduct(userId, orderId, productId);
   if (!hasPurchased) throw new Error('Bạn chỉ có thể đánh giá sản phẩm đã mua và nhận hàng thành công');
@@ -39,14 +40,14 @@ export const createReview = async (userId, orderId, productId, rating, comment) 
 
   return Review.create({
     user: userId,
-    orderId: orderId,
+    orderId,
     product: productId,
     rating,
     comment
   });
 };
 
-// Lấy tất cả đánh giá theo sản phẩm
+//  Lấy tất cả đánh giá theo sản phẩm
 export const getReviewsByProduct = async (productId) => {
   return Review.find({ product: productId })
     .populate('user', 'username fullName')
@@ -54,7 +55,7 @@ export const getReviewsByProduct = async (productId) => {
     .lean();
 };
 
-// Lấy sản phẩm đã mua của user (ProfilePage)
+//  Lấy sản phẩm đã mua của user (ProfilePage) kèm review
 export const getUserPurchasedProducts = async (userId) => {
   const deliveredOrders = await Order.find({
     user: userId,
@@ -89,12 +90,8 @@ export const getUserPurchasedProducts = async (userId) => {
         productPrice: prod.price,
         lastOrderDate: order.createdAt,
         hasReviewed: Boolean(existingReview),
-        reviewData: existingReview ? {
-          reviewId: existingReview._id,
-          rating: existingReview.rating,
-          comment: existingReview.comment,
-          reviewDate: existingReview.createdAt
-        } : null
+        rating: existingReview?.rating || 0,
+        comment: existingReview?.comment || ''
       });
     }
   }

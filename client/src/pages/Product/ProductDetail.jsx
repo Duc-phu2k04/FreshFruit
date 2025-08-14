@@ -8,9 +8,6 @@ export default function ProductDetail() {
 
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
-  const [rating, setRating] = useState(0);
-  const [hover, setHover] = useState(0);
-  const [comment, setComment] = useState("");
   const [comments, setComments] = useState([]);
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -19,45 +16,53 @@ export default function ProductDetail() {
   const [quantity, setQuantity] = useState(1);
   const [currentVariant, setCurrentVariant] = useState(null);
 
+  // --- Lấy thông tin sản phẩm và comment ---
   useEffect(() => {
- const fetchProduct = async () => {
-  try {
-    const res = await fetch(`http://localhost:3000/api/product/${id}`);
-    const data = await res.json();
+    const fetchProduct = async () => {
+      try {
+        const res = await fetch(`http://localhost:3000/api/product/${id}`);
+        if (!res.ok) throw new Error("Không tìm thấy sản phẩm");
+        const data = await res.json();
+        setProduct(data);
 
-    setProduct(data);
+        // Lấy sản phẩm liên quan
+        const relatedRes = await fetch(
+          `http://localhost:3000/api/product?category=${data.category._id}`
+        );
+        if (!relatedRes.ok) throw new Error("Không lấy được sản phẩm liên quan");
+        const related = await relatedRes.json();
+        setRelatedProducts(related.filter((item) => item._id !== id));
+      } catch (err) {
+        console.error("Lỗi khi lấy sản phẩm:", err);
+      }
+    };
 
-    const relatedRes = await fetch(
-      `http://localhost:3000/api/product?category=${data.category._id}`
-    );
-    const related = await relatedRes.json();
-    const filtered = related.filter((item) => item._id !== id);
-    setRelatedProducts(filtered);
-  } catch (err) {
-    console.error("Lỗi khi lấy sản phẩm:", err);
-  }
-};
-
-
+    const fetchComments = async () => {
+      try {
+        // Chỉnh URL đúng với backend: /api/review/products/:productId
+        const res = await fetch(`http://localhost:3000/api/review/products/${id}`);
+        if (!res.ok) {
+          console.warn("Không lấy được đánh giá, status:", res.status);
+          setComments([]);
+          return;
+        }
+        const json = await res.json();
+        setComments(Array.isArray(json.data) ? json.data : []);
+      } catch (err) {
+        console.error("Lỗi khi lấy đánh giá:", err);
+        setComments([]);
+      }
+    };
 
     setProduct(null);
     fetchProduct();
     fetchComments();
   }, [id]);
 
-  const fetchComments = async () => {
-    try {
-      const res = await fetch(`http://localhost:3000/api/review/${id}`);
-      const data = await res.json();
-      setComments(data);
-    } catch (err) {
-      console.error("Lỗi khi lấy đánh giá:", err);
-    }
-  };
-
+  // --- Chọn biến thể ---
   const handleSelectVariant = (type, value) => {
-    if (type === "weight") setSelectedWeight(value);
-    if (type === "ripeness") setSelectedRipeness(value);
+    if (type === "weight") setSelectedWeight((prev) => (prev === value ? "" : value));
+    if (type === "ripeness") setSelectedRipeness((prev) => (prev === value ? "" : value));
   };
 
   useEffect(() => {
@@ -74,22 +79,14 @@ export default function ProductDetail() {
     }
   }, [selectedWeight, selectedRipeness, product]);
 
+  // --- Thêm vào giỏ hàng ---
   const addToCartServer = async () => {
-    if (!currentVariant) {
-      alert("Vui lòng chọn biến thể trước khi thêm vào giỏ hàng");
-      return;
-    }
-    if (currentVariant.stock <= 0) {
-      alert("Sản phẩm này đã hết hàng");
-      return;
-    }
+    if (!currentVariant) return alert("Vui lòng chọn biến thể trước khi thêm vào giỏ hàng");
+    if (currentVariant.stock <= 0) return alert("Sản phẩm này đã hết hàng");
 
     try {
       const token = localStorage.getItem("token");
-      if (!token) {
-        alert("Bạn cần đăng nhập để thêm vào giỏ hàng.");
-        return;
-      }
+      if (!token) return alert("Bạn cần đăng nhập để thêm vào giỏ hàng.");
 
       const payload = {
         productId: product._id,
@@ -116,80 +113,37 @@ export default function ProductDetail() {
     }
   };
 
- const handleBuyNow = () => {
-  if (!currentVariant) {
-    alert("Vui lòng chọn biến thể trước khi mua");
-    return;
-  }
-  if (currentVariant.stock <= 0) {
-    alert("Sản phẩm này đã hết hàng");
-    return;
-  }
+  // --- Mua ngay ---
+  const handleBuyNow = () => {
+    if (!currentVariant) return alert("Vui lòng chọn biến thể trước khi mua");
+    if (currentVariant.stock <= 0) return alert("Sản phẩm này đã hết hàng");
 
-  navigate("/checkout", {
-    state: {
-      selectedItems: [
-        {
-          product: {
-            _id: product._id,
-            name: product.name,
+    navigate("/checkout", {
+      state: {
+        selectedItems: [
+          {
+            product: { _id: product._id, name: product.name },
+            variant: {
+              _id: currentVariant._id,
+              price: currentVariant.price,
+              attributes: currentVariant.attributes,
+            },
+            variantInfo: {
+              weight: currentVariant.attributes.weight,
+              ripeness: currentVariant.attributes.ripeness,
+            },
+            quantity,
           },
-          variant: {
-            _id: currentVariant._id,
-            price: currentVariant.price,
-            attributes: currentVariant.attributes,
-          },
-          variantInfo: {
-            weight: currentVariant.attributes.weight,
-            ripeness: currentVariant.attributes.ripeness,
-          },
-          quantity,
-        },
-      ],
-    },
-  });
-};
-
-
-
-  const handleSubmitComment = async (e) => {
-    e.preventDefault();
-    if (!comment || rating === 0) {
-      alert("Vui lòng nhập đánh giá và chọn số sao.");
-      return;
-    }
-
-    const token = localStorage.getItem("token");
-    if (!token) {
-      alert("Bạn cần đăng nhập để gửi đánh giá.");
-      return;
-    }
-
-    try {
-      const res = await fetch(`http://localhost:3000/api/review/add`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          productId: id,
-          rating,
-          comment,
-        }),
-      });
-
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.message || "Gửi đánh giá thất bại");
-
-      await fetchComments();
-      setComment("");
-      setRating(0);
-    } catch (err) {
-      console.error("Lỗi khi gửi đánh giá:", err.message);
-      alert("Lỗi: " + err.message);
-    }
+        ],
+      },
+    });
   };
+
+  // --- Tính trung bình sao ---
+  const averageRating =
+    comments.length > 0
+      ? comments.reduce((sum, c) => sum + (c.rating || 0), 0) / comments.length
+      : 0;
 
   if (!product)
     return <p className="text-center mt-10">Đang tải dữ liệu sản phẩm...</p>;
@@ -202,6 +156,7 @@ export default function ProductDetail() {
         </div>
       )}
 
+      {/* Thông tin sản phẩm */}
       <div className="grid md:grid-cols-2 gap-8 bg-white p-6 rounded shadow">
         <img
           src={`http://localhost:3000${product.image}`}
@@ -210,6 +165,7 @@ export default function ProductDetail() {
         />
         <div>
           <h1 className="text-4xl font-bold mb-3">{product.name}</h1>
+          <p className="text-gray-700 mb-4">{product.description}</p>
 
           {currentVariant ? (
             <p className="text-green-700 text-2xl font-semibold mb-2">
@@ -293,6 +249,7 @@ export default function ProductDetail() {
             </div>
           )}
 
+          {/* Thêm vào giỏ / Mua ngay */}
           <div className="flex gap-3 mb-4">
             <button
               className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 disabled:opacity-50"
@@ -309,56 +266,33 @@ export default function ProductDetail() {
               Mua ngay
             </button>
           </div>
-
-          {/* Phần đánh giá sản phẩm giữ nguyên */}
-          <div className="mb-6">
-            <h3 className="font-semibold mb-2">Đánh giá sản phẩm:</h3>
-            <div className="flex">
-              {[...Array(5)].map((_, i) => {
-                const current = i + 1;
-                return (
-                  <FaStar
-                    key={current}
-                    size={28}
-                    color={current <= (hover || rating) ? "#ffc107" : "#e4e5e9"}
-                    onClick={() => setRating(current)}
-                    onMouseEnter={() => setHover(current)}
-                    onMouseLeave={() => setHover(0)}
-                    className="cursor-pointer"
-                  />
-                );
-              })}
-            </div>
-          </div>
-
-          <form onSubmit={handleSubmitComment}>
-            <textarea
-              placeholder="Nội dung đánh giá"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              className="w-full p-3 border rounded"
-              rows={4}
-            ></textarea>
-            <button
-              type="submit"
-              className="mt-3 bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700"
-            >
-              Gửi đánh giá
-            </button>
-          </form>
         </div>
       </div>
 
-      {/* Đánh giá của khách hàng */}
+      {/* Hiển thị đánh giá của khách hàng */}
       <div className="mt-10">
-        <h3 className="text-2xl font-semibold mb-4">Đánh giá của khách hàng:</h3>
+        <h3 className="text-2xl font-semibold mb-2">Đánh giá của khách hàng:</h3>
+        {comments.length > 0 && (
+          <div className="flex items-center mb-4">
+            {[...Array(5)].map((_, i) => (
+              <FaStar
+                key={i}
+                size={20}
+                color={i < Math.round(averageRating) ? "#facc15" : "#e5e7eb"}
+              />
+            ))}
+            <span className="ml-2 text-gray-600">
+              ({averageRating.toFixed(1)} / 5)
+            </span>
+          </div>
+        )}
         {comments.length === 0 ? (
           <p className="text-gray-500">Chưa có đánh giá nào.</p>
         ) : (
           <div className="space-y-6">
-            {comments.map((cmt, idx) => (
+            {comments.map((cmt) => (
               <div
-                key={idx}
+                key={cmt._id}
                 className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition duration-300"
               >
                 <div className="flex items-center justify-between mb-3">
@@ -380,12 +314,12 @@ export default function ProductDetail() {
                       <FaStar
                         key={i}
                         size={18}
-                        color={i < cmt.rating ? "#facc15" : "#e5e7eb"}
+                        color={i < (cmt.rating || 0) ? "#facc15" : "#e5e7eb"}
                       />
                     ))}
                   </div>
                 </div>
-                <p className="text-gray-700 leading-relaxed">{cmt.comment}</p>
+                <p className="text-gray-700 leading-relaxed">{cmt.comment || "Không có nội dung"}</p>
               </div>
             ))}
           </div>

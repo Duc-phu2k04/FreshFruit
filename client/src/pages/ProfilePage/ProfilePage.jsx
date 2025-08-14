@@ -25,6 +25,74 @@ export default function ProfilePage() {
     usedUpVouchers: [],
   });
 
+  // Hàm lấy productId linh hoạt + log chi tiết
+  const getProductId = (item) => {
+    if (!item) return "";
+
+    // Ưu tiên trường hợp phổ biến nhất trong order hiện tại
+    let productId = "";
+
+    if (item.product && typeof item.product === "object") {
+      productId =
+        item.product.$oid ||           // MongoDB ObjectId dạng {$oid: "..."}
+        item.product._id?.$oid ||      // Nếu product là object có _id.$oid
+        item.product._id ||            // Nếu product là object có _id (string)
+        item.product.id ||             // Một số API dùng id
+        "";
+    } else if (typeof item.product === "string") {
+      productId = item.product;        // Nếu product là string id
+    }
+
+    // Nếu chưa tìm thấy thì thử các field khác
+    if (!productId) {
+      productId =
+        item.productId ||
+        item.product_id ||
+        item.productID ||
+        item.pid ||
+        item.variant?.productId ||
+        "";
+    }
+
+    if (!productId) {
+      console.warn(
+        "[getProductId]  Không tìm được productId cho item:",
+        JSON.stringify(item, null, 2)
+      );
+    } else {
+      console.log("[getProductId]  Tìm thấy productId:", productId);
+    }
+
+    return productId;
+  };
+
+
+  const hideOrder = async (orderId) => {
+    if (!window.confirm("Bạn có chắc muốn xóa đơn hàng này khỏi lịch sử?")) return;
+
+    try {
+      const res = await fetch(`/api/orders/${orderId}/hide`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`, // token phải có từ state hoặc context
+        },
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.message || "Xóa đơn hàng thất bại");
+        return;
+      }
+
+      alert(data.message || "Đã xóa đơn hàng khỏi lịch sử");
+      setOrders((prev) => prev.filter((o) => o._id !== orderId)); // cập nhật state
+    } catch (err) {
+      console.error(err);
+      alert("Có lỗi xảy ra khi xóa đơn hàng");
+    }
+  };
+
+
   // Quản lý trạng thái sửa địa chỉ
   const [editingAddressId, setEditingAddressId] = useState(null);
   const [editingAddressData, setEditingAddressData] = useState({
@@ -84,7 +152,7 @@ export default function ProfilePage() {
         },
       });
 
-      console.log("📦 API voucher trả về:", res.data);
+      console.log(" API voucher trả về:", res.data);
 
       const apiData = res.data.data || {};
 
@@ -528,142 +596,103 @@ export default function ProfilePage() {
     </div>
   );
 
-const renderOrders = () => (
-  <div className="order-history">
-    <h2>Lịch sử đơn hàng</h2>
-    <table className="order-table">
-      <thead>
-        <tr>
-          <th>Mã đơn</th>
-          <th>Ngày đặt</th>
-          <th>Sản phẩm</th>
-          <th>Tổng tiền</th>
-          <th>Trạng thái</th>
-          <th>Thanh toán</th>
-          <th>Phương thức</th>
-          <th>Địa chỉ chi tiết</th>
-          <th>Hành động</th>
-        </tr>
-      </thead>
-      <tbody>
-        {orders.map((o) => (
-          <tr key={o._id}>
-            {/* Mã đơn */}
-            <td className="order-id">{o.customId}</td>
-
-            {/* Ngày đặt */}
-            <td>{new Date(o.createdAt).toLocaleDateString("vi-VN")}</td>
-
-            {/* Sản phẩm */}
-            <td>
-              {o.items.map((it, idx) => (
-                <div key={idx} className="product-item">
-                  {it.productName}{" "}
-                  <span className="product-meta">
-                    ({it.variant.weight}, {it.variant.ripeness}) × {it.quantity}
-                  </span>
-                </div>
-              ))}
-            </td>
-
-            {/* Tổng tiền */}
-            <td className="order-total">
-              {o.total.toLocaleString("vi-VN")}₫
-            </td>
-
-            {/* Trạng thái đơn */}
-            <td>
-              <span
-                className={`status-badge ${
-                  o.status === "pending"
-                    ? "pending"
-                    : o.status === "confirmed"
-                    ? "confirmed"
-                    : o.status === "shipping"
-                    ? "shipping"
-                    : o.status === "delivered"
-                    ? "delivered"
-                    : "cancelled"
-                }`}
-              >
-                {o.status === "pending"
-                  ? "Đang xử lý"
-                  : o.status === "confirmed"
-                  ? "Đã xác nhận"
-                  : o.status === "shipping"
-                  ? "Đang vận chuyển"
-                  : o.status === "delivered"
-                  ? "Đã giao"
-                  : "Đã hủy"}
-              </span>
-            </td>
-
-            {/* Trạng thái thanh toán */}
-            <td>
-              {o.paymentStatus === "paid"
-                ? "Đã thanh toán"
-                : o.paymentStatus === "unpaid"
-                ? "Chưa thanh toán"
-                : "Thanh toán thất bại"}
-            </td>
-
-            {/* Phương thức */}
-            <td>
-              {o.paymentMethod === "cod"
-                ? "Thanh toán khi nhận hàng"
-                : o.paymentMethod.toUpperCase()}
-            </td>
-
-            {/* Địa chỉ */}
-            <td>
-              {o.shippingAddress
-                ? `${o.shippingAddress.fullName}, ${o.shippingAddress.phone}, ${o.shippingAddress.detail}, ${o.shippingAddress.ward}, ${o.shippingAddress.district}, ${o.shippingAddress.province}`
-                : "Không có"}
-            </td>
-
-            {/* Hành động: Hủy + Đánh giá */}
-            <td>
-              {/* Nút Hủy chỉ cho đơn pending */}
-              {o.status === "pending" && (
-                <button
-                  className="btn-cancel"
-                  onClick={() => cancelOrder(o._id)}
-                >
-                  Hủy
-                </button>
-              )}
-
-              {/* Nút đánh giá chỉ cho đơn đã giao & đã thanh toán */}
-              {o.status === "delivered" && o.paymentStatus === "paid" && (
-                <div style={{ marginTop: "6px" }}>
-                  {o.items.map((item) => {
-                    // Lấy productId linh hoạt
-                    const productId =
-                      item.product?.$oid || // MongoDB ObjectId gốc
-                      item.product?._id?.$oid || // Nếu product là object chứa _id.$oid
-                      item.product?._id || // Nếu product là object chứa _id (string)
-                      item.product || // Nếu product là string id
-                      "";
-
-                    return (
-                      <ReviewButton
-                        key={item._id?.$oid || item._id || Math.random()}
-                        orderId={o.customId}
-                        productId={productId}
-                      />
-                    );
-                  })}
-                </div>
-              )}
-            </td>
+  const renderOrders = () => (
+    <div className="order-history">
+      <h2>Lịch sử đơn hàng</h2>
+      <table className="order-table">
+        <thead>
+          <tr>
+            <th>Mã đơn</th>
+            <th>Ngày đặt</th>
+            <th>Sản phẩm</th>
+            <th>Tổng tiền</th>
+            <th>Trạng thái</th>
+            <th>Thanh toán</th>
+            <th>Phương thức</th>
+            <th>Địa chỉ chi tiết</th>
+            <th>Hành động</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
+        </thead>
+        <tbody>
+          {orders.map((o) => (
+            <tr key={o._id}>
+              <td className="order-id">{o.customId}</td>
+              <td>{new Date(o.createdAt).toLocaleDateString("vi-VN")}</td>
+              <td>
+                {o.items.map((it, idx) => (
+                  <div key={idx} className="product-item">
+                    {it.productName}{" "}
+                    <span className="product-meta">
+                      ({it.variant.weight}, {it.variant.ripeness}) × {it.quantity}
+                    </span>
+                  </div>
+                ))}
+              </td>
+              <td className="order-total">{o.total.toLocaleString("vi-VN")}₫</td>
+              <td>
+                <span className={`status-badge ${o.status}`}>{o.status}</span>
+              </td>
+              <td>
+                {o.paymentStatus === "paid"
+                  ? "Đã thanh toán"
+                  : o.paymentStatus === "unpaid"
+                    ? "Chưa thanh toán"
+                    : "Thanh toán thất bại"}
+              </td>
+              <td>
+                {o.paymentMethod === "cod"
+                  ? "Thanh toán khi nhận hàng"
+                  : o.paymentMethod.toUpperCase()}
+              </td>
+              <td>
+                {o.shippingAddress
+                  ? `${o.shippingAddress.fullName}, ${o.shippingAddress.phone}, ${o.shippingAddress.detail}, ${o.shippingAddress.ward}, ${o.shippingAddress.district}, ${o.shippingAddress.province}`
+                  : "Không có"}
+              </td>
+              <td>
+                {o.status === "pending" && (
+                  <button className="btn-cancel" onClick={() => cancelOrder(o._id)}>
+                    Hủy
+                  </button>
+                )}
 
+                {(o.status === "delivered" || o.status === "cancelled") && (
+                  <div className="order-actions">
+                    {o.items.map((item, index) => {
+                      const orderId = o.customId || "";
+                      const productId = getProductId(item);
+                      const itemKey =
+                        item?._id?.$oid ||
+                        item?._id ||
+                        `${orderId}-${productId || "noProductId"}-${index}`;
 
+                      return (
+                        <div key={itemKey} className="review-wrapper">
+                          {orderId && productId ? (
+                            <ReviewButton orderId={orderId} productId={productId} itemData={item} />
+                          ) : (
+                            <small style={{ opacity: 0.7, color: "red" }}>❌ Thiếu productId</small>
+                          )}
+
+                          <button
+                            className="btn-delete-order"
+                            onClick={() => hideOrder(o._id)}
+                          >
+                            Xóa
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </td>
+
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 
 
 

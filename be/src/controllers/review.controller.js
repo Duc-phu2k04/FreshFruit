@@ -1,10 +1,11 @@
+// src/controllers/review.controller.js
 import Review from '../models/review.model.js';
 import * as reviewService from '../services/review.service.js';
 
-// User gửi đánh giá sản phẩm (có orderId để phân biệt đơn hàng)
+//  User gửi đánh giá sản phẩm (có orderId để phân biệt đơn hàng)
 export const addReview = async (req, res) => {
   try {
-    const userId = req.user._id; // Lấy từ token
+    const userId = req.user._id;
     const { orderId, productId, rating, comment } = req.body;
 
     if (!orderId || !productId) {
@@ -22,21 +23,63 @@ export const addReview = async (req, res) => {
   }
 };
 
-// User xem đánh giá theo sản phẩm
+//  Kiểm tra user có thể đánh giá sản phẩm trong đơn hàng hay không
+export const checkCanReviewProduct = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { orderId, productId } = req.params;
+
+    if (!orderId || !productId) {
+      return res.status(400).json({ message: 'Thiếu orderId hoặc productId' });
+    }
+
+    console.log(" Kiểm tra review:", { userId, orderId, productId });
+
+    const result = await reviewService.canUserReviewProduct(userId, orderId, productId);
+
+    // Lấy luôn rating + comment nếu đã review
+    let review = null;
+    if (result.hasReviewed) {
+      review = await Review.findOne({ user: userId, orderId, product: productId }).lean();
+    }
+
+    return res.json({
+      message: 'Kiểm tra quyền đánh giá thành công',
+      data: {
+        ...result,
+        rating: review?.rating || 0,
+        comment: review?.comment || ''
+      }
+    });
+  } catch (err) {
+    console.error(" Lỗi khi kiểm tra quyền đánh giá:", err);
+    return res.status(500).json({ message: 'Lỗi khi kiểm tra quyền đánh giá', error: err.message });
+  }
+};
+
+//  User xem đánh giá theo sản phẩm (dùng cho trang chi tiết sản phẩm)
 export const getProductReviews = async (req, res) => {
   try {
     const { productId } = req.params;
     if (!productId) return res.status(400).json({ message: 'Thiếu productId' });
 
-    const reviews = await reviewService.getReviewsByProduct(productId);
-    return res.json(reviews);
+    // Lấy review theo sản phẩm, populate user để frontend có username
+    const reviews = await Review.find({ product: productId })
+      .populate('user', 'username')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.json({
+      message: 'Lấy danh sách đánh giá sản phẩm thành công',
+      data: Array.isArray(reviews) ? reviews : []
+    });
   } catch (err) {
-    console.error(" Lỗi khi lấy đánh giá:", err);
+    console.error("❌ Lỗi khi lấy đánh giá:", err);
     return res.status(500).json({ message: 'Lỗi khi lấy đánh giá', error: err.message });
   }
 };
 
-//  Admin xem tất cả đánh giá
+// Admin xem tất cả đánh giá
 export const getAllReviews = async (req, res) => {
   try {
     const reviews = await Review.find()
@@ -52,7 +95,7 @@ export const getAllReviews = async (req, res) => {
   }
 };
 
-//  Admin xoá đánh giá
+// Admin xoá đánh giá
 export const deleteReview = async (req, res) => {
   try {
     const { id } = req.params;
@@ -72,36 +115,30 @@ export const getUserPurchasedProducts = async (req, res) => {
     const userId = req.user._id;
     const purchasedProducts = await reviewService.getUserPurchasedProducts(userId);
 
+    // Kèm thông tin review đã đánh giá
+    const productsWithReviews = await Promise.all(
+      purchasedProducts.map(async (item) => {
+        const review = await Review.findOne({
+          user: userId,
+          orderId: item.orderId,
+          product: item.productId
+        }).lean();
+
+        return {
+          ...item,
+          hasReviewed: !!review,
+          rating: review?.rating || 0,
+          comment: review?.comment || ''
+        };
+      })
+    );
+
     return res.json({
       message: 'Lấy danh sách sản phẩm đã mua thành công',
-      data: purchasedProducts
+      data: productsWithReviews
     });
   } catch (err) {
     console.error(" Lỗi khi lấy sản phẩm đã mua:", err);
     return res.status(500).json({ message: 'Lỗi khi lấy sản phẩm đã mua', error: err.message });
-  }
-};
-
-//  Kiểm tra user có thể đánh giá sản phẩm trong đơn hàng hay không
-export const checkCanReviewProduct = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { orderId, productId } = req.params;
-
-    if (!orderId || !productId) {
-      return res.status(400).json({ message: 'Thiếu orderId hoặc productId' });
-    }
-
-    console.log(" Kiểm tra review:", { userId, orderId, productId });
-
-    const result = await reviewService.canUserReviewProduct(userId, orderId, productId);
-
-    return res.json({
-      message: 'Kiểm tra quyền đánh giá thành công',
-      data: result
-    });
-  } catch (err) {
-    console.error(" Lỗi khi kiểm tra quyền đánh giá:", err);
-    return res.status(500).json({ message: 'Lỗi khi kiểm tra quyền đánh giá', error: err.message });
   }
 };

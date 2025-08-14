@@ -4,16 +4,16 @@ import Order from '../models/order.model.js';
 import Product from '../models/product.model.js';
 import Voucher from '../models/voucher.model.js';
 import Cart from '../models/cart.model.js';
-import voucherService from './voucher.service.js'; // ✅ IMPORT VOUCHER SERVICE
+import voucherService from './voucher.service.js'; //  IMPORT VOUCHER SERVICE
 
-// ⚙️ Thay bằng thông tin tài khoản MoMo của bạn
+//  Thay bằng thông tin tài khoản MoMo của bạn
 const partnerCode = "MOMO";
 const accessKey = "F8BBA842ECF85";
 const secretKey = "K951B6PE1waDMi640xX08PD3vg6EkVlz";
 
 // Link callback và redirect
 const redirectUrl = "http://localhost:5173/order-success";
-const ipnUrl = "https://26c296e96cd4.ngrok-free.app/api/momo/ipn";
+const ipnUrl = "https://7bf39f1ff22c.ngrok-free.app/api/momo/ipn";
 
 const isSameVariant = (a, b) => a.weight === b.weight && a.ripeness === b.ripeness;
 
@@ -24,7 +24,7 @@ const createOrderTemp = async ({ userId, cartItems, voucher, shippingAddress }) 
 
   let items = [];
 
-  // 🔍 Validate và prepare items
+  //  Validate và prepare items
   for (const item of cartItems) {
     const product = await Product.findById(item.productId);
     if (!product) throw new Error(`Sản phẩm không tồn tại: ${item.productId}`);
@@ -48,7 +48,7 @@ const createOrderTemp = async ({ userId, cartItems, voucher, shippingAddress }) 
   let discountAmount = 0;
   let appliedVoucher = null;
 
-  // 🎫 Handle voucher
+  //  Handle voucher
   if (voucher) {
     const foundVoucher = await Voucher.findOne({ code: voucher.toUpperCase() });
     if (!foundVoucher) throw new Error("Mã giảm giá không hợp lệ");
@@ -64,7 +64,7 @@ const createOrderTemp = async ({ userId, cartItems, voucher, shippingAddress }) 
     discountAmount = (subtotal * foundVoucher.discount) / 100;
     appliedVoucher = foundVoucher._id;
     
-    // 🔥 TRỪ VOUCHER NGAY
+    //  TRỪ VOUCHER NGAY
     if (foundVoucher.quantity !== null && foundVoucher.quantity > 0) {
       foundVoucher.quantity -= 1;
       await foundVoucher.save();
@@ -86,7 +86,7 @@ const createOrderTemp = async ({ userId, cartItems, voucher, shippingAddress }) 
 
   await order.save();
 
-  // 🔥 TRỪ TỒN KHO NGAY (Option 2)
+  //  TRỪ TỒN KHO NGAY (Option 2)
   for (const item of items) {
     await Product.updateOne(
       { _id: item.product, "variants._id": item.variantId },
@@ -94,7 +94,7 @@ const createOrderTemp = async ({ userId, cartItems, voucher, shippingAddress }) 
     );
   }
 
-  // 🔥 XÓA KHỎI GIỎ HÀNG NGAY
+  //  XÓA KHỎI GIỎ HÀNG NGAY
   await Cart.findOneAndUpdate(
     { user: userId },
     {
@@ -109,7 +109,7 @@ const createOrderTemp = async ({ userId, cartItems, voucher, shippingAddress }) 
     }
   );
 
-  // ⏰ Auto-cancel sau 10 phút nếu chưa thanh toán
+  //  Auto-cancel sau 10 phút nếu chưa thanh toán
   setTimeout(async () => {
     try {
       const latestOrder = await Order.findById(order._id);
@@ -124,12 +124,12 @@ const createOrderTemp = async ({ userId, cartItems, voucher, shippingAddress }) 
   return order;
 };
 
-// 🔄 HOÀN STOCK KHI THANH TOÁN THẤT BẠI
+//  HOÀN STOCK KHI THANH TOÁN THẤT BẠI
 const cancelMomoOrder = async (orderId) => {
   const order = await Order.findById(orderId);
   if (!order || order.paymentStatus !== 'unpaid') return;
 
-  // 🔄 HOÀN TỒN KHO
+  //  HOÀN TỒN KHO
   for (const item of order.items) {
     await Product.updateOne(
       { _id: item.product, "variants._id": item.variantId },
@@ -137,7 +137,7 @@ const cancelMomoOrder = async (orderId) => {
     );
   }
 
-  // 🔄 HOÀN VOUCHER (nếu có)
+  //  HOÀN VOUCHER (nếu có)
   if (order.voucher) {
     await Voucher.updateOne(
       { _id: order.voucher }, 
@@ -145,12 +145,12 @@ const cancelMomoOrder = async (orderId) => {
     );
   }
 
-  // ❌ CẬP NHẬT TRẠNG THÁI
+  //  CẬP NHẬT TRẠNG THÁI
   order.paymentStatus = 'failed';
   order.status = 'cancelled';
   await order.save();
 
-  console.log(`🔄 Đã hoàn stock và cancel order: ${orderId}`);
+  console.log(` Đã hoàn stock và cancel order: ${orderId}`);
 };
 
 const createMomoPayment = async (order) => {
@@ -219,33 +219,33 @@ const createMomoPayment = async (order) => {
   });
 };
 
-// ✅ CẬP NHẬT: THÊM AUTO-ASSIGN VOUCHER
+//  CẬP NHẬT: THÊM AUTO-ASSIGN VOUCHER
 const confirmMomoOrder = async (orderId) => {
   const order = await Order.findById(orderId);
   if (!order) throw new Error("Không tìm thấy đơn hàng");
   if (order.paymentStatus === 'paid') return;
 
-  // ✅ CẬP NHẬT TRẠNG THÁI
+  //  CẬP NHẬT TRẠNG THÁI
   order.paymentStatus = 'paid';
   order.status = 'confirmed';
   await order.save();
 
-  // 🎁 AUTO-ASSIGN VOUCHER BASED ON SPENDING
+  //  AUTO-ASSIGN VOUCHER BASED ON SPENDING
   try {
-    console.log(`🎁 Đang kiểm tra voucher tự động cho user: ${order.user}`);
+    console.log(` Đang kiểm tra voucher tự động cho user: ${order.user}`);
     const result = await voucherService.assignVoucherBasedOnSpending(order.user);
     
     if (result && result.assigned && result.assigned.length > 0) {
-      console.log(`🎉 Đã gán voucher tự động:`, result.assigned);
+      console.log(` Đã gán voucher tự động:`, result.assigned);
     } else {
-      console.log(`ℹ️ User chưa đủ điều kiện nhận voucher mới (Total spent: ${result?.totalSpent || 0})`);
+      console.log(` User chưa đủ điều kiện nhận voucher mới (Total spent: ${result?.totalSpent || 0})`);
     }
   } catch (err) {
     // Không throw lỗi để không làm gián đoạn flow thanh toán
-    console.error("❌ Lỗi khi gán voucher tự động:", err.message);
+    console.error(" Lỗi khi gán voucher tự động:", err.message);
   }
 
-  console.log(`✅ Xác nhận thanh toán thành công: ${orderId}`);
+  console.log(` Xác nhận thanh toán thành công: ${orderId}`);
 };
 
 export default {

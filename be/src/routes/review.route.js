@@ -1,3 +1,4 @@
+// src/routes/review.routes.js
 import express from 'express';
 import { 
   addReview, 
@@ -16,10 +17,10 @@ const router = express.Router();
 // Viết đánh giá (có orderId để phân biệt đơn hàng)
 router.post('/add', verifyToken, addReview);
 
-// Xem đánh giá theo sản phẩm
+// Xem đánh giá theo sản phẩm (dùng cho trang chi tiết sản phẩm)
 router.get('/products/:productId', getProductReviews);
 
-// Lấy danh sách sản phẩm đã mua
+// Lấy danh sách sản phẩm đã mua (cho ProfilePage)
 router.get('/my-purchased-products', verifyToken, getUserPurchasedProducts);
 
 // Kiểm tra quyền đánh giá sản phẩm trong đơn hàng

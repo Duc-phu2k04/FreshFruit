@@ -510,3 +510,90 @@
   text-align: center;
   padding: 16px 0;
 }
+.review-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px; /* khoảng cách giữa các nút */
+  margin-top: 4px;
+}
+
+.btn-delete-order {
+  padding: 4px 8px;
+  background: red;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-delete-order:hover {
+  background: darkred;
+}
+
+.review-done {
+  color: green;
+  font-size: 12px;
+}
+
+
+/* Wrapper cho mỗi sản phẩm trong cột hành động */
+.order-actions {
+  display: flex;
+  flex-direction: column; /* xếp các sản phẩm dọc */
+  gap: 8px; /* khoảng cách giữa các item */
+}
+
+/* Wrapper review + xóa ngang hàng */
+.review-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* khoảng cách giữa các nút */
+  flex-wrap: wrap; /* responsive: nhỏ màn hình thì xuống dòng */
+}
+
+/* Nút xóa */
+.btn-delete-order {
+  background-color: #ef4444;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  transition: filter 0.2s ease, transform 0.1s ease;
+}
+
+.btn-delete-order:hover {
+  filter: brightness(0.9);
+  transform: scale(1.05);
+}
+
+/* ReviewButton wrapper (nếu cần style thêm) */
+.review-wrapper > .review-button {
+  flex-shrink: 0;
+}
+
+/* Tên sản phẩm */
+.product-item {
+  font-weight: 500;
+  margin-bottom: 2px;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.product-meta {
+  color: #888;
+  font-size: 0.9em;
+  margin-left: 4px;
+}
+
+/* Responsive: khi màn hình hẹp */
+@media (max-width: 768px) {
+  .review-wrapper {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
