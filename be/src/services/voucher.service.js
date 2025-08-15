@@ -14,7 +14,7 @@ const voucherService = () => {
       discount,
       quantity,
       expiration,
-      assignedUsers // [{ user, quantity }]
+      assignedUsers
     });
     return await newVoucher.save();
   };
@@ -52,7 +52,6 @@ const voucherService = () => {
     return voucher;
   };
 
-  // ✅ Hàm mới: trừ userQuantity khi dùng voucher
   const useVoucher = async (code, userId) => {
     const normalized = code?.toUpperCase().trim();
     if (!normalized) throw new Error("Code không hợp lệ");
@@ -64,9 +63,9 @@ const voucherService = () => {
     if (!userData) throw new Error("User chưa được gán voucher này");
     if (userData.quantity <= 0) throw new Error("Bạn đã hết lượt sử dụng voucher này");
 
-    userData.quantity -= 1; // trừ số lượt của user
+    userData.quantity -= 1;
     if (voucher.quantity !== null && voucher.quantity > 0) {
-      voucher.quantity -= 1; // trừ tổng lượt nếu có
+      voucher.quantity -= 1;
     }
 
     await voucher.save();
@@ -77,15 +76,18 @@ const voucherService = () => {
     };
   };
 
+  // ======================= Sửa gán voucher dựa trên chi tiêu =======================
   const assignVoucherBasedOnSpending = async (userId) => {
     if (!mongoose.Types.ObjectId.isValid(userId)) return null;
 
-    const agg = await Order.aggregate([
-      { $match: { user: new mongoose.Types.ObjectId(userId), paymentStatus: "paid", status: { $ne: "cancelled" } } },
-      { $group: { _id: null, totalSpent: { $sum: "$total" } } }
-    ]);
+    // Chỉ tính các đơn đã thanh toán
+    const orders = await Order.find({
+      user: userId,
+      paymentStatus: "paid",
+      status: { $ne: "cancelled" }
+    });
 
-    const totalSpent = agg[0]?.totalSpent || 0;
+    const totalSpent = orders.reduce((sum, o) => sum + o.total, 0);
 
     const toAssign = [];
     if (totalSpent >= 2000000) toAssign.push({ code: "LEVEL5", discount: 5 });
@@ -124,9 +126,7 @@ const voucherService = () => {
   };
 
   const assignUsersToVoucher = async (voucherId, userList) => {
-    if (!mongoose.Types.ObjectId.isValid(voucherId)) {
-      throw new Error("voucherId không hợp lệ");
-    }
+    if (!mongoose.Types.ObjectId.isValid(voucherId)) throw new Error("voucherId không hợp lệ");
 
     const voucher = await Voucher.findById(voucherId);
     if (!voucher) throw new Error("Không tìm thấy voucher");
@@ -147,9 +147,8 @@ const voucherService = () => {
   const getUserVouchers = async (userId) => {
     if (!mongoose.Types.ObjectId.isValid(userId)) throw new Error("userId không hợp lệ");
 
-    const vouchers = await Voucher.find({
-      "assignedUsers.user": userId
-    }).select("code discount expiration quantity assignedUsers createdAt");
+    const vouchers = await Voucher.find({ "assignedUsers.user": userId })
+      .select("code discount expiration quantity assignedUsers createdAt");
 
     const now = new Date();
     const validVouchers = [];
@@ -226,7 +225,7 @@ const voucherService = () => {
     remove,
     update,
     validate,
-    useVoucher, // thêm hàm này
+    useVoucher,
     assignVoucherBasedOnSpending,
     getAssignedUsers,
     assignUsersToVoucher,

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import voucherService from "../services/voucher.service.js";
 
 function generateCustomId() {
   const now = new Date();
@@ -76,5 +77,27 @@ const orderSchema = new mongoose.Schema(
 
 // Index để tối ưu tìm kiếm theo user và customId
 orderSchema.index({ customId: 1, user: 1 });
+
+// Hook post save để gán voucher tự động
+orderSchema.post("save", async function (doc, next) {
+  try {
+    // ✅ Chỉ gán voucher khi đơn đã thanh toán
+    if (doc.paymentStatus === "paid") {
+      // Gán voucher theo đơn > 2 triệu
+      if (doc.total >= 2000000) {
+        if (voucherService.assignVoucherPerOrder) {
+          await voucherService.assignVoucherPerOrder(doc._id);
+        }
+      }
+      // Gán voucher dựa trên tổng chi tiêu user
+      if (voucherService.assignVoucherBasedOnSpending) {
+        await voucherService.assignVoucherBasedOnSpending(doc.user);
+      }
+    }
+  } catch (err) {
+    console.error("Lỗi khi gán voucher tự động:", err);
+  }
+  next();
+});
 
 export default mongoose.model("Order", orderSchema);

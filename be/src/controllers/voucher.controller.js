@@ -5,14 +5,14 @@ const voucherController = {
     try {
       const { code, discount, quantity, expiresInDays, assignedUsers } = req.body;
 
-      // Tính expiration từ expiresInDays
+      // ✅ Tính expiration từ expiresInDays
       let expiration = null;
       if (expiresInDays) {
         expiration = new Date();
         expiration.setDate(expiration.getDate() + Number(expiresInDays));
       }
 
-      // Ép kiểu số cho discount và quantity (null = vô hạn)
+      // ✅ Ép kiểu số cho discount và quantity (null = vô hạn)
       const voucher = await voucherService.create({
         code,
         discount: Number(discount),
@@ -83,7 +83,7 @@ const voucherController = {
     }
   },
 
-  //  Dùng voucher và tự động trừ userQuantity
+  // ✅ Dùng voucher và tự động trừ userQuantity
   useVoucher: async (req, res) => {
     try {
       const { code } = req.body;
