@@ -27,11 +27,14 @@ export default function ProductDetail() {
 
         // Lấy sản phẩm liên quan
         const relatedRes = await fetch(
-          `http://localhost:3000/api/product?category=${data.category._id}`
+          `http://localhost:3000/api/product?category=${data.category?._id || ""}`
         );
         if (!relatedRes.ok) throw new Error("Không lấy được sản phẩm liên quan");
         const related = await relatedRes.json();
-        setRelatedProducts(related.filter((item) => item._id !== id));
+
+        // Đảm bảo related là mảng trước khi filter
+        const relatedArray = Array.isArray(related) ? related : [];
+        setRelatedProducts(relatedArray.filter((item) => item._id !== id));
       } catch (err) {
         console.error("Lỗi khi lấy sản phẩm:", err);
       }
@@ -39,7 +42,6 @@ export default function ProductDetail() {
 
     const fetchComments = async () => {
       try {
-        // Chỉnh URL đúng với backend: /api/review/products/:productId
         const res = await fetch(`http://localhost:3000/api/review/products/${id}`);
         if (!res.ok) {
           console.warn("Không lấy được đánh giá, status:", res.status);
@@ -67,11 +69,13 @@ export default function ProductDetail() {
 
   useEffect(() => {
     if (product && selectedWeight && selectedRipeness) {
-      const found = product.variants.find(
-        (v) =>
-          v.attributes.weight === selectedWeight &&
-          v.attributes.ripeness === selectedRipeness
-      );
+      const found = Array.isArray(product.variants)
+        ? product.variants.find(
+            (v) =>
+              v.attributes.weight === selectedWeight &&
+              v.attributes.ripeness === selectedRipeness
+          )
+        : null;
       setCurrentVariant(found || null);
       setQuantity(1);
     } else {
@@ -188,24 +192,25 @@ export default function ProductDetail() {
           <div className="mb-4">
             <p className="font-medium mb-1">Khối lượng:</p>
             <div className="flex flex-wrap gap-2">
-              {product.weightOptions.map((w) => (
-                <button
-                  key={w}
-                  onClick={() => handleSelectVariant("weight", w)}
-                  className={`px-4 py-2 border rounded relative ${
-                    selectedWeight === w
-                      ? "border-green-600 text-green-600"
-                      : "border-gray-300"
-                  }`}
-                >
-                  {w}
-                  {selectedWeight === w && (
-                    <span className="absolute top-0 right-0 text-green-600 font-bold">
-                      ✓
-                    </span>
-                  )}
-                </button>
-              ))}
+              {Array.isArray(product.weightOptions) &&
+                product.weightOptions.map((w) => (
+                  <button
+                    key={w}
+                    onClick={() => handleSelectVariant("weight", w)}
+                    className={`px-4 py-2 border rounded relative ${
+                      selectedWeight === w
+                        ? "border-green-600 text-green-600"
+                        : "border-gray-300"
+                    }`}
+                  >
+                    {w}
+                    {selectedWeight === w && (
+                      <span className="absolute top-0 right-0 text-green-600 font-bold">
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                ))}
             </div>
           </div>
 
@@ -213,24 +218,25 @@ export default function ProductDetail() {
           <div className="mb-4">
             <p className="font-medium mb-1">Tình trạng:</p>
             <div className="flex flex-wrap gap-2">
-              {product.ripenessOptions.map((r) => (
-                <button
-                  key={r}
-                  onClick={() => handleSelectVariant("ripeness", r)}
-                  className={`px-4 py-2 border rounded relative ${
-                    selectedRipeness === r
-                      ? "border-green-600 text-green-600"
-                      : "border-gray-300"
-                  }`}
-                >
-                  {r}
-                  {selectedRipeness === r && (
-                    <span className="absolute top-0 right-0 text-green-600 font-bold">
-                      ✓
-                    </span>
-                  )}
-                </button>
-              ))}
+              {Array.isArray(product.ripenessOptions) &&
+                product.ripenessOptions.map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => handleSelectVariant("ripeness", r)}
+                    className={`px-4 py-2 border rounded relative ${
+                      selectedRipeness === r
+                        ? "border-green-600 text-green-600"
+                        : "border-gray-300"
+                    }`}
+                  >
+                    {r}
+                    {selectedRipeness === r && (
+                      <span className="absolute top-0 right-0 text-green-600 font-bold">
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                ))}
             </div>
           </div>
 
