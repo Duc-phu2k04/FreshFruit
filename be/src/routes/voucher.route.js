@@ -9,6 +9,7 @@ router.get("/my-vouchers", verifyToken, voucherController.getUserVouchers);
 
 // Validate voucher
 router.get("/validate/:code", verifyToken, voucherController.validate);
+router.get("/:id", verifyToken, isAdmin, voucherController.getById);
 
 // Lấy danh sách user đã được gán voucher (admin)
 router.get("/:id/users", verifyToken, isAdmin, voucherController.getAssignedUsers);

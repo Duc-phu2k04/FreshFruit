@@ -28,9 +28,11 @@ import EditProductForm from "./pages/Admin/Product/Edit";
 import ProductDetailAdmin from "./pages/Admin/Product/Detail";
 import ProductDetail from "./pages/Product/ProductDetail";
 import UserList from "./pages/Admin/User/List";
+import UserEdit from './pages/Admin/User/Edit';
 import ReviewList from "./pages/Admin/Reviews/List";
 import VoucherList from "./pages/Admin/Voucher/List";
 import AddVoucherForm from "./pages/Admin/Voucher/Add";
+import EditVoucherForm from "./pages/Admin/Voucher/Edit";
 import AdminOrderPage from "./pages/Admin/Order/list";
 import AddressList from './pages/Admin/Address/List';
 import AddAddressAdd from './pages/Admin/Address/Add';
@@ -85,9 +87,11 @@ function App() {
               <Route path="/admin/products/detail/:id" element={<ProductDetailAdmin />} />
 
               <Route path="/admin/users" element={<UserList />} />
+              <Route path="/admin/edit/:id" element={<UserEdit />} />
               <Route path="/admin/reviews" element={<ReviewList />} />
               <Route path="/admin/vouchers" element={<VoucherList />} />
               <Route path="/admin/vouchers/add" element={<AddVoucherForm />} />
+              <Route path="/admin/vouchers/edit/:id" element={<EditVoucherForm />} />
 
               <Route path="/admin/orders" element={<AdminOrderPage />} />
 

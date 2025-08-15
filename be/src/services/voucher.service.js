@@ -22,6 +22,9 @@ const voucherService = () => {
   const getAll = async () => {
     return await Voucher.find().populate("assignedUsers.user", "username email fullName");
   };
+ const getById = async (id) => {
+  return await Voucher.findById(id);
+};
 
   const remove = async (id) => {
     const deleted = await Voucher.findByIdAndDelete(id);
@@ -222,6 +225,7 @@ const voucherService = () => {
   return {
     create,
     getAll,
+    getById,
     remove,
     update,
     validate,

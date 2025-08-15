@@ -35,6 +35,19 @@ const voucherController = {
       res.status(500).json({ message: err.message });
     }
   },
+  getById: async (req, res) => {
+  try {
+    const { id } = req.params;
+    const voucher = await voucherService.getById(id);
+    if (!voucher) {
+      return res.status(404).json({ message: "Voucher không tồn tại" });
+    }
+    res.json(voucher);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+},
+
 
   remove: async (req, res) => {
     try {

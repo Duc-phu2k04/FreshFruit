@@ -4,6 +4,7 @@ import axiosInstance from '../../../utils/axiosConfig';
 import { UserCircleIcon, TrashIcon, MagnifyingGlassIcon, ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/outline'; // UserCircleIcon cho nút chuyển đổi role
 import Loader from '../../../components/common/Loader';
 import ConfirmationModal from '../../../components/common/ComfirmDialog'; // Giả định bạn đã tạo component này
+import { PencilIcon } from '@heroicons/react/24/outline';
 
 
 export default function UserList() {
@@ -214,6 +215,14 @@ export default function UserList() {
                                             <UserCircleIcon className="h-5 w-5 mr-1" />
                                             {user.role === 'admin' ? 'Chuyển sang User' : 'Chuyển sang Admin'}
                                         </button>
+                                        <Link
+                                            to={`/admin/edit/${user._id}`}
+                                            className="text-green-600 hover:text-green-900 flex items-center"
+                                            title="Sửa tài khoản"
+                                        >
+                                            <PencilIcon className="h-5 w-5 mr-1" />
+                                            Sửa
+                                        </Link>
                                         <button
                                             onClick={() => handleDeleteUser(user)}
                                             className="text-red-600 hover:text-red-900 flex items-center"
