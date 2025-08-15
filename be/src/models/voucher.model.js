@@ -5,7 +5,7 @@ const voucherSchema = new mongoose.Schema(
     code: {
       type: String,
       required: true,
-      unique: true,
+      unique: true, // ✅ unique index tự động tạo, không cần schema.index() nữa
       uppercase: true,
       trim: true,
     },
@@ -13,7 +13,7 @@ const voucherSchema = new mongoose.Schema(
       type: Number,
       required: true,
       min: 1,
-      max: 100,
+      max: 100, // giảm giá tối đa 100%
     },
     expiration: {
       type: Date,
@@ -21,7 +21,8 @@ const voucherSchema = new mongoose.Schema(
     },
     quantity: {
       type: Number,
-      default: null, // null = vô hạn cho toàn hệ thống
+      default: null, // null = không giới hạn lượt dùng cho toàn hệ thống
+      min: 0,
     },
     assignedUsers: [
       {
@@ -32,7 +33,7 @@ const voucherSchema = new mongoose.Schema(
         },
         quantity: {
           type: Number,
-          default: 1, // số lượng voucher user này có
+          default: 1, // số lượt voucher user này có
           min: 0,
         },
       },
@@ -40,6 +41,9 @@ const voucherSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+
+// voucherSchema.index({ code: 1 });
 
 const Voucher = mongoose.model("Voucher", voucherSchema);
 export default Voucher;

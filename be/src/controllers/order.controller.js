@@ -5,20 +5,39 @@ import Order from "../models/order.model.js";
 // ======================= Tạo đơn hàng =======================
 export const checkout = async (req, res) => {
   try {
-    const { cartItems, voucher, address } = req.body;
+    const { cartItems, voucher, address, paymentMethod } = req.body;
     const userId = req.user._id;
 
-    // Validate voucher trước khi tạo order
+    let validVoucher = null;
+    // ✅ Validate voucher nếu có
     if (voucher) {
-      await voucherService.validate(voucher, userId);
+      try {
+        validVoucher = await voucherService.validate(voucher, userId);
+      } catch (err) {
+        return res.status(400).json({ message: "Voucher không hợp lệ", error: err.message });
+      }
     }
 
-    // Tạo order mới, paymentStatus mặc định "unpaid"
-    const order = await orderService.createOrder({ userId, cartItems, voucher, address });
+    // ✅ Tạo order mới
+    const orderData = {
+      userId,
+      cartItems,
+      voucher: validVoucher ? validVoucher._id : null,
+      address,
+      paymentMethod,
+      paymentStatus: paymentMethod === "momo" ? "paid" : "unpaid", // COD vẫn unpaid
+    };
+    const order = await orderService.createOrder(orderData);
 
-    // Mark voucher đã dùng sau khi order tạo xong
-    if (voucher) {
+    // ✅ Mark voucher đã dùng nếu đã thanh toán online
+    if (validVoucher && order.paymentStatus === "paid") {
       await voucherService.useVoucher(voucher, userId);
+    }
+
+    // ✅ Gán voucher tự động dựa trên tổng chi tiêu / đơn > 2 triệu
+    let assignedVouchers = null;
+    if (order.paymentStatus === "paid") {
+      assignedVouchers = await voucherService.assignVoucherBasedOnSpending(userId);
     }
 
     res.status(201).json({
@@ -28,14 +47,16 @@ export const checkout = async (req, res) => {
         customId: order.customId,
         items: order.items,
         total: order.total,
-        status: order.status,          // pending
-        paymentStatus: order.paymentStatus, // unpaid
+        status: order.status,
+        paymentStatus: order.paymentStatus,
         voucher: order.voucher,
         shippingAddress: order.shippingAddress,
         createdAt: order.createdAt,
       },
+      assignedVouchers, // voucher tự động gán nếu có
     });
   } catch (err) {
+    console.error("Lỗi checkout:", err);
     res.status(500).json({
       message: "Lỗi khi tạo đơn hàng",
       error: err.message,
@@ -104,9 +125,7 @@ export const deleteOrder = async (req, res) => {
     const { id } = req.params;
 
     const order = await Order.findById(id);
-    if (!order) {
-      return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
-    }
+    if (!order) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
 
     if (!isAdmin && order.user.toString() !== userId.toString()) {
       return res.status(403).json({ message: "Bạn không có quyền huỷ đơn này" });
@@ -133,11 +152,9 @@ export const hideOrderFromHistory = async (req, res) => {
     const { id } = req.params;
 
     const order = await Order.findOne({ _id: id, user: userId });
-    if (!order) {
-      return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
-    }
+    if (!order) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
 
-    order.deletedByUser = true; //  đánh dấu đã ẩn
+    order.deletedByUser = true; // ✅ đánh dấu đã ẩn
     await order.save();
 
     res.json({ message: "Đã ẩn đơn hàng khỏi lịch sử" });
