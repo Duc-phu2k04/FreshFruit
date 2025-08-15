@@ -20,5 +20,6 @@ router.post("/:id/assign", verifyToken, isAdmin, voucherController.assign);
 router.post("/", verifyToken, isAdmin, voucherController.create);
 router.get("/", verifyToken, isAdmin, voucherController.getAll);
 router.delete("/:id", verifyToken, isAdmin, voucherController.remove);
+router.put("/:id", verifyToken, isAdmin, voucherController.update);
 
 export default router;

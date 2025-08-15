@@ -179,11 +179,52 @@ const voucherService = () => {
 
     return { total: vouchers.length, validVouchers, expiredVouchers, usedUpVouchers };
   };
+  const update = async (id, { code, discount, quantity, expiration }) => {
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new Error("ID voucher không hợp lệ");
+  }
+
+  const existingVoucher = await Voucher.findById(id);
+  if (!existingVoucher) {
+    throw new Error("Không tìm thấy voucher để cập nhật");
+  }
+
+  const updateFields = {};
+
+  if (code && code !== existingVoucher.code) {
+    const normalizedCode = code.toUpperCase().trim();
+    const duplicateVoucher = await Voucher.findOne({ 
+      code: normalizedCode, _id: { $ne: id } 
+    });
+    if (duplicateVoucher) throw new Error("Mã giảm giá đã tồn tại");
+    updateFields.code = normalizedCode;
+  }
+
+  if (discount !== undefined) {
+    const discountNum = Number(discount);
+    if (isNaN(discountNum) || discountNum < 1 || discountNum > 100) {
+      throw new Error("Discount phải từ 1 đến 100");
+    }
+    updateFields.discount = discountNum;
+  }
+
+  if (quantity !== undefined) {
+    updateFields.quantity = quantity === null || quantity === '' ? null : Number(quantity);
+  }
+
+  if (expiration !== undefined) {
+    updateFields.expiration = expiration === null || expiration === '' ? null : new Date(expiration);
+  }
+
+  return await Voucher.findByIdAndUpdate(id, { $set: updateFields }, { new: true });
+};
+
 
   return {
     create,
     getAll,
     remove,
+    update,
     validate,
     useVoucher, // thêm hàm này
     assignVoucherBasedOnSpending,
