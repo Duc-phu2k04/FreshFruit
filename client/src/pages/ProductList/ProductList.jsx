@@ -126,8 +126,8 @@ export default function ProductListPage() {
                 transition={{ duration: 0.5 }}
               >
                 {currentProducts.map((product) => {
-                  const variantData =
-                    product.baseVariant || product.variants?.[0] || {};
+                  // --- Lấy variant đầu tiên để hiển thị stock và price ---
+                  const variantData = product.variants?.[0] || {};
                   const price = variantData.price ?? 0;
                   const stock = variantData.stock ?? 0;
 
@@ -150,7 +150,7 @@ export default function ProductListPage() {
                           {price.toLocaleString()}đ
                         </p>
                         <p className="text-sm text-gray-500">
-                          Tồn kho: {stock}
+                          Tồn kho: {stock > 0 ? stock : "Hết hàng"}
                         </p>
                         <p className="product-description line-clamp-2 text-sm text-gray-600">
                           {product.description ||

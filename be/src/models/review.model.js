@@ -3,6 +3,10 @@ import mongoose from 'mongoose';
 
 const reviewSchema = new mongoose.Schema(
   {
+    orderId: {
+      type: String, // customId của đơn hàng
+      required: true
+    },
     product: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Product',
@@ -26,6 +30,9 @@ const reviewSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Mỗi user chỉ được review 1 sản phẩm trong 1 đơn hàng
+reviewSchema.index({ user: 1, orderId: 1, product: 1 }, { unique: true });
 
 const Review = mongoose.model('Review', reviewSchema);
 export default Review;

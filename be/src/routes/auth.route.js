@@ -24,7 +24,10 @@ router.delete('/users/:id', verifyToken, authController.deleteUser);
 // Quên mật khẩu
 router.post('/forgot-password', authController.forgotPassword);
 
-// ✅ Thêm: Kiểm tra username/email trùng (FE dùng khi đăng ký)
+// Kiểm tra username/email trùng (FE dùng khi đăng ký)
 router.get('/check-duplicate', authController.checkDuplicate);
+
+// ** Thêm route mới lấy profile user hiện tại **
+router.get('/profile', verifyToken, authController.getCurrentUserProfile);
 
 export default router;

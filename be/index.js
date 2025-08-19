@@ -16,6 +16,9 @@ import momoRoutes from "./src/routes/momo.route.js";
 import uploadRoute from './src/routes/upload.route.js';
 import addressRoute from './src/routes/address.route.js';
 
+// Thêm import shipping routes
+import shippingRoutes from './src/routes/shipping.routes.js';
+
 dotenv.config();
 
 const app = express();
@@ -36,12 +39,16 @@ app.use('/api/product', productRoutes);
 app.use('/api/category', categoryRoutes);
 app.use('/api/locations', locationRoute);
 app.use('/api/cart', cartRoute);
-app.use('/api/orders', orderRoute);         
+app.use('/api/orders', orderRoute);
 app.use('/api/review', reviewRoute);
 app.use('/api/voucher', voucherRoutes);
 app.use('/api/momo', momoRoutes);
 app.use('/api/upload', uploadRoute);
 app.use('/api/address', addressRoute);
+
+
+// Mount shipping routes (bao gồm /api/shipping/quote, v.v.)
+app.use('/api', shippingRoutes);
 
 // Static file route
 app.use('/images', express.static('public/images'));

@@ -27,7 +27,7 @@ export const login = async (req, res) => {
   }
 };
 
-// Lấy toàn bộ người dùng
+// Lấy toàn bộ người dùng (chỉ admin)
 export const getAllUsers = async (req, res) => {
   try {
     const users = await User.find().select('-password');
@@ -57,22 +57,38 @@ export const getUserById = async (req, res) => {
   }
 };
 
+// ** Lấy profile user hiện tại (theo token) **
+export const getCurrentUserProfile = async (req, res) => {
+  try {
+    const userId = req.user?._id || req.userId;
+    const user = await User.findById(userId).select('-password -__v');
+    if (!user) return res.status(404).json({ message: 'User không tồn tại' });
+
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi khi lấy thông tin user', error: error.message });
+  }
+};
+
 // Cập nhật người dùng
 export const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { username, email, phone, address, role, fullName } = req.body;
+    const { username, email, phone, address, role, fullName, defaultAddressId } = req.body;
 
     const user = await User.findById(id);
     if (!user) return res.status(404).json({ message: 'Người dùng không tìm thấy.' });
 
-    if (fullName) user.fullName = fullName;
-    if (username) user.username = username;
-    if (email) user.email = email;
-    if (phone) user.phone = phone;
-    if (address) user.address = address;
-    if (role && ['user', 'admin'].includes(role)) {
+    if (fullName !== undefined) user.fullName = fullName;
+    if (username !== undefined) user.username = username;
+    if (email !== undefined) user.email = email;
+    if (phone !== undefined) user.phone = phone;
+    if (address !== undefined) user.address = address;
+    if (role !== undefined && ['user', 'admin'].includes(role)) {
       user.role = role;
+    }
+    if (defaultAddressId !== undefined) {
+      user.defaultAddressId = defaultAddressId;
     }
 
     const updatedUser = await user.save();
@@ -136,7 +152,7 @@ Trân trọng,
   }
 };
 
-// ✅ Thêm: Kiểm tra username hoặc email đã tồn tại
+// Kiểm tra username hoặc email đã tồn tại
 export const checkDuplicate = async (req, res) => {
   try {
     const { username, email } = req.query;

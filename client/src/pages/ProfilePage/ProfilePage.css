@@ -1,0 +1,597 @@
+/* ProfilePage.css */
+/* Toàn bộ CSS giới hạn trong .profile-page để không ảnh hưởng các phần khác */
+
+.profile-page {
+  background-color: #fff8f0;
+  padding: 20px;
+  border-radius: 12px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #333;
+}
+
+/* Tiêu đề */
+.profile-page h1 {
+  color: #ffb347;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 25px;
+}
+
+.profile-page h2 {
+  color: #6ab04c;
+  margin-bottom: 15px;
+}
+
+/* Thanh tab */
+.profile-page nav {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.profile-page nav button {
+  background-color: #6ab04c;
+  color: white;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 25px;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.profile-page nav button:hover {
+  background-color: #4a8f38;
+}
+
+.profile-page nav button.active {
+  background-color: #ffb347;
+}
+
+/* Nội dung form */
+.profile-page input,
+.profile-page textarea,
+.profile-page select {
+  width: 100%;
+  padding: 8px;
+  margin: 6px 0 15px 0;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.profile-page textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.profile-page input:focus,
+.profile-page textarea:focus,
+.profile-page select:focus {
+  outline: none;
+  border-color: #6ab04c;
+  box-shadow: 0 0 8px rgba(106, 176, 76, 0.5);
+}
+
+.profile-page button {
+  background-color: #ffb347;
+  color: white;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: 0 4px 6px rgba(255, 179, 71, 0.4);
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.profile-page button:hover {
+  background-color: #e59b2e;
+  box-shadow: 0 6px 12px rgba(229, 155, 46, 0.6);
+}
+
+/* Phần địa chỉ mặc định ở thông tin cá nhân */
+.profile-page .profile-section > div.default-address {
+  background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+  padding: 14px 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(255, 179, 71, 0.35);
+  font-weight: 600;
+  color: #5a3e1b;
+  margin-bottom: 20px;
+  font-size: 15px;
+  line-height: 1.4;
+  border: 1px solid #f7b05b;
+  user-select: text;
+}
+
+/* Quản lý địa chỉ */
+/* Cấu trúc li từng địa chỉ */
+.profile-page ul li {
+  background-color: #ffffff;
+  padding: 16px 20px;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  border: 1px solid #d8d8d8;
+  box-shadow: 0 2px 6px rgba(106, 176, 76, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Thông tin tên, số điện thoại */
+.profile-page ul li > div:first-child {
+  font-weight: 700;
+  color: #3c763d;
+  font-size: 16px;
+}
+
+/* Địa chỉ chi tiết */
+.profile-page ul li > div:nth-child(2) {
+  font-size: 14px;
+  color: #555;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Nhóm nút thao tác */
+.profile-page ul li .address-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px; /* khoảng cách */
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+/* Wrapper cố định vùng cho nút chọn mặc định / label */
+.profile-page ul li .address-actions .default-select-wrapper {
+  width: 160px; /* cố định */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  min-height: 38px; /* bằng chiều cao nút */
+  box-sizing: border-box;
+}
+
+/* Nút "Chọn làm mặc định" */
+.profile-page ul li .btn-default-select {
+  background-color: #6ab04c;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: none;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 2px 5px rgba(106, 176, 76, 0.4);
+  cursor: pointer;
+  transition: background-color 0.25s ease;
+  width: 100%;
+  text-align: center;
+  white-space: nowrap; /* Không xuống dòng */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  min-height: 38px;
+  box-sizing: border-box;
+}
+
+.profile-page ul li .btn-default-select:hover {
+  background-color: #4a8f38;
+  box-shadow: 0 4px 10px rgba(74, 143, 56, 0.6);
+}
+
+/* Label (Mặc định) thay cho nút chọn mặc định */
+.profile-page ul li .default-label {
+  font-weight: 700;
+  color: #27ae60;
+  font-size: 14px;
+  user-select: none;
+  width: 100%;
+  text-align: center;
+  white-space: normal;
+  word-wrap: break-word;
+  line-height: 1.2;
+  min-height: 38px;
+  box-sizing: border-box;
+  visibility: visible;
+}
+
+/* Ẩn label nhưng vẫn giữ chỗ */
+.profile-page ul li .default-label.hidden {
+  visibility: hidden;
+}
+
+/* Nút Sửa */
+.profile-page ul li .btn-edit {
+  background-color: #3498db;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: none;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 2px 5px rgba(52, 152, 219, 0.4);
+  cursor: pointer;
+  transition: background-color 0.25s ease;
+  white-space: nowrap;
+  min-width: 100px; /* cố định ngang */
+  text-align: center;
+}
+
+.profile-page ul li .btn-edit:hover {
+  background-color: #2c81ba;
+  box-shadow: 0 4px 10px rgba(44, 129, 186, 0.6);
+}
+
+/* Nút Xóa */
+.profile-page ul li .btn-delete {
+  background-color: #e74c3c;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: none;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 2px 5px rgba(231, 76, 60, 0.5);
+  cursor: pointer;
+  transition: background-color 0.25s ease;
+  white-space: nowrap;
+  min-width: 100px;
+  text-align: center;
+}
+
+.profile-page ul li .btn-delete:hover {
+  background-color: #c0392b;
+  box-shadow: 0 4px 10px rgba(192, 57, 43, 0.7);
+}
+
+/* Responsive: khi đủ rộng thì các phần thành hàng ngang */
+@media (min-width: 480px) {
+  .profile-page ul li {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .profile-page ul li > div {
+    flex: 1;
+  }
+  .profile-page ul li .address-actions {
+    flex-shrink: 0;
+  }
+}
+
+/* ===================== LỊCH SỬ ĐƠN HÀNG ===================== */
+
+.order-history {
+  margin-top: 20px;
+  background: #fffef9;
+  padding: 20px;
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.order-history h2 {
+  text-align: center;
+  color: #6ab04c;
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+/* Bảng */
+.order-table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: 12px;
+  /* Giữ layout cột ổn định để địa chỉ tự wrap, action không bị đẩy xuống */
+  table-layout: fixed;
+}
+
+.order-table thead {
+  background: linear-gradient(90deg, #f6d365, #fda085);
+  color: white;
+}
+
+.order-table th,
+.order-table td {
+  padding: 12px 15px;
+  text-align: left;
+  vertical-align: top;
+  overflow: hidden; /* cần thiết khi table-layout: fixed */
+}
+
+/* Định nghĩa độ rộng các cột (nếu có class ở TH/TD) */
+.order-table th.address-col,
+.order-table td.address-cell {
+  width: 40%;
+}
+
+.order-table th.actions-col,
+.order-table td.actions-cell {
+  width: 260px; /* đủ rộng cho 2-3 nút */
+}
+
+/* Ô mã đơn */
+.order-id {
+  font-weight: bold;
+  color: #27ae60;
+  font-family: monospace;
+}
+
+/* Sản phẩm */
+.product-item {
+  margin-bottom: 4px;
+  font-weight: 500;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.product-meta {
+  color: #888;
+  font-size: 0.9em;
+  margin-left: 4px;
+}
+
+/* Tổng tiền */
+.order-total {
+  font-weight: bold;
+  color: #e67e22;
+}
+
+/* Trạng thái */
+.status-badge {
+  padding: 6px 10px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.85em;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Status colors */
+.status-badge.pending { background-color: #f39c12; }
+.status-badge.confirmed { background-color: #3498db; }
+.status-badge.shipping { background-color: #9b59b6; }
+.status-badge.delivered { background-color: #27ae60; }
+.status-badge.cancelled { background-color: #e74c3c; }
+
+/* Ô trạng thái (nếu bạn đã gắn class) */
+.order-table td.status-cell {
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* NÚT HỦY trong bảng */
+.btn-cancel {
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  white-space: nowrap;
+}
+
+.btn-cancel:hover {
+  background-color: #c0392b;
+  transform: scale(1.05);
+}
+
+/* --------- FIX QUAN TRỌNG: Địa chỉ wrap, nút KHÔNG wrap --------- */
+
+/* Ô địa chỉ: cho phép xuống dòng tự do, bẻ từ dài */
+.order-table td.address-cell {
+  white-space: normal;
+  overflow-wrap: anywhere; /* hiện đại, bẻ từ bất kỳ */
+  word-break: break-word;  /* fallback */
+  line-height: 1.45;
+}
+
+/* Ô hành động: không xuống dòng, nếu chật thì có scroll ngang */
+.order-table td.actions-cell {
+  white-space: nowrap;
+  min-width: 220px;
+  /* Khi màn hình quá hẹp, ưu tiên giữ nút trên 1 hàng và cho phép cuộn ngang */
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Bên trong ô hành động nếu có wrapper .order-actions */
+.order-table td.actions-cell .order-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;           /* luôn 1 hàng */
+  white-space: nowrap;         /* không xuống dòng */
+}
+
+.order-table td.actions-cell .order-actions > * {
+  flex: 0 0 auto;              /* không bị co lại */
+}
+
+/* Nếu bạn dùng .review-wrapper cho từng item nút trong ô hành động */
+.review-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;           /* giữ 1 hàng */
+  white-space: nowrap;
+}
+
+.review-wrapper > .review-button {
+  flex-shrink: 0;
+}
+
+/* Nút xóa đơn trong bảng */
+.btn-delete-order {
+  background-color: #ef4444;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  transition: filter 0.2s ease, transform 0.1s ease;
+  white-space: nowrap;
+}
+
+.btn-delete-order:hover {
+  filter: brightness(0.9);
+  transform: scale(1.05);
+}
+
+.review-done {
+  color: green;
+  font-size: 12px;
+}
+
+/* Voucher - Giữ nguyên styling đẹp */
+.voucher-container {
+  padding: 32px;
+  background-color: #fdfaf6;
+  border-radius: 16px;
+  max-width: 850px;
+  margin: 0 auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif;
+  color: #333;
+}
+
+.voucher-title {
+  margin-bottom: 24px;
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #1f3a2f;
+  text-align: center;
+}
+
+.voucher-section {
+  margin-bottom: 28px;
+  background-color: #ffffff;
+  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.voucher-section:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+}
+
+.voucher-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 12px;
+  margin-bottom: 18px;
+  color: #374151;
+}
+
+.voucher-section-title {
+  font-weight: 700;
+  font-size: 1.25rem;
+}
+
+.voucher-section-count {
+  font-size: 0.9rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.voucher-card {
+  border: 1px solid #e5e7eb;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  background: #fffaf5;
+  transition: background-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.voucher-card:hover {
+  background-color: #fff3e8;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.voucher-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.voucher-code {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #ff6f3c;
+  font-family: 'Inter', sans-serif;
+}
+
+.copy-button {
+  background-color: #34d399;
+  color: #ffffff;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.25s ease, transform 0.2s ease;
+  white-space: nowrap;
+}
+
+.copy-button:hover {
+  background-color: #10b981;
+  transform: translateY(-1px);
+}
+
+.voucher-quantity {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.875rem;
+  color: #065f46;
+  font-weight: 600;
+  text-align: right;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+
+.voucher-discount {
+  color: #f97316;
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
+
+.voucher-expiration {
+  color: #6b7280;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.voucher-empty {
+  font-style: italic;
+  color: #9ca3af;
+  text-align: center;
+  padding: 16px 0;
+}
+
+/* Responsive bổ sung cho bảng: trên màn nhỏ vẫn giữ nút 1 hàng, cho cuộn ngang ô actions */
+@media (max-width: 768px) {
+  .order-table td.actions-cell {
+    overflow-x: auto;  /* giữ các nút trên 1 hàng, cuộn nếu thiếu chỗ */
+  }
+}
