@@ -49,7 +49,7 @@
   background-color: #ffb347;
 }
 
-/* Nội dung */
+/* Nội dung form */
 .profile-page input,
 .profile-page textarea,
 .profile-page select {
@@ -107,8 +107,7 @@
   user-select: text;
 }
 
-/* Các nút trong phần quản lý địa chỉ */
-
+/* Quản lý địa chỉ */
 /* Cấu trúc li từng địa chỉ */
 .profile-page ul li {
   background-color: #ffffff;
@@ -133,25 +132,27 @@
 .profile-page ul li > div:nth-child(2) {
   font-size: 14px;
   color: #555;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
-/* Nhóm nút thao tác: "Chọn làm mặc định" hoặc "(Mặc định)", nút Sửa, Xóa nằm cùng hàng */
+/* Nhóm nút thao tác */
 .profile-page ul li .address-actions {
   display: flex;
   align-items: center;
-  gap: 18px; /* tăng khoảng cách để không bị dính chữ */
+  gap: 18px; /* khoảng cách */
   flex-wrap: wrap;
   margin-top: 8px;
 }
 
 /* Wrapper cố định vùng cho nút chọn mặc định / label */
 .profile-page ul li .address-actions .default-select-wrapper {
-  width: 160px; /* Fix width cố định */
+  width: 160px; /* cố định */
   display: flex;
   justify-content: center;
   align-items: center;
   position: relative;
-  min-height: 38px; /* Chiều cao bằng với nút */
+  min-height: 38px; /* bằng chiều cao nút */
   box-sizing: border-box;
 }
 
@@ -170,8 +171,8 @@
   width: 100%;
   text-align: center;
   white-space: nowrap; /* Không xuống dòng */
-  overflow: hidden;    /* Ẩn phần tràn */
-  text-overflow: ellipsis; /* Hiện dấu ... nếu quá dài */
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 1.2;
   min-height: 38px;
   box-sizing: border-box;
@@ -188,14 +189,14 @@
   color: #27ae60;
   font-size: 14px;
   user-select: none;
-  width: 100%; /* full width trong wrapper */
+  width: 100%;
   text-align: center;
-  white-space: normal; /* cho phép xuống dòng */
+  white-space: normal;
   word-wrap: break-word;
   line-height: 1.2;
-  min-height: 38px; /* giữ chiều cao */
+  min-height: 38px;
   box-sizing: border-box;
-  visibility: visible; /* luôn giữ chỗ */
+  visibility: visible;
 }
 
 /* Ẩn label nhưng vẫn giữ chỗ */
@@ -216,7 +217,7 @@
   cursor: pointer;
   transition: background-color 0.25s ease;
   white-space: nowrap;
-  min-width: 100px; /* Cố định chiều ngang */
+  min-width: 100px; /* cố định ngang */
   text-align: center;
 }
 
@@ -238,7 +239,7 @@
   cursor: pointer;
   transition: background-color 0.25s ease;
   white-space: nowrap;
-  min-width: 100px; /* Cố định chiều ngang */
+  min-width: 100px;
   text-align: center;
 }
 
@@ -261,7 +262,9 @@
     flex-shrink: 0;
   }
 }
-/* Lịch sử đơn hàng */
+
+/* ===================== LỊCH SỬ ĐƠN HÀNG ===================== */
+
 .order-history {
   margin-top: 20px;
   background: #fffef9;
@@ -283,6 +286,8 @@
   border-collapse: collapse;
   overflow: hidden;
   border-radius: 12px;
+  /* Giữ layout cột ổn định để địa chỉ tự wrap, action không bị đẩy xuống */
+  table-layout: fixed;
 }
 
 .order-table thead {
@@ -290,20 +295,26 @@
   color: white;
 }
 
-.order-table th, .order-table td {
+.order-table th,
+.order-table td {
   padding: 12px 15px;
   text-align: left;
+  vertical-align: top;
+  overflow: hidden; /* cần thiết khi table-layout: fixed */
 }
 
-/* Fix phần trạng thái trong bảng: không cho xuống dòng, thêm overflow ẩn và dấu ... */
-.order-table td.status-cell {
-  max-width: 140px; /* tăng một chút để vừa chữ dài */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Định nghĩa độ rộng các cột (nếu có class ở TH/TD) */
+.order-table th.address-col,
+.order-table td.address-cell {
+  width: 40%;
 }
 
-/* Mã đơn */
+.order-table th.actions-col,
+.order-table td.actions-cell {
+  width: 260px; /* đủ rộng cho 2-3 nút */
+}
+
+/* Ô mã đơn */
 .order-id {
   font-weight: bold;
   color: #27ae60;
@@ -313,10 +324,16 @@
 /* Sản phẩm */
 .product-item {
   margin-bottom: 4px;
+  font-weight: 500;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
 }
+
 .product-meta {
   color: #888;
   font-size: 0.9em;
+  margin-left: 4px;
 }
 
 /* Tổng tiền */
@@ -332,32 +349,30 @@
   font-weight: 600;
   font-size: 0.85em;
   color: white;
-  white-space: nowrap;     
-  overflow: hidden;        
-  text-overflow: ellipsis; 
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   display: inline-block;
   max-width: 100%;
   box-sizing: border-box;
 }
 
 /* Status colors */
-.status-badge.pending {
-  background-color: #f39c12; /* Đang xử lý */
-}
-.status-badge.confirmed {
-  background-color: #3498db; /* Đã xác nhận */
-}
-.status-badge.shipping {
-  background-color: #9b59b6; /* Đang vận chuyển */
-}
-.status-badge.delivered {
-  background-color: #27ae60; /* Đã giao */
-}
-.status-badge.cancelled {
-  background-color: #e74c3c; /* Đã hủy */
+.status-badge.pending { background-color: #f39c12; }
+.status-badge.confirmed { background-color: #3498db; }
+.status-badge.shipping { background-color: #9b59b6; }
+.status-badge.delivered { background-color: #27ae60; }
+.status-badge.cancelled { background-color: #e74c3c; }
+
+/* Ô trạng thái (nếu bạn đã gắn class) */
+.order-table td.status-cell {
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Nút Hủy */
+/* NÚT HỦY trong bảng */
 .btn-cancel {
   background-color: #e74c3c;
   color: white;
@@ -367,6 +382,7 @@
   cursor: pointer;
   font-weight: 600;
   transition: background-color 0.2s ease, transform 0.1s ease;
+  white-space: nowrap;
 }
 
 .btn-cancel:hover {
@@ -374,7 +390,75 @@
   transform: scale(1.05);
 }
 
-/* --- Voucher Container --- */
+/* --------- FIX QUAN TRỌNG: Địa chỉ wrap, nút KHÔNG wrap --------- */
+
+/* Ô địa chỉ: cho phép xuống dòng tự do, bẻ từ dài */
+.order-table td.address-cell {
+  white-space: normal;
+  overflow-wrap: anywhere; /* hiện đại, bẻ từ bất kỳ */
+  word-break: break-word;  /* fallback */
+  line-height: 1.45;
+}
+
+/* Ô hành động: không xuống dòng, nếu chật thì có scroll ngang */
+.order-table td.actions-cell {
+  white-space: nowrap;
+  min-width: 220px;
+  /* Khi màn hình quá hẹp, ưu tiên giữ nút trên 1 hàng và cho phép cuộn ngang */
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Bên trong ô hành động nếu có wrapper .order-actions */
+.order-table td.actions-cell .order-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;           /* luôn 1 hàng */
+  white-space: nowrap;         /* không xuống dòng */
+}
+
+.order-table td.actions-cell .order-actions > * {
+  flex: 0 0 auto;              /* không bị co lại */
+}
+
+/* Nếu bạn dùng .review-wrapper cho từng item nút trong ô hành động */
+.review-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;           /* giữ 1 hàng */
+  white-space: nowrap;
+}
+
+.review-wrapper > .review-button {
+  flex-shrink: 0;
+}
+
+/* Nút xóa đơn trong bảng */
+.btn-delete-order {
+  background-color: #ef4444;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  transition: filter 0.2s ease, transform 0.1s ease;
+  white-space: nowrap;
+}
+
+.btn-delete-order:hover {
+  filter: brightness(0.9);
+  transform: scale(1.05);
+}
+
+.review-done {
+  color: green;
+  font-size: 12px;
+}
+
+/* Voucher - Giữ nguyên styling đẹp */
 .voucher-container {
   padding: 32px;
   background-color: #fdfaf6;
@@ -386,7 +470,6 @@
   color: #333;
 }
 
-/* Title */
 .voucher-title {
   margin-bottom: 24px;
   font-size: 1.75rem;
@@ -395,7 +478,6 @@
   text-align: center;
 }
 
-/* Section */
 .voucher-section {
   margin-bottom: 28px;
   background-color: #ffffff;
@@ -431,7 +513,6 @@
   font-weight: 500;
 }
 
-/* Voucher Card */
 .voucher-card {
   border: 1px solid #e5e7eb;
   padding: 20px;
@@ -470,6 +551,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.25s ease, transform 0.2s ease;
+  white-space: nowrap;
 }
 
 .copy-button:hover {
@@ -477,19 +559,16 @@
   transform: translateY(-1px);
 }
 
-/* Voucher quantity dưới nút copy, canh giữa */
 .voucher-quantity {
   display: block;
   margin-top: 6px;
   font-size: 0.875rem;
   color: #065f46;
   font-weight: 600;
-  text-align: right; /* Canh về rìa phải */
+  text-align: right;
   font-family: 'Inter', 'Segoe UI', sans-serif;
 }
 
-
-/* Discount và expiration */
 .voucher-discount {
   color: #f97316;
   font-weight: 600;
@@ -503,97 +582,16 @@
   font-style: italic;
 }
 
-/* Empty state */
 .voucher-empty {
   font-style: italic;
   color: #9ca3af;
   text-align: center;
   padding: 16px 0;
 }
-.review-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 6px; /* khoảng cách giữa các nút */
-  margin-top: 4px;
-}
 
-.btn-delete-order {
-  padding: 4px 8px;
-  background: red;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.btn-delete-order:hover {
-  background: darkred;
-}
-
-.review-done {
-  color: green;
-  font-size: 12px;
-}
-
-
-/* Wrapper cho mỗi sản phẩm trong cột hành động */
-.order-actions {
-  display: flex;
-  flex-direction: column; /* xếp các sản phẩm dọc */
-  gap: 8px; /* khoảng cách giữa các item */
-}
-
-/* Wrapper review + xóa ngang hàng */
-.review-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 8px; /* khoảng cách giữa các nút */
-  flex-wrap: wrap; /* responsive: nhỏ màn hình thì xuống dòng */
-}
-
-/* Nút xóa */
-.btn-delete-order {
-  background-color: #ef4444;
-  color: #fff;
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-  font-size: 12px;
-  transition: filter 0.2s ease, transform 0.1s ease;
-}
-
-.btn-delete-order:hover {
-  filter: brightness(0.9);
-  transform: scale(1.05);
-}
-
-/* ReviewButton wrapper (nếu cần style thêm) */
-.review-wrapper > .review-button {
-  flex-shrink: 0;
-}
-
-/* Tên sản phẩm */
-.product-item {
-  font-weight: 500;
-  margin-bottom: 2px;
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-}
-
-.product-meta {
-  color: #888;
-  font-size: 0.9em;
-  margin-left: 4px;
-}
-
-/* Responsive: khi màn hình hẹp */
+/* Responsive bổ sung cho bảng: trên màn nhỏ vẫn giữ nút 1 hàng, cho cuộn ngang ô actions */
 @media (max-width: 768px) {
-  .review-wrapper {
-    flex-direction: column;
-    align-items: flex-start;
+  .order-table td.actions-cell {
+    overflow-x: auto;  /* giữ các nút trên 1 hàng, cuộn nếu thiếu chỗ */
   }
 }
-

@@ -1,8 +1,9 @@
+// src/routes/address.route.js
 import express from 'express';
 import {
   createAddress,
   getUserAddresses,
-  getAddressById,    // thêm để lấy địa chỉ theo ID
+  getAddressById,   // lấy địa chỉ theo ID
   updateAddress,
   deleteAddress,
   setDefaultAddress,
@@ -11,22 +12,25 @@ import { verifyToken } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
 
+// Áp dụng verifyToken cho toàn bộ route phía dưới
+router.use(verifyToken);
+
 // Tạo địa chỉ mới
-router.post('/', verifyToken, createAddress);
+router.post('/', createAddress);
 
 // Lấy tất cả địa chỉ của user hiện tại
-router.get('/', verifyToken, getUserAddresses);
+router.get('/', getUserAddresses);
 
 // Lấy địa chỉ theo ID (phục vụ lấy defaultAddressId ở Checkout)
-router.get('/:id', verifyToken, getAddressById);
+router.get('/:id', getAddressById);
+
+// Đặt địa chỉ mặc định (đặt trước PUT /:id cho an toàn)
+router.put('/:id/default', setDefaultAddress);
 
 // Cập nhật địa chỉ
-router.put('/:id', verifyToken, updateAddress);
+router.put('/:id', updateAddress);
 
 // Xóa địa chỉ
-router.delete('/:id', verifyToken, deleteAddress);
-
-//  Đặt địa chỉ mặc định
-router.put('/:id/default', verifyToken, setDefaultAddress);
+router.delete('/:id', deleteAddress);
 
 export default router;
