@@ -1,3 +1,4 @@
+// src/models/Order.js
 import mongoose from "mongoose";
 import voucherService from "../services/voucher.service.js";
 
@@ -38,7 +39,19 @@ const orderSchema = new mongoose.Schema(
         price: { type: Number, required: true },
       },
     ],
-    total: { type: Number, required: true },
+
+    /**
+     * ====== PHÍ SHIP (bổ sung) ======
+     * subtotal: tạm tính trước ship/giảm (không bắt buộc – giữ để tham chiếu)
+     * shippingFee: phí vận chuyển đã tính theo khu vực
+     * shippingRuleName: tên rule áp dụng (để hiển thị/trace)
+     * total: GIỮ NGUYÊN – tổng tiền đơn (bạn đang dùng ở FE), có thể = subtotal + shippingFee - discount...
+     */
+    subtotal: { type: Number, default: 0 },             // (optional) tạm tính
+    shippingFee: { type: Number, default: 0 },          // ✅ phí ship
+    shippingRuleName: { type: String },                 // ✅ tên rule áp dụng
+    total: { type: Number, required: true },            // GIỮ NGUYÊN
+
     status: {
       type: String,
       enum: ["pending", "confirmed", "shipping", "delivered", "cancelled"],
@@ -59,6 +72,12 @@ const orderSchema = new mongoose.Schema(
       ref: "Voucher",
       default: null,
     },
+
+    /**
+     * Mở rộng shippingAddress (không bắt buộc):
+     * thêm districtCode/wardCode để backend có thể quote lại phí ship khi cần.
+     * Nếu không dùng, vẫn hoạt động bình thường.
+     */
     shippingAddress: {
       fullName: String,
       phone: String,
@@ -66,7 +85,10 @@ const orderSchema = new mongoose.Schema(
       district: String,
       ward: String,
       detail: String,
+      districtCode: { type: String }, // optional
+      wardCode: { type: String },     // optional
     },
+
     deletedByUser: {
       type: Boolean,
       default: false,
@@ -78,18 +100,15 @@ const orderSchema = new mongoose.Schema(
 // Index để tối ưu tìm kiếm theo user và customId
 orderSchema.index({ customId: 1, user: 1 });
 
-// Hook post save để gán voucher tự động
+// Hook post save để gán voucher tự động (GIỮ NGUYÊN)
 orderSchema.post("save", async function (doc, next) {
   try {
-    // ✅ Chỉ gán voucher khi đơn đã thanh toán
     if (doc.paymentStatus === "paid") {
-      // Gán voucher theo đơn > 2 triệu
       if (doc.total >= 2000000) {
         if (voucherService.assignVoucherPerOrder) {
           await voucherService.assignVoucherPerOrder(doc._id);
         }
       }
-      // Gán voucher dựa trên tổng chi tiêu user
       if (voucherService.assignVoucherBasedOnSpending) {
         await voucherService.assignVoucherBasedOnSpending(doc.user);
       }

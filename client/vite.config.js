@@ -11,6 +11,12 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      // Proxy tới provinces API
+      '/api-province': {
+        target: 'https://provinces.open-api.vn',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api-province/, '/api'),
+      },
     },
   },
 });

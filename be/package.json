@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "seed:zones": "node src/seed/seed-shipping-zones.js"
   },
   "keywords": [],
   "author": "",
@@ -15,11 +16,11 @@
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
-    "dotenv": "^16.5.0",
+    "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.16.0",
-    "mongoose": "^8.15.0",
+    "mongoose": "^8.17.2",
     "multer": "^2.0.2",
     "nodemailer": "^7.0.3",
     "react-select": "^5.10.2"

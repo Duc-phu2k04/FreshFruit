@@ -7,13 +7,40 @@ import ReviewButton from "./ReviewButton";
 
 const API_URL = "http://localhost:3000"; // Đổi baseURL cho khớp backend
 
+// ===== Helpers (log) =====
+const log = (...args) => console.log("🏷️[Address]", ...args);
+const logErr = (...args) => console.error("⛔[Address]", ...args);
+
+// Dùng absolute URL để tránh lệ thuộc proxy Vite + fallback legacy
+const PROVINCES_BASES = [
+  "https://provinces.open-api.vn/api/v1",
+  "https://provinces.open-api.vn/api",
+];
+
+// Chuẩn hoá code về chuỗi, và tạo các biến thể để thử (vd: "6" -> ["6","006"])
+const codeVariants = (code) => {
+  const s = String(code ?? "").trim();
+  if (!s) return [];
+  const arr = [s];
+  if (/^\d+$/.test(s)) {
+    const p3 = s.padStart(3, "0");
+    if (!arr.includes(p3)) arr.push(p3);
+  }
+  return arr;
+};
+
 export default function ProfilePage() {
   const { user, updateUser } = useAuth();
   const token = localStorage.getItem("token");
   const userId = user?._id || null;
 
+  // ===== ĐỊA CHỈ =====
+  const HANOI_CODE = 1;
+  const [districts, setDistricts] = useState([]);
+  const [wards, setWards] = useState([]);
+  const [editingWards, setEditingWards] = useState([]);
+
   const [tab, setTab] = useState("profile");
-  // Thêm defaultAddressId vào userInfo để lưu id địa chỉ mặc định
   const [userInfo, setUserInfo] = useState({ username: "", email: "", defaultAddressId: null });
   const [isEditing, setIsEditing] = useState(false);
 
@@ -28,22 +55,19 @@ export default function ProfilePage() {
   // Hàm lấy productId linh hoạt + log chi tiết
   const getProductId = (item) => {
     if (!item) return "";
-
-    // Ưu tiên trường hợp phổ biến nhất trong order hiện tại
     let productId = "";
 
     if (item.product && typeof item.product === "object") {
       productId =
-        item.product.$oid ||           // MongoDB ObjectId dạng {$oid: "..."}
-        item.product._id?.$oid ||      // Nếu product là object có _id.$oid
-        item.product._id ||            // Nếu product là object có _id (string)
-        item.product.id ||             // Một số API dùng id
+        item.product.$oid ||
+        item.product._id?.$oid ||
+        item.product._id ||
+        item.product.id ||
         "";
     } else if (typeof item.product === "string") {
-      productId = item.product;        // Nếu product là string id
+      productId = item.product;
     }
 
-    // Nếu chưa tìm thấy thì thử các field khác
     if (!productId) {
       productId =
         item.productId ||
@@ -55,17 +79,12 @@ export default function ProfilePage() {
     }
 
     if (!productId) {
-      console.warn(
-        "[getProductId]  Không tìm được productId cho item:",
-        JSON.stringify(item, null, 2)
-      );
+      logErr("[getProductId] Không tìm được productId cho item:", item);
     } else {
-      console.log("[getProductId]  Tìm thấy productId:", productId);
+      log("[getProductId] Tìm thấy productId:", productId);
     }
-
     return productId;
   };
-
 
   const hideOrder = async (orderId) => {
     if (!window.confirm("Bạn có chắc muốn xóa đơn hàng này khỏi lịch sử?")) return;
@@ -73,9 +92,7 @@ export default function ProfilePage() {
     try {
       const res = await fetch(`/api/orders/${orderId}/hide`, {
         method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`, // token phải có từ state hoặc context
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       const data = await res.json();
@@ -85,15 +102,14 @@ export default function ProfilePage() {
       }
 
       alert(data.message || "Đã xóa đơn hàng khỏi lịch sử");
-      setOrders((prev) => prev.filter((o) => o._id !== orderId)); // cập nhật state
+      setOrders((prev) => prev.filter((o) => o._id !== orderId));
     } catch (err) {
       console.error(err);
       alert("Có lỗi xảy ra khi xóa đơn hàng");
     }
   };
 
-
-  // Quản lý trạng thái sửa địa chỉ
+  // Trạng thái sửa/ thêm địa chỉ
   const [editingAddressId, setEditingAddressId] = useState(null);
   const [editingAddressData, setEditingAddressData] = useState({
     fullName: "",
@@ -102,9 +118,10 @@ export default function ProfilePage() {
     district: "",
     ward: "",
     detail: "",
+    districtCode: "",
+    wardCode: "",
   });
 
-  // Quản lý trạng thái thêm địa chỉ mới
   const [showAddForm, setShowAddForm] = useState(false);
   const [newAddressForm, setNewAddressForm] = useState({
     fullName: "",
@@ -113,14 +130,17 @@ export default function ProfilePage() {
     district: "",
     ward: "",
     detail: "",
+    districtCode: "",
+    wardCode: "",
   });
 
-  // Khởi tạo axios instance với header Authorization
+  // Axios instance
   const axiosAuth = axios.create({
     baseURL: API_URL,
     headers: { Authorization: `Bearer ${token}` },
   });
 
+  // ===== useEffect chung =====
   useEffect(() => {
     if (!token || !userId) {
       console.warn("Token hoặc userId không tồn tại");
@@ -129,50 +149,95 @@ export default function ProfilePage() {
 
     const fetchAll = async () => {
       try {
-        await Promise.all([
-          fetchUserInfo(),
-          fetchAddresses(),
-          fetchOrders(),
-          fetchVouchers(),
-        ]);
+        await Promise.all([fetchUserInfo(), fetchAddresses(), fetchOrders(), fetchVouchers()]);
+
+        // 🔧 Dùng absolute URL (không qua proxy) + fallback + log chi tiết
+        let loaded = false;
+        for (const base of PROVINCES_BASES) {
+          const url = `${base}/p/${HANOI_CODE}?depth=2`;
+          log("Fetch districts of province:", { url });
+          const res = await fetch(url);
+          log("Fetch districts status:", res.status);
+          if (res.ok) {
+            const data = await res.json();
+            const ds = (data.districts || []).map((d) => ({ ...d, code: String(d.code) }));
+            setDistricts(ds);
+            log("Loaded districts sample:", ds.slice(0, 3));
+            loaded = true;
+            break;
+          } else {
+            const text = await res.text().catch(() => "");
+            logErr(`Load districts failed ${res.status}:`, text?.slice(0, 200));
+          }
+        }
+        if (!loaded) throw new Error("Không tải được danh sách quận/huyện Hà Nội từ tất cả endpoints.");
       } catch (error) {
-        console.error("Lỗi khi tải dữ liệu:", error);
+        logErr("Lỗi khi tải dữ liệu:", error);
       }
     };
 
     fetchAll();
   }, [token, userId]);
 
+  // ===== Lấy phường/xã theo quận/huyện =====
+  const handleDistrictChange = async (districtCode, isEditing = false) => {
+    const variants = codeVariants(districtCode);
+    if (variants.length === 0) return;
 
+    log("handleDistrictChange() start", { districtCode, variants, isEditing });
+
+    let lastErr = null;
+    for (const variant of variants) {
+      for (const base of PROVINCES_BASES) {
+        const url = `${base}/d/${variant}?depth=2`;
+        log("→ Try URL:", url);
+        try {
+          const res = await fetch(url);
+          log("   status:", res.status);
+          if (!res.ok) {
+            const txt = await res.text().catch(() => "");
+            throw new Error(`status ${res.status} body: ${txt.slice(0, 200)}`);
+          }
+          const data = await res.json();
+          log("   wards sample:", Array.isArray(data.wards) ? data.wards.slice(0, 3) : data);
+
+          if (isEditing) setEditingWards(data.wards || []);
+          else setWards(data.wards || []);
+          return; // thành công → thoát hẳn
+        } catch (e) {
+          lastErr = e;
+          logErr("   failed:", { variant, base, err: e?.message || e });
+        }
+      }
+    }
+
+    // Nếu tất cả variant đều fail:
+    logErr("Lỗi khi tải phường/xã (tất cả biến thể thất bại)", lastErr?.message || lastErr);
+    alert("Không tải được danh sách phường/xã cho quận đã chọn. Vui lòng thử lại.");
+  };
+
+  // ===== Vouchers =====
   const fetchVouchers = async () => {
     try {
       const res = await axios.get("/api/voucher/my-vouchers", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
 
-      console.log(" API voucher trả về:", res.data);
+      log("📦 API voucher trả về:", res.data);
 
       const apiData = res.data.data || {};
-
-      // Chuẩn hóa key để luôn khớp với renderVouchers
       const formattedData = {
         validVouchers: apiData.validVouchers || apiData.valid || [],
         expiredVouchers: apiData.expiredVouchers || apiData.expired || [],
         usedUpVouchers: apiData.usedUpVouchers || apiData.used || [],
       };
-
       setVouchers(formattedData);
     } catch (error) {
-      console.error("Lỗi khi lấy voucher:", error);
+      logErr("Lỗi khi lấy voucher:", error);
     }
   };
 
-
-
-
-  // Lấy thông tin user (bao gồm defaultAddressId)
+  // ===== User =====
   const fetchUserInfo = async () => {
     try {
       const res = await axiosAuth.get(`/auth/users/${userId}`);
@@ -183,11 +248,10 @@ export default function ProfilePage() {
       });
       setIsEditing(false);
     } catch (err) {
-      console.error("Lỗi lấy thông tin user:", err.response?.data || err.message);
+      logErr("Lỗi lấy thông tin user:", err.response?.data || err.message);
     }
   };
 
-  // Cập nhật thông tin user (kèm defaultAddressId)
   const updateUserInfo = async () => {
     try {
       await axiosAuth.put(`/auth/users/${userId}`, userInfo);
@@ -195,7 +259,6 @@ export default function ProfilePage() {
       setIsEditing(false);
       fetchUserInfo();
 
-      // Cập nhật thông tin user trong context
       updateUser({
         ...user,
         username: userInfo.username,
@@ -203,96 +266,83 @@ export default function ProfilePage() {
         defaultAddressId: userInfo.defaultAddressId,
       });
     } catch (err) {
-      console.error("Lỗi cập nhật user:", err.response?.data || err.message);
+      logErr("Lỗi cập nhật user:", err.response?.data || err.message);
     }
   };
 
-  // Lấy danh sách địa chỉ
+  // ===== Address CRUD =====
   const fetchAddresses = async () => {
     try {
       const res = await axiosAuth.get(`/api/address`);
       setAddresses(res.data);
     } catch (err) {
-      console.error("Lỗi lấy địa chỉ:", err.response?.data || err.message);
+      logErr("Lỗi lấy địa chỉ:", err.response?.data || err.message);
     }
   };
 
-  // Thêm địa chỉ mới
   const addAddress = async (newAddressObj) => {
     try {
-      // Gửi userId kèm theo cho backend
       await axiosAuth.post(`/api/address`, { ...newAddressObj, user: userId, isDefault: false });
       fetchAddresses();
     } catch (err) {
-      console.error("Lỗi thêm địa chỉ:", err.response?.data || err.message);
+      logErr("Lỗi thêm địa chỉ:", err.response?.data || err.message);
     }
   };
 
-  // Cập nhật địa chỉ
   const updateAddress = async (id, updated) => {
     try {
       await axiosAuth.put(`/api/address/${id}`, updated);
       fetchAddresses();
     } catch (err) {
-      console.error("Lỗi cập nhật địa chỉ:", err.response?.data || err.message);
+      logErr("Lỗi cập nhật địa chỉ:", err.response?.data || err.message);
     }
   };
 
-  // Xóa địa chỉ
   const deleteAddress = async (id) => {
     if (!window.confirm("Xóa địa chỉ này?")) return;
     try {
       await axiosAuth.delete(`/api/address/${id}`);
 
-      // Nếu địa chỉ xóa là địa chỉ mặc định thì clear defaultAddressId
       if (userInfo.defaultAddressId === id) {
         setUserInfo((prev) => ({ ...prev, defaultAddressId: null }));
-        // Gửi update defaultAddressId về backend luôn
-        await axiosAuth.put(`/api/auth/users/${userId}`, { ...userInfo, defaultAddressId: null });
+        // SỬA path đúng: không thêm /api lần nữa vì axiosAuth.baseURL đã là API_URL
+        await axiosAuth.put(`/auth/users/${userId}`, { ...userInfo, defaultAddressId: null });
       }
       fetchAddresses();
     } catch (err) {
-      console.error("Lỗi xóa địa chỉ:", err.response?.data || err.message);
+      logErr("Lỗi xóa địa chỉ:", err.response?.data || err.message);
     }
   };
 
-  // Lấy lịch sử đơn hàng user
-  const fetchOrders = async () => {
-    try {
-      const res = await axiosAuth.get(`/api/orders/user`);
-      const ordersData = res.data;
-
-      // Gắn trạng thái đánh giá cho từng item
-      const processedOrders = ordersData.map((order) => ({
-        ...order,
-        items: order.items.map((item) => ({
-          ...item,
-          hasReviewed: item.reviewData ? true : false, // reviewData lấy từ backend
-        })),
-      }));
-
-      setOrders(processedOrders);
-
-    } catch (err) {
-      console.error("Lỗi lấy đơn hàng:", err.response?.data || err.message);
-    }
-  };
-
-  // Hủy đơn hàng
   const cancelOrder = async (id) => {
     if (!window.confirm("Hủy đơn hàng này?")) return;
     try {
       await axiosAuth.delete(`/api/orders/${id}`);
       fetchOrders();
     } catch (err) {
-      console.error("Lỗi hủy đơn:", err.response?.data || err.message);
+      logErr("Lỗi hủy đơn:", err.response?.data || err.message);
     }
   };
 
+  const fetchOrders = async () => {
+    try {
+      const res = await axiosAuth.get(`/api/orders/user`);
+      const ordersData = res.data;
 
+      const processedOrders = ordersData.map((order) => ({
+        ...order,
+        items: order.items.map((item) => ({
+          ...item,
+          hasReviewed: item.reviewData ? true : false,
+        })),
+      }));
+      setOrders(processedOrders);
+    } catch (err) {
+      logErr("Lỗi lấy đơn hàng:", err.response?.data || err.message);
+    }
+  };
 
   // --- XỬ LÝ SỬA ĐỊA CHỈ ---
-
   const startEditAddress = (addr) => {
     setEditingAddressId(addr._id);
     setEditingAddressData({
@@ -302,7 +352,13 @@ export default function ProfilePage() {
       district: addr.district || "",
       ward: addr.ward || "",
       detail: addr.detail || "",
+      districtCode: addr.districtCode ? String(addr.districtCode) : "",
+      wardCode: addr.wardCode ? String(addr.wardCode) : "",
     });
+    // Tự động tải wards theo quận hiện có (nếu có mã)
+    if (addr.districtCode) {
+      handleDistrictChange(String(addr.districtCode), true);
+    }
   };
 
   const cancelEditAddress = () => {
@@ -314,28 +370,59 @@ export default function ProfilePage() {
       district: "",
       ward: "",
       detail: "",
+      districtCode: "",
+      wardCode: "",
     });
   };
 
   const saveEditAddress = () => {
-    const { fullName, phone, province, district, ward, detail } = editingAddressData;
-    if (!fullName || !phone || !province || !district || !ward || !detail) {
+    log("📝 [saveEditAddress] data:", editingAddressData);
+    const { fullName, phone, district, ward, detail } = editingAddressData;
+    if (!fullName || !phone || !district || !ward || !detail) {
       alert("Vui lòng điền đầy đủ thông tin địa chỉ");
+      logErr("⚠️ [saveEditAddress] Thiếu trường:", {
+        fullName: !!fullName,
+        phone: !!phone,
+        district: !!district,
+        ward: !!ward,
+        detail: !!detail,
+      });
       return;
     }
-    updateAddress(editingAddressId, editingAddressData);
+    const payload = {
+      ...editingAddressData,
+      province: editingAddressData.province || "Hà Nội",
+    };
+    updateAddress(editingAddressId, payload);
     cancelEditAddress();
   };
 
   // --- XỬ LÝ THÊM ĐỊA CHỈ MỚI ---
-
   const saveNewAddress = () => {
-    const { fullName, phone, province, district, ward, detail } = newAddressForm;
-    if (!fullName || !phone || !province || !district || !ward || !detail) {
+    log("📝 [saveNewAddress] form:", newAddressForm);
+
+    const { fullName, phone, district, ward, detail } = newAddressForm;
+    if (!fullName || !phone || !district || !ward || !detail) {
       alert("Vui lòng điền đầy đủ thông tin địa chỉ");
+      logErr("⚠️ [saveNewAddress] Thiếu trường:", {
+        fullName: !!fullName,
+        phone: !!phone,
+        district: !!district,
+        ward: !!ward,
+        detail: !!detail,
+      });
       return;
     }
-    addAddress(newAddressForm);
+
+    const payload = {
+      ...newAddressForm,
+      province: newAddressForm.province || "Hà Nội",
+    };
+
+    log("📤 [saveNewAddress] Submit payload:", payload);
+    addAddress(payload);
+
+    // Reset form
     setNewAddressForm({
       fullName: "",
       phone: "",
@@ -343,26 +430,34 @@ export default function ProfilePage() {
       district: "",
       ward: "",
       detail: "",
+      districtCode: "",
+      wardCode: "",
     });
     setShowAddForm(false);
   };
 
-  // Chọn địa chỉ mặc định
-  const selectDefaultAddress = async (id) => {
-    const updatedUserInfo = { ...userInfo, defaultAddressId: id };
-    setUserInfo(updatedUserInfo);
+  // --- CHỌN ĐỊA CHỈ MẶC ĐỊNH ---
+  const selectDefaultAddress = async (addressId) => {
     try {
-      await axiosAuth.put(`/auth/users/${userId}`, updatedUserInfo);
-      // Sau khi cập nhật backend thành công, lấy lại thông tin user mới nhất
-      await fetchUserInfo();
+      await axiosAuth.put(`/auth/users/${userId}`, {
+        ...userInfo,
+        defaultAddressId: addressId,
+      });
+
+      setUserInfo((prev) => ({ ...prev, defaultAddressId: addressId }));
+      updateUser({
+        ...user,
+        defaultAddressId: addressId,
+      });
+
+      alert("Đã chọn địa chỉ mặc định thành công ✅");
     } catch (err) {
-      console.error("Lỗi cập nhật địa chỉ mặc định:", err.response?.data || err.message);
+      logErr("Lỗi chọn địa chỉ mặc định:", err.response?.data || err.message);
+      alert("Không thể chọn địa chỉ mặc định");
     }
   };
 
-
-  // --- Render UI ---
-
+  // ===== Render =====
   const renderProfile = () => (
     <div className="profile-section">
       <h2>Thông tin cá nhân</h2>
@@ -390,10 +485,10 @@ export default function ProfilePage() {
         <div className="default-address" style={{ marginBottom: "12px" }}>
           {userInfo.defaultAddressId
             ? (() => {
-              const addr = addresses.find((a) => a._id === userInfo.defaultAddressId);
-              if (!addr) return "Chưa chọn địa chỉ";
-              return `${addr.fullName}, ${addr.phone}, ${addr.detail}, ${addr.ward}, ${addr.district}, ${addr.province}`;
-            })()
+                const addr = addresses.find((a) => a._id === userInfo.defaultAddressId);
+                if (!addr) return "Chưa chọn địa chỉ";
+                return `${addr.fullName}, ${addr.phone}, ${addr.detail}, ${addr.ward}, ${addr.district}, ${addr.province}`;
+              })()
             : "Chưa chọn địa chỉ"}
         </div>
       ) : (
@@ -462,33 +557,64 @@ export default function ProfilePage() {
                   }
                   style={{ marginBottom: "6px", display: "block", width: "100%" }}
                 />
+
+                {/* Province: cố định Hà Nội */}
                 <input
                   type="text"
-                  placeholder="Tỉnh/Thành phố"
-                  value={editingAddressData.province}
-                  onChange={(e) =>
-                    setEditingAddressData({ ...editingAddressData, province: e.target.value })
-                  }
+                  value="Hà Nội"
+                  disabled
                   style={{ marginBottom: "6px", display: "block", width: "100%" }}
                 />
-                <input
-                  type="text"
-                  placeholder="Quận/Huyện"
-                  value={editingAddressData.district}
-                  onChange={(e) =>
-                    setEditingAddressData({ ...editingAddressData, district: e.target.value })
-                  }
+
+                {/* District select */}
+                <select
+                  value={editingAddressData.districtCode || ""}
+                  onChange={(e) => {
+                    const code = String(e.target.value);
+                    const selectedDistrict = districts.find((d) => String(d.code) === code);
+                    log("Edit district select change:", { code, selectedDistrict });
+                    setEditingAddressData({
+                      ...editingAddressData,
+                      district: selectedDistrict?.name || "",
+                      districtCode: code,
+                      ward: "",
+                      wardCode: "",
+                    });
+                    handleDistrictChange(code, true);
+                  }}
                   style={{ marginBottom: "6px", display: "block", width: "100%" }}
-                />
-                <input
-                  type="text"
-                  placeholder="Phường/Xã"
-                  value={editingAddressData.ward}
-                  onChange={(e) =>
-                    setEditingAddressData({ ...editingAddressData, ward: e.target.value })
-                  }
+                >
+                  <option value="">-- Chọn Quận/Huyện --</option>
+                  {districts.map((d) => (
+                    <option key={d.code} value={String(d.code)}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Ward select */}
+                <select
+                  value={editingAddressData.wardCode || ""}
+                  onChange={(e) => {
+                    const code = String(e.target.value);
+                    const selectedWard = editingWards.find((w) => String(w.code) === code);
+                    log("Edit ward select change:", { code, selectedWard });
+                    setEditingAddressData({
+                      ...editingAddressData,
+                      ward: selectedWard?.name || "",
+                      wardCode: selectedWard ? String(selectedWard.code) : "",
+                    });
+                  }}
                   style={{ marginBottom: "6px", display: "block", width: "100%" }}
-                />
+                >
+                  <option value="">-- Chọn Phường/Xã --</option>
+                  {editingWards.map((w) => (
+                    <option key={w.code} value={String(w.code)}>
+                      {w.name}
+                    </option>
+                  ))}
+                </select>
+
                 <input
                   type="text"
                   placeholder="Địa chỉ chi tiết"
@@ -498,6 +624,7 @@ export default function ProfilePage() {
                   }
                   style={{ marginBottom: "6px", display: "block", width: "100%" }}
                 />
+
                 <button onClick={saveEditAddress}>Lưu</button>
                 <button onClick={cancelEditAddress} style={{ marginLeft: "8px" }}>
                   Hủy
@@ -539,8 +666,16 @@ export default function ProfilePage() {
         ))}
       </ul>
 
+      {/* Form thêm địa chỉ mới */}
       {showAddForm ? (
-        <div style={{ marginTop: "12px", border: "1px solid #ccc", padding: "12px", borderRadius: "6px" }}>
+        <div
+          style={{
+            marginTop: "12px",
+            border: "1px solid #ccc",
+            padding: "12px",
+            borderRadius: "6px",
+          }}
+        >
           <input
             type="text"
             placeholder="Họ và tên"
@@ -555,27 +690,64 @@ export default function ProfilePage() {
             onChange={(e) => setNewAddressForm({ ...newAddressForm, phone: e.target.value })}
             style={{ marginBottom: "6px", display: "block", width: "100%" }}
           />
+
+          {/* Province: cố định Hà Nội */}
           <input
             type="text"
-            placeholder="Tỉnh/Thành phố"
-            value={newAddressForm.province}
-            onChange={(e) => setNewAddressForm({ ...newAddressForm, province: e.target.value })}
+            value="Hà Nội"
+            disabled
             style={{ marginBottom: "6px", display: "block", width: "100%" }}
           />
-          <input
-            type="text"
-            placeholder="Quận/Huyện"
-            value={newAddressForm.district}
-            onChange={(e) => setNewAddressForm({ ...newAddressForm, district: e.target.value })}
+
+          {/* District select */}
+          <select
+            value={newAddressForm.districtCode || ""}
+            onChange={(e) => {
+              const code = String(e.target.value);
+              const selectedDistrict = districts.find((d) => String(d.code) === code);
+              log("New district select change:", { code, selectedDistrict });
+              setNewAddressForm({
+                ...newAddressForm,
+                district: selectedDistrict?.name || "",
+                districtCode: code,
+                ward: "",
+                wardCode: "",
+              });
+              handleDistrictChange(code, false);
+            }}
             style={{ marginBottom: "6px", display: "block", width: "100%" }}
-          />
-          <input
-            type="text"
-            placeholder="Phường/Xã"
-            value={newAddressForm.ward}
-            onChange={(e) => setNewAddressForm({ ...newAddressForm, ward: e.target.value })}
+          >
+            <option value="">-- Chọn Quận/Huyện --</option>
+            {districts.map((d) => (
+              <option key={d.code} value={String(d.code)}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Ward select */}
+          <select
+            value={newAddressForm.wardCode || ""}
+            onChange={(e) => {
+              const code = String(e.target.value);
+              const selectedWard = wards.find((w) => String(w.code) === code);
+              log("New ward select change:", { code, selectedWard });
+              setNewAddressForm({
+                ...newAddressForm,
+                ward: selectedWard?.name || "",
+                wardCode: selectedWard ? String(selectedWard.code) : "",
+              });
+            }}
             style={{ marginBottom: "6px", display: "block", width: "100%" }}
-          />
+          >
+            <option value="">-- Chọn Phường/Xã --</option>
+            {wards.map((w) => (
+              <option key={w.code} value={String(w.code)}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+
           <input
             type="text"
             placeholder="Địa chỉ chi tiết"
@@ -583,6 +755,7 @@ export default function ProfilePage() {
             onChange={(e) => setNewAddressForm({ ...newAddressForm, detail: e.target.value })}
             style={{ marginBottom: "6px", display: "block", width: "100%" }}
           />
+
           <button onClick={saveNewAddress}>Thêm địa chỉ</button>
           <button onClick={() => setShowAddForm(false)} style={{ marginLeft: "8px" }}>
             Hủy
@@ -636,8 +809,8 @@ export default function ProfilePage() {
                 {o.paymentStatus === "paid"
                   ? "Đã thanh toán"
                   : o.paymentStatus === "unpaid"
-                    ? "Chưa thanh toán"
-                    : "Thanh toán thất bại"}
+                  ? "Chưa thanh toán"
+                  : "Thanh toán thất bại"}
               </td>
               <td>
                 {o.paymentMethod === "cod"
@@ -674,10 +847,7 @@ export default function ProfilePage() {
                             <small style={{ opacity: 0.7, color: "red" }}>❌ Thiếu productId</small>
                           )}
 
-                          <button
-                            className="btn-delete-order"
-                            onClick={() => hideOrder(o._id)}
-                          >
+                          <button className="btn-delete-order" onClick={() => hideOrder(o._id)}>
                             Xóa
                           </button>
                         </div>
@@ -686,15 +856,12 @@ export default function ProfilePage() {
                   </div>
                 )}
               </td>
-
             </tr>
           ))}
         </tbody>
       </table>
     </div>
   );
-
-
 
   const renderVouchers = () => (
     <div className="voucher-container">
@@ -717,9 +884,7 @@ export default function ProfilePage() {
           <div key={key} className="voucher-section">
             <h3 className="voucher-section-header">
               <span className="voucher-section-title">{titleMap[key]}</span>
-              <span className="voucher-section-count">
-                {list.length} voucher
-              </span>
+              <span className="voucher-section-count">{list.length} voucher</span>
             </h3>
             {list.length === 0 ? (
               <p className="voucher-empty">Không có voucher</p>
@@ -734,17 +899,11 @@ export default function ProfilePage() {
                         HSD: {new Date(v.expiration).toLocaleDateString()}
                       </p>
                     )}
-                    <button
-                      onClick={() => copyCode(v.code)}
-                      className="copy-button"
-                    >
+                    <button onClick={() => copyCode(v.code)} className="copy-button">
                       📋 Copy
                     </button>
                   </div>
-                  <span className="voucher-quantity">
-                    Số lượng: {v.quantity ?? 1} {/* Số lượng rõ chữ và đặt dưới nút copy */}
-                  </span>
-
+                  <span className="voucher-quantity">Số lượng: {v.quantity ?? 1}</span>
                 </div>
               ))
             )}
@@ -753,7 +912,6 @@ export default function ProfilePage() {
       })}
     </div>
   );
-
 
   return (
     <div className="profile-page">
@@ -771,7 +929,6 @@ export default function ProfilePage() {
         <button className={tab === "vouchers" ? "active" : ""} onClick={() => setTab("vouchers")}>
           Mã giảm giá
         </button>
-
       </nav>
 
       <div className="tab-content">
@@ -779,7 +936,6 @@ export default function ProfilePage() {
         {tab === "addresses" && renderAddresses()}
         {tab === "orders" && renderOrders()}
         {tab === "vouchers" && renderVouchers()}
-
       </div>
     </div>
   );

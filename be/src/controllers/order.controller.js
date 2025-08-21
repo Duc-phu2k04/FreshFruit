@@ -1,15 +1,29 @@
+// src/controllers/order.controller.js
 import * as orderService from "../services/order.service.js";
 import voucherService from "../services/voucher.service.js";
 import Order from "../models/order.model.js";
 
+//  thêm import để tính phí ship
+import { quoteShipping } from "../services/shipping.service.js";
+// cố gắng theo đúng pattern đặt tên model của bạn
+import Address from "../models/address.model.js";
+
 // ======================= Tạo đơn hàng =======================
 export const checkout = async (req, res) => {
   try {
-    const { cartItems, voucher, address, paymentMethod } = req.body;
+    const { cartItems = [], voucher, address, paymentMethod } = req.body;
     const userId = req.user._id;
 
+    // --- Validate dữ liệu cơ bản ---
+    if (!Array.isArray(cartItems) || cartItems.length === 0) {
+      return res.status(400).json({ message: "Giỏ hàng trống" });
+    }
+    if (!address) {
+      return res.status(400).json({ message: "Thiếu địa chỉ giao hàng" });
+    }
+
+    // --- Validate voucher (nếu có) ---
     let validVoucher = null;
-    // ✅ Validate voucher nếu có
     if (voucher) {
       try {
         validVoucher = await voucherService.validate(voucher, userId);
@@ -18,7 +32,46 @@ export const checkout = async (req, res) => {
       }
     }
 
-    // ✅ Tạo order mới
+    // --- Tạm tính (subtotal) an toàn từ cartItems ---
+    const subtotal = cartItems.reduce(
+      (s, it) => s + Number(it.price || 0) * Number(it.quantity || 1),
+      0
+    );
+
+    // --- Lấy mã khu vực để tính phí ship ---
+    let districtCode = String(address?.districtCode || address?.district_code || "" ).trim();
+    let wardCode     = String(address?.wardCode     || address?.ward_code     || "" ).trim();
+
+    // Nếu FE chỉ gửi _id của address mà thiếu code → lấy từ DB
+    if ((!districtCode || !wardCode) && address?._id) {
+      const addrDoc = await Address.findById(address._id).lean().catch(() => null);
+      if (addrDoc) {
+        districtCode = String(addrDoc.districtCode || addrDoc.district_code || districtCode || "").trim();
+        wardCode     = String(addrDoc.wardCode     || addrDoc.ward_code     || wardCode     || "").trim();
+      }
+    }
+
+    // --- Quote phí ship (mặc định Hà Nội: provinceCode = 1) ---
+    let shippingFee = 0;
+    let shippingRuleName = undefined;
+
+    try {
+      if (districtCode || wardCode) {
+        const quote = await quoteShipping({
+          provinceCode: 1,
+          districtCode,
+          wardCode,
+          cartSubtotal: subtotal,
+        });
+        shippingFee = Number(quote?.amount || 0);
+        shippingRuleName = quote?.ruleName;
+      }
+    } catch (e) {
+      // Không chặn checkout nếu quote lỗi, chỉ log và để fee = 0
+      console.error("[checkout] Quote shipping error:", e?.message || e);
+    }
+
+    // --- Tạo order (GIỮ NGUYÊN luồng cũ) + bổ sung field ship ---
     const orderData = {
       userId,
       cartItems,
@@ -26,34 +79,44 @@ export const checkout = async (req, res) => {
       address,
       paymentMethod,
       paymentStatus: paymentMethod === "momo" ? "paid" : "unpaid", // COD vẫn unpaid
+
+      // BỔ SUNG CHO PHÍ SHIP
+      subtotal,
+      shippingFee,
+      shippingRuleName,
     };
+
     const order = await orderService.createOrder(orderData);
 
-    // ✅ Mark voucher đã dùng nếu đã thanh toán online
+    // --- Đánh dấu voucher đã dùng nếu đã thanh toán online ---
     if (validVoucher && order.paymentStatus === "paid") {
       await voucherService.useVoucher(voucher, userId);
     }
 
-    // ✅ Gán voucher tự động dựa trên tổng chi tiêu / đơn > 2 triệu
+    // --- Gán voucher tự động theo tổng chi tiêu nếu đã thanh toán ---
     let assignedVouchers = null;
     if (order.paymentStatus === "paid") {
       assignedVouchers = await voucherService.assignVoucherBasedOnSpending(userId);
     }
 
+    // --- Phản hồi (giữ structure cũ) + expose thêm fee/subtotal/rule ---
     res.status(201).json({
       message: "Đặt hàng thành công",
       order: {
         _id: order._id,
         customId: order.customId,
         items: order.items,
-        total: order.total,
+        total: order.total, // total đã được service lưu; nếu service chưa cộng ship, hãy cập nhật service để +shippingFee
+        subtotal: order.subtotal ?? subtotal,
+        shippingFee: order.shippingFee ?? shippingFee,
+        shippingRuleName: order.shippingRuleName ?? shippingRuleName,
         status: order.status,
         paymentStatus: order.paymentStatus,
         voucher: order.voucher,
         shippingAddress: order.shippingAddress,
         createdAt: order.createdAt,
       },
-      assignedVouchers, // voucher tự động gán nếu có
+      assignedVouchers,
     });
   } catch (err) {
     console.error("Lỗi checkout:", err);
@@ -70,7 +133,7 @@ export const getUserOrders = async (req, res) => {
     const userId = req.user._id;
     const orders = await Order.find({
       user: userId,
-      $or: [{ deletedByUser: { $exists: false } }, { deletedByUser: false }]
+      $or: [{ deletedByUser: { $exists: false } }, { deletedByUser: false }],
     })
       .populate("items.product", "name image price")
       .populate("voucher")
@@ -154,7 +217,7 @@ export const hideOrderFromHistory = async (req, res) => {
     const order = await Order.findOne({ _id: id, user: userId });
     if (!order) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
 
-    order.deletedByUser = true; // ✅ đánh dấu đã ẩn
+    order.deletedByUser = true; //  đánh dấu đã ẩn
     await order.save();
 
     res.json({ message: "Đã ẩn đơn hàng khỏi lịch sử" });
