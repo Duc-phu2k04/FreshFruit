@@ -19,6 +19,9 @@ import addressRoute from './src/routes/address.route.js';
 // Thêm import shipping routes
 import shippingRoutes from './src/routes/shipping.routes.js';
 
+// Thêm import chatbot (HYBRID)
+import { fruitbotRouter } from './src/routes/fruitbot.route.js';
+
 dotenv.config();
 
 const app = express();
@@ -46,9 +49,11 @@ app.use('/api/momo', momoRoutes);
 app.use('/api/upload', uploadRoute);
 app.use('/api/address', addressRoute);
 
-
 // Mount shipping routes (bao gồm /api/shipping/quote, v.v.)
 app.use('/api', shippingRoutes);
+
+//  Mount chatbot routes (rule-based + có thể fallback AI nếu bạn thêm ở route)
+app.use('/api/fruitbot', fruitbotRouter);
 
 // Static file route
 app.use('/images', express.static('public/images'));

@@ -1,5 +1,4 @@
-// App.jsx
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import Layout from "./layouts/Main-layout";
 import Homepage from "./pages/Homepage/Homepage";
 import CartPage from "./pages/Homepage/CartPage";
@@ -36,66 +35,86 @@ import AddressList from './pages/Admin/Address/List';
 import AddAddressAdd from './pages/Admin/Address/Add';
 import EditAddressEdit from './pages/Admin/Address/Edit';
 
-
 // Các trang mới thêm
 import About from './pages/About/About';
 import News from './pages/News/News';
 import Franchise from './pages/Franchise/Franchise';
 import StoreSystem from './pages/Stores/StoreSystem';
 
+//  Import Chatbot (đúng đường dẫn)
+import ChatFruitBot from "./components/chatbot/ChatFruitBot";
+
+function AppWrapper() {
+  const location = useLocation();
+  const path = location.pathname;
+
+  // Ẩn chatbot nếu ở trang admin hoặc login/register/forgot password
+  const hiddenPaths = ["/login", "/register", "/dang-nhap", "/dang-ky", "/quen-mat-khau"];
+  const isAdminPath = path.startsWith("/admin");
+  const isHiddenAuth = hiddenPaths.includes(path);
+
+  const hideChatbot = isAdminPath || isHiddenAuth;
+
+  return (
+    <>
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Homepage />} />
+          <Route path="gio-hang" element={<CartPage />} />
+          <Route path="san-pham" element={<ProductListPage />} />
+          <Route path="san-pham/:id" element={<ProductDetail />} />
+          <Route path="checkout" element={<Checkout />} />
+          <Route path="/order-success" element={<OrderSuccess />} />
+          <Route path="register" element={<RegisterForm />} />
+          <Route path="login" element={<LoginForm />} />
+          <Route path="product" element={<ListSanPham />} />
+          <Route path="dang-ky" element={<RegisterForm />} />
+          <Route path="dang-nhap" element={<LoginForm />} />
+          <Route path="/quen-mat-khau" element={<ForgotPassword />} />
+          <Route path="/thong-tin" element={<ProfilePage />} />
+
+          {/* Các trang nội dung mới */}
+          <Route path="tin-tuc" element={<News />} />
+          <Route path="ve-chung-toi" element={<About />} />
+          <Route path="nhuong-quyen" element={<Franchise />} />
+          <Route path="he-thong-cua-hang" element={<StoreSystem />} />
+        </Route>
+
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="/admin/category" element={<CategoryList />} />
+          <Route path="/admin/category/add" element={<CategoryCreateForm />} />
+          <Route path="/admin/category/edit/:id" element={<CategoryEditForm />} />
+          <Route path="/admin/locations" element={<LocationList />} />
+          <Route path="/admin/locations/add" element={<AddLocationForm />} />
+          <Route path="/admin/locations/edit/:id" element={<EditLocationForm />} />
+          <Route path="/admin/products" element={<ProductList />} />
+          <Route path="/admin/products/add" element={<AddProductForm />} />
+          <Route path="/admin/products/edit/:id" element={<EditProductForm />} />
+          <Route path="/admin/products/detail/:id" element={<ProductDetailAdmin />} />
+          <Route path="/admin/users" element={<UserList />} />
+          <Route path="/admin/reviews" element={<ReviewList />} />
+          <Route path="/admin/vouchers" element={<VoucherList />} />
+          <Route path="/admin/vouchers/add" element={<AddVoucherForm />} />
+          <Route path="/admin/orders" element={<AdminOrderPage />} />
+          <Route path="/admin/address" element={<AddressList />} />
+          <Route path="/admin/address/add" element={<AddAddressAdd />} />
+          <Route path="/admin/address/edit/:id" element={<EditAddressEdit />} />
+        </Route>
+      </Routes>
+
+      {/* ✅ Chatbot chỉ hiển thị nếu không ở admin/login/register */}
+      {!hideChatbot && <ChatFruitBot />}
+    </>
+  );
+}
+
 function App() {
   return (
     <AuthProvider>
       <CartProvider>
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Layout />}>
-              <Route index element={<Homepage />} />
-              <Route path="gio-hang" element={<CartPage />} />
-              <Route path="san-pham" element={<ProductListPage />} />
-              <Route path="san-pham/:id" element={<ProductDetail />} />
-              <Route path="checkout" element={<Checkout />} />
-              <Route path="/order-success" element={<OrderSuccess />} />
-              <Route path="register" element={<RegisterForm />} />
-              <Route path="login" element={<LoginForm />} />
-              <Route path="product" element={<ListSanPham />} />
-              <Route path="dang-ky" element={<RegisterForm />} />
-              <Route path="dang-nhap" element={<LoginForm />} />
-              <Route path="/quen-mat-khau" element={<ForgotPassword />} />
-              <Route path="/thong-tin" element={<ProfilePage />} />
-
-              {/* Các trang nội dung mới */}
-              <Route path="tin-tuc" element={<News />} />
-              <Route path="ve-chung-toi" element={<About />} />
-              <Route path="nhuong-quyen" element={<Franchise />} />
-              <Route path="he-thong-cua-hang" element={<StoreSystem />} />
-            </Route>
-
-            <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<Dashboard />} />
-              <Route path="/admin/category" element={<CategoryList />} />
-              <Route path="/admin/category/add" element={<CategoryCreateForm />} />
-              <Route path="/admin/category/edit/:id" element={<CategoryEditForm />} />
-              <Route path="/admin/locations" element={<LocationList />} />
-              <Route path="/admin/locations/add" element={<AddLocationForm />} />
-              <Route path="/admin/locations/edit/:id" element={<EditLocationForm />} />
-              <Route path="/admin/products" element={<ProductList />} />
-              <Route path="/admin/products/add" element={<AddProductForm />} />
-              <Route path="/admin/products/edit/:id" element={<EditProductForm />} />
-              <Route path="/admin/products/detail/:id" element={<ProductDetailAdmin />} />
-
-              <Route path="/admin/users" element={<UserList />} />
-              <Route path="/admin/reviews" element={<ReviewList />} />
-              <Route path="/admin/vouchers" element={<VoucherList />} />
-              <Route path="/admin/vouchers/add" element={<AddVoucherForm />} />
-
-              <Route path="/admin/orders" element={<AdminOrderPage />} />
-
-              <Route path="/admin/address" element={<AddressList />} />
-              <Route path="/admin/address/add" element={<AddAddressAdd />} />
-              <Route path="/admin/address/edit/:id" element={<EditAddressEdit />} />
-            </Route>
-          </Routes>
+          <AppWrapper />
         </BrowserRouter>
       </CartProvider>
     </AuthProvider>
