@@ -5,6 +5,7 @@ export default function AdminOrderPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedOrderId, setExpandedOrderId] = useState(null);
+  const [searchTerm, setSearchTerm] = useState(""); // state tìm kiếm
 
   const fetchOrders = async () => {
     try {
@@ -66,9 +67,28 @@ export default function AdminOrderPage() {
 
   if (loading) return <div className="text-center mt-10">Đang tải...</div>;
 
+  // Lọc đơn hàng theo tên sản phẩm
+  const filteredOrders = orders.filter((order) =>
+    order.items.some((item) =>
+      item.productName.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  );
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">Quản lý Đơn Hàng</h1>
+
+      {/* Ô tìm kiếm */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Tìm theo tên sản phẩm..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="border p-2 rounded w-full md:w-1/3"
+        />
+      </div>
+
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white border text-sm">
           <thead className="bg-gray-100 text-left">
@@ -83,7 +103,7 @@ export default function AdminOrderPage() {
             </tr>
           </thead>
           <tbody>
-            {orders.map((order) => (
+            {filteredOrders.map((order) => (
               <React.Fragment key={order._id}>
                 <tr className="border-t">
                   <td className="p-3">{order.user?.username || "Không rõ"}</td>
