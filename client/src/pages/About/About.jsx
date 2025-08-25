@@ -35,24 +35,29 @@ const About = () => {
 
       {/* Thông tin liên hệ */}
       <section className="bg-green-50 p-6 rounded-xl shadow-inner">
-        <h2 className="text-2xl font-semibold text-green-700 mb-4">Liên hệ với chúng tôi</h2>
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="space-y-2 text-gray-700">
-            <p>📍 Trụ sở chính: 123 Lê Lợi, Quận 1, TP.HCM</p>
-            <p>📞 Hotline: <strong>0939 999 888</strong></p>
-            <p>✉️ Email: <strong>contact@freshfruit.vn</strong></p>
-            <p>🌐 Website: <strong>www.freshfruit.vn</strong></p>
-          </div>
-          <form className="space-y-3">
-            <input type="text" placeholder="Họ tên" className="w-full p-2 border rounded" />
-            <input type="email" placeholder="Email" className="w-full p-2 border rounded" />
-            <textarea placeholder="Lời nhắn..." rows={4} className="w-full p-2 border rounded" />
-            <button className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded">
-              Gửi liên hệ
-            </button>
-          </form>
-        </div>
-      </section>
+  <h2 className="text-2xl font-semibold text-green-700 mb-4">
+    Liên hệ với chúng tôi
+  </h2>
+  <div className="grid md:grid-cols-2 gap-6">
+    {/* Thông tin liên hệ */}
+    <div className="space-y-2 text-gray-700">
+      <p>📍 Trụ sở chính: Số 1 Trịnh Văn Bô, Hà Nội</p>
+      <p>📞 Hotline: <strong>0812560603</strong></p>
+      <p>✉️ Email: <strong>freshfruit@gmail.com</strong></p>
+      <p>🌐 Website: <strong>www.freshfruit.vn</strong></p>
+    </div>
+
+    {/* Hình ảnh liên quan đến hoa quả */}
+    <div className="flex items-center justify-center">
+      <img 
+        src="../../public/image/1.6.jpg" 
+        alt="hoa quả" 
+        className="rounded-xl shadow-md hover:scale-105 transition-transform duration-300"
+      />
+    </div>
+  </div>
+</section>
+
     </div>
   );
 };

@@ -102,8 +102,8 @@ function Homepage() {
                             transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
                         >
                             <img
-                                src="https://fujifruit.com.vn/wp-content/uploads/2024/08/20240823-133320.jpg"
-                                alt="Fuji Fruit promotion on My Viettel"
+                                src="../../public/image/1.5.jpg"
+                                alt="Fresh Fruit promotion on My Viettel"
                                 className="object-cover h-[300px] w-[250px] sm:h-[498px] sm:w-[337px]"
                             />
                         </motion.div>
@@ -131,7 +131,7 @@ function Homepage() {
                                     của FreshFruit
                                 </span>
                             </div>
-                            <div className="mt-3 mb-3 text-sm sm:text-base"><span>Chúng tôi luôn mong muốn và đã tạo ra nhiều giá trị về sức khỏe và niềm vui cho người dùng Việt. Điều đó thật hạnh phúc khi thật vinh dự vì khách hàng đã tin tưởng vào dịch vụ và sản phẩm của Fuji Fruit. Khách hàng và động lực lớn nhất để chúng tôi phát triển và lớn hơn từng ngày.</span></div>
+                            <div className="mt-3 mb-3 text-sm sm:text-base"><span>Chúng tôi luôn mong muốn và đã tạo ra nhiều giá trị về sức khỏe và niềm vui cho người dùng Việt. Điều đó thật hạnh phúc khi thật vinh dự vì khách hàng đã tin tưởng vào dịch vụ và sản phẩm của Fresh Fruit. Khách hàng và động lực lớn nhất để chúng tôi phát triển và lớn hơn từng ngày.</span></div>
                             <div><ViewNowButton /></div>
                         </div>
                     </div>
@@ -154,12 +154,12 @@ function Homepage() {
                             <span>chúng tôi</span>
                         </div>
                         <div className="text-sm text-left sm:text-base mt-2">
-                            <span>Hoa quả sạch Fuji với đa dạng các trái cây nhập khẩu đến từ các nền nông nghiệp tiên tiến, hiện đại bậc nhất thế giới: Nhật Bản, Hoa Kỳ, Hàn Quốc, Canada, Australia,v.v. đem đến dinh dưỡng và những sự lựa phong phú người dùng.</span>
+                            <span>Hoa quả sạch Fresh với đa dạng các trái cây nhập khẩu đến từ các nền nông nghiệp tiên tiến, hiện đại bậc nhất thế giới: Nhật Bản, Hoa Kỳ, Hàn Quốc, Canada, Australia,v.v. đem đến dinh dưỡng và những sự lựa phong phú người dùng.</span>
                         </div>
                         <div className="mx-0 sm:mx-5 mt-4 mb-8 font-medium text-sm sm:text-base text-left">
                             <ul className="list-disc list-inside space-y-2">
                                 <li>Tận tâm với khách hàng và người tiêu dùng</li>
-                                <li>Hệ thống 50 cửa hàng Fuji trên toàn quốc</li>
+                                <li>Hệ thống 50 cửa hàng Fresh trên toàn quốc</li>
                                 <li>Quy trình sản phẩm chuẩn mực hàng đầu</li>
                                 <li>Công nghệ bảo quản lạnh CAS hiện đại tân tiến</li>
                             </ul>
