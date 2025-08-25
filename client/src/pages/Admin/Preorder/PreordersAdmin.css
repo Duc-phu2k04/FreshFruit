@@ -1,0 +1,261 @@
+/* src/pages/admin/PreordersAdmin.css */
+
+.preorders-admin {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color: #111827;
+}
+
+.pa-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.pa-header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+}
+.pa-actions .pa-refresh {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+.pa-actions .pa-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pa-filters {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+.pa-filter-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.pa-filter label {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+.pa-filter input,
+.pa-filter select {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+.pa-filter .pa-clear {
+  width: 100%;
+  height: 36px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  cursor: pointer;
+}
+
+.pa-table-wrap {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.pa-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.pa-table thead th {
+  background: #f3f4f6;
+  text-align: left;
+  padding: 10px;
+  font-weight: 600;
+  font-size: 13px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.pa-table tbody td {
+  padding: 10px;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: top;
+  font-size: 14px;
+}
+
+.ta-right { text-align: right; }
+
+.po-status-chip {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.po-id .po-id-text {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.po-id .po-date {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.po-user {
+  font-weight: 600;
+}
+.po-note {
+  font-size: 12px;
+  color: #6b7280;
+}
+.po-product {
+  font-weight: 600;
+}
+.po-variant {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.po-adjust {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.po-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.btn,
+.btn-secondary {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  border: 1px solid transparent;
+}
+.btn {
+  background: #111827;
+  color: #fff;
+}
+.btn:hover { filter: brightness(1.05); }
+.btn-secondary {
+  background: #fff;
+  border-color: #d1d5db;
+  color: #111827;
+}
+.btn-secondary:hover { background: #f9fafb; }
+
+.po-edit {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  align-items: end;
+}
+.po-edit-row label {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+.po-edit-row input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+.po-edit-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.pa-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+}
+.pa-pageinfo {
+  font-size: 13px;
+  color: #374151;
+}
+/* ===== Khối đổi trạng thái thủ công ===== */
+.po-status-edit {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  background: #fafafa;
+}
+.po-status-edit .po-status-row {
+  margin-bottom: 8px;
+}
+.po-status-edit label {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+.po-status-edit select,
+.po-status-edit input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.po-status-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.po-status-actions .po-help {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* Làm màu sắc theo trạng thái */
+.po-status-chip[data-status="pending_payment"] {
+  background: #fef3c7;
+  color: #92400e;
+}
+.po-status-chip[data-status="confirmed"] {
+  background: #e0f2fe;
+  color: #075985;
+}
+.po-status-chip[data-status="shipping"] {
+  background: #dcfce7;
+  color: #166534;
+}
+.po-status-chip[data-status="delivered"] {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+.po-status-chip[data-status="cancelled"] {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* Hover trên dòng bảng */
+.pa-table tbody tr:hover {
+  background: #fafafa;
+}

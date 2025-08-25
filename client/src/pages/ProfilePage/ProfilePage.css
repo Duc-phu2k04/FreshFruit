@@ -589,9 +589,193 @@
   padding: 16px 0;
 }
 
-/* Responsive bổ sung cho bảng: trên màn nhỏ vẫn giữ nút 1 hàng, cho cuộn ngang ô actions */
+/* ===================== ĐƠN ĐẶT TRƯỚC ===================== */
+
+.order-history {
+  --bg: #fff;
+  --border: #e5e7eb;
+  --muted: #6b7280;
+  --text: #111827;
+  --shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.08);
+  color: var(--text);
+}
+
+/* Bảng Đơn đặt trước */
+.order-history .order-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed; /* giữ cột ổn định */
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.order-history .order-table thead th {
+  background: #f8fafc;
+  color: #374151;
+  font-weight: 700;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+
+.order-history .order-table th,
+.order-history .order-table td {
+  padding: 12px 14px;
+  text-align: left;
+  vertical-align: middle; /* căn giữa dọc cho đẹp */
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 14px;
+}
+
+.order-history .order-table tbody tr:hover {
+  background: #fafafa;
+}
+
+/* Cột mã đơn & ngày tạo */
+.order-history .order-table .order-id {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.order-history .order-table .order-date {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Cột địa chỉ: cho phép xuống dòng gọn gàng */
+.order-table td.address-cell {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.5;
+  font-size: 13.5px;
+  color: #555;
+}
+
+/* Giá trị tiền */
+.order-history .money {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.order-history .subtle {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* Chip trạng thái (VN) */
+.status-chip {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Map màu theo code status từ BE */
+.status--pending_payment { background: #FEF3C7; color: #92400E; }  /* Chờ thanh toán */
+.status--confirmed       { background: #DCFCE7; color: #065F46; }  /* Đã xác nhận đơn hàng */
+.status--shipping        { background: #E0F2FE; color: #075985; }  /* Đang giao hàng */
+.status--delivered       { background: #EDE9FE; color: #5B21B6; }  /* Đã giao hàng */
+.status--cancelled       { background: #FEE2E2; color: #991B1B; }  /* Đã hủy */
+
+/* Cột hành động */
+.order-table td.actions-cell {
+  white-space: nowrap;
+  min-width: 260px;
+  overflow-x: auto; /* nếu nhỏ quá thì cho scroll ngang */
+  overflow-y: hidden;
+  text-align: center; /* căn giữa các nút */
+  padding-right: 6px; /* chừa chỗ cho scrollbar mobile */
+}
+
+/* Nhóm nút hành động */
+.order-table td.actions-cell .order-actions {
+  display: flex;
+  justify-content: center;  /* căn giữa ngang */
+  align-items: center;      /* căn giữa dọc */
+  gap: 10px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.order-table td.actions-cell .order-actions > * {
+  flex: 0 0 auto;
+}
+
+/* Nút cơ bản */
+.order-history .btn,
+.order-history .btn-cancel,
+.order-history .btn-light {
+  display: inline-block;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform .02s ease-in, filter .15s ease;
+}
+
+.order-history .btn:active,
+.order-history .btn-light:active,
+.order-history .btn-cancel:active {
+  transform: translateY(1px);
+}
+
+.order-history .btn {
+  background: #111827;
+  color: #fff;
+}
+.order-history .btn:hover { filter: brightness(1.05); }
+
+.order-history .btn-light {
+  background: #fff;
+  color: #111827;
+  border-color: #d1d5db;
+}
+.order-history .btn-light:hover { background: #f3f4f6; }
+
+.order-history .btn-cancel {
+  background: #fff1f2;
+  color: #9f1239;
+  border-color: #fecdd3;
+}
+.order-history .btn-cancel:hover { background: #ffe4e6; }
+
+/* Huy hiệu nhỏ trong ô (ví dụ “x3”, “500g · Ăn liền”) */
+.badge {
+  display: inline-block;
+  padding: 3px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: #374151;
+  line-height: 1;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .order-history .order-table th, .order-history .order-table td {
+    padding: 10px 12px;
+  }
+  .order-table td.actions-cell { min-width: 220px; }
+}
+
 @media (max-width: 768px) {
   .order-table td.actions-cell {
-    overflow-x: auto;  /* giữ các nút trên 1 hàng, cuộn nếu thiếu chỗ */
+    overflow-x: auto;
+  }
+  .order-history .order-table {
+    border-radius: 10px;
+  }
+  .order-history .order-table th,
+  .order-history .order-table td {
+    font-size: 13.5px;
   }
 }

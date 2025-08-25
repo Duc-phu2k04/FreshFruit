@@ -16,12 +16,15 @@ import momoRoutes from "./src/routes/momo.route.js";
 import uploadRoute from './src/routes/upload.route.js';
 import addressRoute from './src/routes/address.route.js';
 
-// Thêm import shipping routes
+//  shipping routes
 import shippingRoutes from './src/routes/shipping.routes.js';
 
-// Thêm import chatbot (HYBRID)
+//  chatbot (HYBRID)
 import { fruitbotRouter } from './src/routes/fruitbot.route.js';
 
+//  Preorder routes
+import preorderRouter from './src/routes/preorder.route.js';
+import momoPreorderRoutes from './src/routes/momoPreorder.route.js';
 dotenv.config();
 
 const app = express();
@@ -48,12 +51,18 @@ app.use('/api/voucher', voucherRoutes);
 app.use('/api/momo', momoRoutes);
 app.use('/api/upload', uploadRoute);
 app.use('/api/address', addressRoute);
+app.use("/api/momo-preorder", momoPreorderRoutes);  // đơn đặt trước
+
 
 // Mount shipping routes (bao gồm /api/shipping/quote, v.v.)
 app.use('/api', shippingRoutes);
 
-//  Mount chatbot routes (rule-based + có thể fallback AI nếu bạn thêm ở route)
+// Mount chatbot routes (rule-based + có thể fallback AI nếu bạn thêm ở route)
 app.use('/api/fruitbot', fruitbotRouter);
+
+//  NEW: Mount Preorder routes
+//    → cung cấp các endpoint: /api/preorders (create, cancel, pay-remaining, admin, ...)
+app.use('/api/preorders', preorderRouter);
 
 // Static file route
 app.use('/images', express.static('public/images'));
