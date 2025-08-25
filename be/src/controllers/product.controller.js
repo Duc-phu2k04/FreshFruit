@@ -1,4 +1,6 @@
+// controllers/product.controller.js
 import productService from "../services/product.service.js";
+import Product from "../models/product.model.js"; // dùng cho getComingSoon
 
 const productController = {
   create: async (req, res) => {
@@ -12,7 +14,8 @@ const productController = {
 
   getAll: async (req, res) => {
     try {
-      const products = await productService.getAllProducts();
+      // Quan trọng: truyền req.query để service có thể lọc preorder=true/false
+      const products = await productService.getAllProducts(req.query);
       res.json(products);
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
@@ -26,6 +29,38 @@ const productController = {
         return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
       }
       res.json(product);
+    } catch (error) {
+      res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+  },
+
+  // ✅ NEW: Lấy sản phẩm theo tên danh mục
+  getByCategoryName: async (req, res) => {
+    try {
+      const { categoryName } = req.params;
+      const { limit = 4 } = req.query;
+      
+      const products = await productService.getLatestProductsByCategoryName(
+        categoryName, 
+        parseInt(limit)
+      );
+      res.json(products);
+    } catch (error) {
+      res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+  },
+
+  // ✅ NEW: Lấy sản phẩm theo category ID với filter
+  getByCategoryWithFilter: async (req, res) => {
+    try {
+      const { categoryId } = req.params;
+      const { limit, sort } = req.query;
+      
+      const products = await productService.getProductsByCategory(categoryId, { 
+        limit, 
+        sort 
+      });
+      res.json(products);
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
     }
@@ -72,7 +107,7 @@ const productController = {
     }
   },
 
-  // ✅ Cập nhật tồn kho / giá cho 1 biến thể
+  //  Cập nhật tồn kho / giá cho 1 biến thể
   updateVariant: async (req, res) => {
     try {
       const updatedProduct = await productService.updateVariant(
@@ -89,7 +124,7 @@ const productController = {
     }
   },
 
-  // ✅ Xóa 1 biến thể theo ID
+  //  Xóa 1 biến thể theo ID
   removeVariantById: async (req, res) => {
     try {
       const updatedProduct = await productService.deleteVariantById(
@@ -100,6 +135,40 @@ const productController = {
         return res.status(404).json({ message: "Không tìm thấy sản phẩm hoặc biến thể" });
       }
       res.json({ message: "Xóa biến thể thành công", product: updatedProduct });
+    } catch (error) {
+      res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+  },
+
+  /* =========================================================
+   *  MỚI: Danh sách "Sắp vào mùa" (Coming Soon)
+   * Route: GET /api/product/coming-soon?limit=24&category=<id>
+   * Trả về sản phẩm có preorder.enabled = true
+   * và (còn trong windowEnd hoặc chưa tới expectedHarvestStart
+   *     hoặc không cấu hình ngày nhưng đã bật preorder)
+   * ========================================================= */
+  getComingSoon: async (req, res) => {
+    try {
+      const now = new Date();
+      const { limit = 24, category } = req.query;
+
+      const filter = {
+        "preorder.enabled": true,
+        $or: [
+          { "preorder.windowEnd": { $gte: now } },
+          { "preorder.expectedHarvestStart": { $gte: now } },
+          { "preorder.windowEnd": { $exists: false } }
+        ]
+      };
+      if (category) filter.category = category;
+
+      const items = await Product.find(filter)
+        .sort({ "preorder.expectedHarvestStart": 1, createdAt: -1 })
+        .limit(Number(limit))
+        .populate("category", "name")
+        .populate("location", "name");
+
+      res.json(items);
     } catch (error) {
       res.status(500).json({ message: "Lỗi server", error: error.message });
     }

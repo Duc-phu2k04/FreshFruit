@@ -133,11 +133,11 @@ export default function VoucherList() {
             }
 
             // Gọi API lấy danh sách user (yêu cầu admin)
-           const res = await axiosInstance.get('http://localhost:3000/auth/users', {
-    headers: {
-        Authorization: `Bearer ${token}`
-    }
-});
+            const res = await axiosInstance.get('http://localhost:3000/auth/users', {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
 
 
 
@@ -225,6 +225,12 @@ export default function VoucherList() {
                                             className="text-blue-600 hover:text-blue-900 flex items-center"
                                         >
                                             <UserPlusIcon className="h-5 w-5 mr-1" /> Gán
+                                        </button>
+                                        <button
+                                            onClick={() => navigate(`/admin/vouchers/edit/${voucher._id}`)}
+                                            className="text-green-600 hover:text-green-900 flex items-center"
+                                        >
+                                            ✏️ <span className="ml-1">Sửa</span>
                                         </button>
                                         <button
                                             onClick={() => handleDeleteVoucher(voucher)}

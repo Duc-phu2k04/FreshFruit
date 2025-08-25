@@ -35,6 +35,19 @@ const voucherController = {
       res.status(500).json({ message: err.message });
     }
   },
+  getById: async (req, res) => {
+  try {
+    const { id } = req.params;
+    const voucher = await voucherService.getById(id);
+    if (!voucher) {
+      return res.status(404).json({ message: "Voucher không tồn tại" });
+    }
+    res.json(voucher);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+},
+
 
   remove: async (req, res) => {
     try {
@@ -44,6 +57,33 @@ const voucherController = {
       res.status(404).json({ message: err.message });
     }
   },
+  update: async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { code, discount, quantity, expiresInDays } = req.body;
+
+    let expiration = undefined;
+    if (expiresInDays !== undefined) {
+      if (expiresInDays === null || expiresInDays === '') {
+        expiration = null;
+      } else {
+        expiration = new Date();
+        expiration.setDate(expiration.getDate() + Number(expiresInDays));
+      }
+    }
+
+    const updatedVoucher = await voucherService.update(id, {
+      code,
+      discount,
+      quantity: quantity === '' || quantity === null ? null : quantity,
+      expiration
+    });
+
+    res.json({ message: "Cập nhật voucher thành công", voucher: updatedVoucher });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+},
 
   validate: async (req, res) => {
     try {

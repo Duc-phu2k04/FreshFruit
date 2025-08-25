@@ -14,7 +14,7 @@ const Franchise = () => {
         <li>Thương hiệu uy tín và bền vững</li>
         <li>Chi phí đầu tư linh hoạt, hoàn vốn nhanh</li>
       </ul>
-      <p className="mt-6">☎️ Gọi ngay: <strong>0939 999 888</strong> – Email: franchise@freshfruit.vn</p>
+      <p className="mt-6">☎️ Gọi ngay: <strong>0812560603</strong> – Email: franchise@freshfruit.vn</p>
     </div>
   );
 };

@@ -8,9 +8,9 @@ export default function News() {
       content: 'Trái cây tươi không chỉ cung cấp vitamin mà còn giúp tăng sức đề kháng và làm đẹp da. Ăn trái cây mỗi ngày là một thói quen sống lành mạnh được các chuyên gia khuyên dùng.'
     },
     {
-      title: 'FreshFruit khai trương cửa hàng mới tại TP.HCM',
+      title: 'FreshFruit dự tính mở cửa hàng mới tại TP.HCM',
       image: 'https://cdn.pixabay.com/photo/2013/11/18/13/30/cherry-212601_1280.jpg',
-      content: 'Chúng tôi vừa mở thêm chi nhánh mới tại Quận 1. Với không gian hiện đại và nguồn trái cây tươi sạch, hy vọng sẽ mang đến trải nghiệm mua sắm tuyệt vời cho khách hàng.'
+      content: 'Chúng tôi dự tính mở thêm chi nhánh mới tại Quận 1. Với không gian hiện đại và nguồn trái cây tươi sạch, hy vọng sẽ mang đến trải nghiệm mua sắm tuyệt vời cho khách hàng.'
     },
     {
       title: 'Bí quyết bảo quản trái cây lâu hỏng tại nhà',

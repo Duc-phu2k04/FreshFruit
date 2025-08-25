@@ -28,28 +28,28 @@ export const Footer = () => {
                         <div>
                             <div className="text-white pt-6 rounded-lg w-full md:w-[530px] md:pl-6">
                                 <h2 className="text-2xl font-bold uppercase mb-4">
-                                    CÔNG TY CP XUẤT NHẬP KHẨU FUJI
+                                    CÔNG TY CP XUẤT NHẬP KHẨU Fresh
                                 </h2>
 
                                 <div className="flex items-start gap-3 mb-3">
                                     <FaMapMarkerAlt className="mt-1 flex-shrink-0" />
-                                    <p>Trụ sở: 352 Giải Phóng, Phường Liệt, Thanh Xuân, Hà Nội</p>
+                                    <p>Trụ sở: Số 1 Trịnh Văn Bô Hà Nội</p>
                                 </div>
 
                                 <div className="flex items-start gap-3 mb-3">
                                     <FaPhoneAlt className="mt-1 flex-shrink-0" />
-                                    <p>Hotline: 1900 2268 - 0989 96 69 96</p>
+                                    <p>Hotline: 0812560603</p>
                                 </div>
 
                                 <div className="flex items-start gap-3 mb-3">
                                     <FaGlobe className="mt-1 flex-shrink-0" />
-                                    <p>Website: <a href="https://www.fujifruit.com.vn" className="underline">www.fujifruit.com.vn</a></p>
+                                    <p>Website: <a href="https://www.freshfruit.com.vn" className="underline">www.freshfruit.com.vn</a></p>
                                 </div>
 
                                 <div className="flex items-start gap-3">
                                     <FaFileAlt className="mt-1 flex-shrink-0" />
                                     <p>
-                                        Giấy CNĐKKD: 0107875928 do Sở Kế hoạch và Đầu tư TP. Hà Nội cấp ngày 09/06/2017
+                                        Giấy CNĐKKD: 0107875928 do Sở Kế hoạch và Đầu tư TP. Hà Nội cấp ngày 05/01/2025
                                     </p>
                                 </div>
                             </div>
@@ -89,7 +89,7 @@ export const Footer = () => {
                         </div>
                     </div>
                     <div className="flex justify-center mt-10 md:mt-7">
-                        <div className="text-[#FFB800] text-center">© 2023 Hệ thống hoa quả sạch Fuji Fruit – Powered by CCMartech</div>
+                        <div className="text-[#FFB800] text-center">© 2023 Hệ thống hoa quả sạch Fresh Fruit – Powered by CCMartech</div>
                     </div>
                 </div>
             </div>

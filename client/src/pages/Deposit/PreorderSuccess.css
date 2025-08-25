@@ -1,0 +1,47 @@
+.success-container {
+  max-width: 500px;
+  margin: 80px auto;
+  padding: 32px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.title {
+  font-size: 22px;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.success-message {
+  color: #2ecc71;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.error-message {
+  color: #e74c3c;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.button-wrap {
+  margin-top: 24px;
+}
+
+.back-button {
+  background: #3498db;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  font-size: 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.back-button:hover {
+  background: #2980b9;
+}

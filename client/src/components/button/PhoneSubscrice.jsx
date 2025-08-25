@@ -1,28 +1,20 @@
 import React from 'react';
 
 const PhoneSubscribe = () => {
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const phone = e.target.elements.phone.value;
-    console.log("Số điện thoại:", phone);
-  };
-
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col md:flex-row items-center w-full md:w-fit gap-3 md:gap-0">
-      <input
-        type="text"
-        name="phone"
-        placeholder="Số điện thoại"
-        className="rounded-full px-6 py-3 w-full md:w-[436px] outline-none bg-white mr-0 md:mr-3"
-        required
-      />
-      <button
-        type="submit"
-        className="bg-[#FFB800] text-white font-normal px-6 py-3 rounded-full hover:bg-[#00613C] transition cursor-pointer w-full md:w-auto"
+    <div className="flex items-center justify-center w-full md:w-fit p-6 bg-gradient-to-r from-yellow-100 to-green-100 rounded-2xl shadow-inner">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="w-32 h-32 text-green-600"
+        fill="currentColor"
+        viewBox="0 0 24 24"
       >
-        NHẬN ƯU ĐÃI
-      </button>
-    </form>
+        <path d="M12 2C10 2 7 4 7 8s3 6 5 6 5-2 5-6-2-6-5-6zM5 22h14c0-5-3-8-7-8s-7 3-7 8z"/>
+      </svg>
+      <p className="ml-4 text-green-700 font-semibold text-lg">
+        Trái cây tươi ngon mỗi ngày 🌿
+      </p>
+    </div>
   );
 };
 

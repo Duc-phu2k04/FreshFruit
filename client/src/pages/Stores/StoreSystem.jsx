@@ -5,16 +5,16 @@ const StoreSystem = () => {
     <div className="max-w-5xl mx-auto py-10 px-4 space-y-6">
       <h1 className="text-3xl font-bold text-green-700">Hệ thống cửa hàng</h1>
       <p className="text-gray-700">
-        FreshFruit có mặt tại TP.HCM, Hà Nội, Đà Nẵng... Đến ngay cửa hàng gần bạn!
+        FreshFruit có mặt Hà Nội ngày ngày 05/01/2025!
       </p>
       <div className="space-y-4">
         <div>
-          <h2 className="font-semibold text-lg">FreshFruit Quận 1</h2>
-          <p>123 Lê Lợi, Quận 1, TP.HCM</p>
+          <h2 className="font-semibold text-lg">FreshFruit Hà Nội</h2>
+          <p>Số 1 Trịnh Văn Bô, Hà Nội</p>
         </div>
         <div>
-          <h2 className="font-semibold text-lg">FreshFruit Hà Nội</h2>
-          <p>78 Trần Duy Hưng, Cầu Giấy, Hà Nội</p>
+          <h2 className="font-semibold text-lg">FreshFruit Hồ Chí Minh</h2>
+          <p>Sắp khai trương</p>
         </div>
       </div>
       <div className="mt-6">

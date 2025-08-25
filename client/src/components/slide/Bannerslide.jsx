@@ -8,22 +8,22 @@ import { Autoplay, Pagination } from 'swiper/modules';
 const banners = [
     {
         id: 1,
-        image: 'https://fujifruit.com.vn/wp-content/uploads/2024/03/4.jpg',
+        image: "../../public/image/1.1.jpg",
         alt: 'Banner 1',
     },
     {
         id: 2,
-        image: 'https://fujifruit.com.vn/wp-content/uploads/2024/03/5.jpg',
+        image: "../../public/image/1.2.jpg",
         alt: 'Banner 2',
     },
     {
         id: 3,
-        image: 'https://fujifruit.com.vn/wp-content/uploads/2024/03/6.jpg',
+        image: "../../public/image/1.3.jpg",
         alt: 'Banner 3',
     },
     {
         id: 4,
-        image: 'https://fujifruit.com.vn/wp-content/uploads/2024/03/8.jpg',
+        image: "../../public/image/1.4.jpg",
         alt: 'Banner 5',
     },
 ];

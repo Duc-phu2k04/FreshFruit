@@ -1,10 +1,16 @@
+// src/pages/Product/ProductDetail.jsx
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
 import { FaStar } from "react-icons/fa";
+
+// ✅ ĐÚNG PATH + có đuôi .jsx
+import PreorderWidget from "../../components/preoder/PreorderWidget";
 
 export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const allowPreorder = searchParams.get("preorder") === "1"; // chỉ bật widget khi đi từ Sắp vào mùa
 
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
@@ -16,7 +22,9 @@ export default function ProductDetail() {
   const [quantity, setQuantity] = useState(1);
   const [currentVariant, setCurrentVariant] = useState(null);
 
-  // --- Lấy thông tin sản phẩm và comment ---
+  // tiện ích ảnh (nếu BE trả sẵn absolute URL thì dùng luôn)
+  const imgSrc = (path) => (path?.startsWith("http") ? path : `http://localhost:3000${path || ""}`);
+
   useEffect(() => {
     const fetchProduct = async () => {
       try {
@@ -25,16 +33,20 @@ export default function ProductDetail() {
         const data = await res.json();
         setProduct(data);
 
-        // Lấy sản phẩm liên quan
+        // Sản phẩm liên quan: lọc theo category + loại bỏ Coming Soon
         const relatedRes = await fetch(
-          `http://localhost:3000/api/product?category=${data.category?._id || ""}`
+          `http://localhost:3000/api/product?category=${data.category?._id || ""}&preorder=false`
         );
         if (!relatedRes.ok) throw new Error("Không lấy được sản phẩm liên quan");
         const related = await relatedRes.json();
-
-        // Đảm bảo related là mảng trước khi filter
-        const relatedArray = Array.isArray(related) ? related : [];
+        const relatedArray = Array.isArray(related) ? related : (Array.isArray(related.data) ? related.data : []);
         setRelatedProducts(relatedArray.filter((item) => item._id !== id));
+
+        // Default chọn theo baseVariant nếu có
+        const bw = data?.baseVariant?.attributes?.weight || data?.weightOptions?.[0] || "";
+        const br = data?.baseVariant?.attributes?.ripeness || data?.ripenessOptions?.[0] || "";
+        setSelectedWeight(bw);
+        setSelectedRipeness(br);
       } catch (err) {
         console.error("Lỗi khi lấy sản phẩm:", err);
       }
@@ -61,7 +73,7 @@ export default function ProductDetail() {
     fetchComments();
   }, [id]);
 
-  // --- Chọn biến thể ---
+  // chọn biến thể
   const handleSelectVariant = (type, value) => {
     if (type === "weight") setSelectedWeight((prev) => (prev === value ? "" : value));
     if (type === "ripeness") setSelectedRipeness((prev) => (prev === value ? "" : value));
@@ -83,7 +95,7 @@ export default function ProductDetail() {
     }
   }, [selectedWeight, selectedRipeness, product]);
 
-  // --- Thêm vào giỏ hàng ---
+  // thêm giỏ
   const addToCartServer = async () => {
     if (!currentVariant) return alert("Vui lòng chọn biến thể trước khi thêm vào giỏ hàng");
     if (currentVariant.stock <= 0) return alert("Sản phẩm này đã hết hàng");
@@ -117,7 +129,7 @@ export default function ProductDetail() {
     }
   };
 
-  // --- Mua ngay ---
+  // mua ngay
   const handleBuyNow = () => {
     if (!currentVariant) return alert("Vui lòng chọn biến thể trước khi mua");
     if (currentVariant.stock <= 0) return alert("Sản phẩm này đã hết hàng");
@@ -143,7 +155,7 @@ export default function ProductDetail() {
     });
   };
 
-  // --- Tính trung bình sao ---
+  // rating TB
   const averageRating =
     comments.length > 0
       ? comments.reduce((sum, c) => sum + (c.rating || 0), 0) / comments.length
@@ -151,6 +163,10 @@ export default function ProductDetail() {
 
   if (!product)
     return <p className="text-center mt-10">Đang tải dữ liệu sản phẩm...</p>;
+
+  const isComingSoon = !!product?.preorder?.enabled;
+  const showPreorderWidget = isComingSoon && allowPreorder;
+  const showBuySection = !isComingSoon; // nếu là Coming Soon thì ẩn mua ngay/giỏ
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
@@ -163,13 +179,23 @@ export default function ProductDetail() {
       {/* Thông tin sản phẩm */}
       <div className="grid md:grid-cols-2 gap-8 bg-white p-6 rounded shadow">
         <img
-          src={`http://localhost:3000${product.image}`}
+          src={imgSrc(product.image)}
           alt={product.name}
           className="w-full rounded-lg shadow"
         />
         <div>
           <h1 className="text-4xl font-bold mb-3">{product.name}</h1>
           <p className="text-gray-700 mb-4">{product.description}</p>
+
+          {isComingSoon && !allowPreorder && (
+            <div className="mb-4 p-3 rounded bg-yellow-50 border border-yellow-300 text-yellow-800">
+              Sản phẩm <b>sắp vào mùa</b>. Đặt trước chỉ từ trang{" "}
+              <Link to="/coming-soon" className="underline font-semibold">
+                Sắp vào mùa
+              </Link>
+              .
+            </div>
+          )}
 
           {currentVariant ? (
             <p className="text-green-700 text-2xl font-semibold mb-2">
@@ -240,42 +266,52 @@ export default function ProductDetail() {
             </div>
           </div>
 
-          {/* Số lượng */}
-          {currentVariant && currentVariant.stock > 0 && (
-            <div className="mb-4 flex items-center gap-3">
-              <p className="font-medium">Số lượng:</p>
-              <input
-                type="number"
-                value={quantity}
-                min={1}
-                max={currentVariant.stock}
-                onChange={(e) => setQuantity(Number(e.target.value))}
-                className="border rounded px-3 py-1 w-20"
-              />
-            </div>
+          {/* ✅ Preorder chỉ hiển thị khi đi từ trang Sắp vào mùa (?preorder=1) */}
+          {showPreorderWidget && (
+            <PreorderWidget
+              product={{ ...product, id: product?._id || product?.id }}
+              onSuccess={() => {}}
+              requireLoginHint={true}
+            />
           )}
 
-          {/* Thêm vào giỏ / Mua ngay */}
-          <div className="flex gap-3 mb-4">
-            <button
-              className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 disabled:opacity-50"
-              onClick={addToCartServer}
-              disabled={!currentVariant || currentVariant.stock <= 0}
-            >
-              Thêm vào giỏ
-            </button>
-            <button
-              className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 disabled:opacity-50"
-              onClick={handleBuyNow}
-              disabled={!currentVariant || currentVariant.stock <= 0}
-            >
-              Mua ngay
-            </button>
-          </div>
+          {/* Số lượng + Hành động mua (giữ logic cũ) — Ẩn nếu là Coming Soon */}
+          {showBuySection && currentVariant && currentVariant.stock > 0 && (
+            <>
+              <div className="mb-4 flex items-center gap-3">
+                <p className="font-medium">Số lượng:</p>
+                <input
+                  type="number"
+                  value={quantity}
+                  min={1}
+                  max={currentVariant.stock}
+                  onChange={(e) => setQuantity(Number(e.target.value))}
+                  className="border rounded px-3 py-1 w-20"
+                />
+              </div>
+
+              <div className="flex gap-3 mb-4">
+                <button
+                  className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 disabled:opacity-50"
+                  onClick={addToCartServer}
+                  disabled={!currentVariant || currentVariant.stock <= 0}
+                >
+                  Thêm vào giỏ
+                </button>
+                <button
+                  className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 disabled:opacity-50"
+                  onClick={handleBuyNow}
+                  disabled={!currentVariant || currentVariant.stock <= 0}
+                >
+                  Mua ngay
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Hiển thị đánh giá của khách hàng */}
+      {/* Đánh giá */}
       <div className="mt-10">
         <h3 className="text-2xl font-semibold mb-2">Đánh giá của khách hàng:</h3>
         {comments.length > 0 && (
@@ -304,7 +340,7 @@ export default function ProductDetail() {
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-4">
                     <div className="w-11 h-11 rounded-full bg-blue-600 text-white flex items-center justify-center text-lg font-bold shadow-sm">
-                      {cmt.user?.username?.charAt(0).toUpperCase() || "?"}
+                      {(cmt.user?.username?.[0] || "?").toUpperCase()}
                     </div>
                     <div>
                       <p className="text-base font-semibold">
@@ -325,7 +361,9 @@ export default function ProductDetail() {
                     ))}
                   </div>
                 </div>
-                <p className="text-gray-700 leading-relaxed">{cmt.comment || "Không có nội dung"}</p>
+                <p className="text-gray-700 leading-relaxed">
+                  {cmt.comment || "Không có nội dung"}
+                </p>
               </div>
             ))}
           </div>
@@ -343,13 +381,16 @@ export default function ProductDetail() {
               onClick={() => navigate(`/san-pham/${item._id}`)}
             >
               <img
-                src={`http://localhost:3000${item.image}`}
+                src={imgSrc(item.image)}
                 alt={item.name}
                 className="w-full h-40 object-cover rounded"
               />
               <h4 className="mt-2 font-semibold text-lg">{item.name}</h4>
               <p className="text-green-700 font-semibold">
-                {item.price.toLocaleString()}đ
+                {item.price?.toLocaleString
+                  ? item.price.toLocaleString()
+                  : (item.baseVariant?.price || 0).toLocaleString()}
+                đ
               </p>
             </div>
           ))}

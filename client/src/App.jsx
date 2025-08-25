@@ -34,6 +34,7 @@ import AdminOrderPage from "./pages/Admin/Order/list";
 import AddressList from './pages/Admin/Address/List';
 import AddAddressAdd from './pages/Admin/Address/Add';
 import EditAddressEdit from './pages/Admin/Address/Edit';
+import PreordersAdmin from "./pages/Admin/Preorder/PreordersAdmin";
 
 // Các trang mới thêm
 import About from './pages/About/About';
@@ -41,7 +42,12 @@ import News from './pages/News/News';
 import Franchise from './pages/Franchise/Franchise';
 import StoreSystem from './pages/Stores/StoreSystem';
 
-//  Import Chatbot (đúng đường dẫn)
+// Import trang Sắp vào mùa (Coming Soon)
+import ComingSoon from "./pages/comingsoon/ComingSoon";
+import PreorderPayDeposit from "./pages/Deposit/PreorderPayDeposit"
+import PreorderPayRemaining from "./pages/Deposit/PreorderPayRemaining";
+import PreorderSuccess from "./pages/Deposit/PreorderSuccess";
+//  Import Chatbot
 import ChatFruitBot from "./components/chatbot/ChatFruitBot";
 
 function AppWrapper() {
@@ -78,6 +84,13 @@ function AppWrapper() {
           <Route path="ve-chung-toi" element={<About />} />
           <Route path="nhuong-quyen" element={<Franchise />} />
           <Route path="he-thong-cua-hang" element={<StoreSystem />} />
+
+          {/*  Trang Sắp vào mùa */}
+          <Route path="coming-soon" element={<ComingSoon />} />
+          {/*  Trang thanh toán cọc */}
+          <Route path="/pay/deposit/:preorderId" element={<PreorderPayDeposit />} />
+          <Route path="/pay/remaining/:preorderId" element={<PreorderPayRemaining />} />
+          <Route path="/preorder-success" element={<PreorderSuccess />} />
         </Route>
 
         <Route path="/admin" element={<AdminLayout />}>
@@ -100,10 +113,11 @@ function AppWrapper() {
           <Route path="/admin/address" element={<AddressList />} />
           <Route path="/admin/address/add" element={<AddAddressAdd />} />
           <Route path="/admin/address/edit/:id" element={<EditAddressEdit />} />
+          <Route path="/admin/preorders" element={<PreordersAdmin />} />
         </Route>
       </Routes>
 
-      {/* ✅ Chatbot chỉ hiển thị nếu không ở admin/login/register */}
+      {/*  Chatbot chỉ hiển thị nếu không ở admin/login/register */}
       {!hideChatbot && <ChatFruitBot />}
     </>
   );

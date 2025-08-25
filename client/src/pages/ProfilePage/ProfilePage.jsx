@@ -40,17 +40,149 @@ export default function ProfilePage() {
   const [wards, setWards] = useState([]);
   const [editingWards, setEditingWards] = useState([]);
 
+  // Tabs
   const [tab, setTab] = useState("profile");
   const [userInfo, setUserInfo] = useState({ username: "", email: "", defaultAddressId: null });
   const [isEditing, setIsEditing] = useState(false);
 
   const [addresses, setAddresses] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [preorders, setPreorders] = useState([]);
+  const [preordersLoading, setPreordersLoading] = useState(true);
+
   const [vouchers, setVouchers] = useState({
     validVouchers: [],
     expiredVouchers: [],
     usedUpVouchers: [],
   });
+
+  // ====== MoMo Preorder (FE gọi trực tiếp BE) ======
+  const [payingId, setPayingId] = useState(null);     // để disable nút khi đang tạo link
+  const [payingKind, setPayingKind] = useState(null); // 'deposit' | 'remaining'
+
+  async function callMomo(url) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({}),
+    });
+
+    // Đọc body 1 lần → parse JSON nếu có, nếu không thì giữ text để báo lỗi
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { message: text };
+    }
+
+    if (!res.ok) {
+      throw new Error(data?.message || "Tạo liên kết thanh toán thất bại");
+    }
+    if (!data?.payUrl) {
+      throw new Error("Không nhận được payUrl từ server");
+    }
+    window.location.href = data.payUrl;
+  }
+
+  // ==== Post-payment refresh (polling sau khi quay về từ MoMo) ====
+  const beginPostPaymentRefresh = async () => {
+    const params = new URLSearchParams(window.location.search);
+    const hasMomoParams =
+      params.has("resultCode") || params.has("orderId") || params.has("partnerCode");
+
+    // Có thể có marker do ta set trước khi rời trang
+    const markerRaw = localStorage.getItem("preorderPaying");
+    const marker = markerRaw ? (() => { try { return JSON.parse(markerRaw); } catch { return null; } })() : null;
+
+    if (!hasMomoParams && !marker) return;
+
+    // Poll 6 lần, mỗi 2s
+    let tries = 0;
+    const maxTries = 6;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    try {
+      while (tries < maxTries) {
+        tries += 1;
+        await fetchPreorders(true); // true → quiet (không bật loading)
+        // Nếu có marker, thử đọc trạng thái của đúng preorder
+        if (marker?.id) {
+          const p = preorders.find((x) => x._id === marker.id);
+          if (p) {
+            // Nếu đã đủ cọc hoặc status không còn "pending_payment" → coi như xong
+            const paidEnough = Number(p.depositPaid || 0) >= Number(p.depositDue || 0);
+            const statusChanged = p.status !== "pending_payment";
+            if (paidEnough || statusChanged) break;
+          }
+        } else {
+          // Không có marker (chỉ có query) → poll 1-2 lần là đủ
+          if (tries >= 2) break;
+        }
+        await sleep(2000);
+      }
+    } catch (e) {
+      console.warn("Polling preorder after payment error:", e);
+    } finally {
+      // Xoá marker & dọn URL
+      localStorage.removeItem("preorderPaying");
+      if (hasMomoParams) {
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, "", cleanUrl);
+      }
+    }
+  };
+
+  async function handlePayDeposit(preorderId) {
+    try {
+      // set marker trước khi điều hướng
+      localStorage.setItem(
+        "preorderPaying",
+        JSON.stringify({ id: preorderId, kind: "deposit", ts: Date.now() })
+      );
+      setPayingId(preorderId);
+      setPayingKind("deposit");
+      await callMomo(`${API_URL}/api/momo-preorder/create-payment-deposit/${preorderId}`);
+    } catch (err) {
+      console.error("pay deposit error:", err);
+      alert(err?.message || "Không thể tạo thanh toán cọc");
+      localStorage.removeItem("preorderPaying");
+    } finally {
+      setPayingId(null);
+      setPayingKind(null);
+    }
+  }
+
+  async function handlePayRemaining(preorderId) {
+    try {
+      // set marker trước khi điều hướng
+      localStorage.setItem(
+        "preorderPaying",
+        JSON.stringify({ id: preorderId, kind: "remaining", ts: Date.now() })
+      );
+      setPayingId(preorderId);
+      setPayingKind("remaining");
+      await callMomo(`${API_URL}/api/momo-preorder/create-payment-remaining/${preorderId}`);
+    } catch (err) {
+      console.error("pay remaining error:", err);
+      alert(err?.message || "Không thể tạo thanh toán phần còn lại");
+      localStorage.removeItem("preorderPaying");
+    } finally {
+      setPayingId(null);
+      setPayingKind(null);
+    }
+  }
+
+  // Lấy chuỗi địa chỉ mặc định hiện tại
+  const defaultAddressString = (() => {
+    if (!userInfo.defaultAddressId) return null;
+    const addr = addresses.find((a) => a._id === userInfo.defaultAddressId);
+    if (!addr) return null;
+    return `${addr.fullName}, ${addr.phone}, ${addr.detail}, ${addr.ward}, ${addr.district}, ${addr.province}`;
+  })();
 
   // Hàm lấy productId linh hoạt + log chi tiết
   const getProductId = (item) => {
@@ -90,7 +222,7 @@ export default function ProfilePage() {
     if (!window.confirm("Bạn có chắc muốn xóa đơn hàng này khỏi lịch sử?")) return;
 
     try {
-      const res = await fetch(`/api/orders/${orderId}/hide`, {
+      const res = await fetch(`${API_URL}/api/orders/${orderId}/hide`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -106,6 +238,30 @@ export default function ProfilePage() {
     } catch (err) {
       console.error(err);
       alert("Có lỗi xảy ra khi xóa đơn hàng");
+    }
+  };
+
+  // NEW: Ẩn (xóa khỏi lịch sử) đơn đặt trước
+  const hidePreorder = async (preorderId) => {
+    if (!window.confirm("Bạn có chắc muốn xóa đơn đặt trước này khỏi lịch sử?")) return;
+
+    try {
+      const res = await fetch(`${API_URL}/api/preorders/${preorderId}/hide`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.ok === false) {
+        alert(data?.message || "Xóa đơn đặt trước thất bại");
+        return;
+      }
+
+      alert(data?.message || "Đã xóa đơn đặt trước khỏi lịch sử");
+      setPreorders((prev) => prev.filter((p) => p._id !== preorderId));
+    } catch (err) {
+      console.error(err);
+      alert("Có lỗi xảy ra khi xóa đơn đặt trước");
     }
   };
 
@@ -149,7 +305,9 @@ export default function ProfilePage() {
 
     const fetchAll = async () => {
       try {
-        await Promise.all([fetchUserInfo(), fetchAddresses(), fetchOrders(), fetchVouchers()]);
+        await Promise.all([fetchUserInfo(), fetchAddresses(), fetchOrders(), fetchVouchers(), fetchPreorders()]);
+        // Sau khi load dữ liệu lần đầu, kiểm tra xem có vừa quay về từ MoMo hay không để poll cập nhật
+        beginPostPaymentRefresh();
 
         // 🔧 Dùng absolute URL (không qua proxy) + fallback + log chi tiết
         let loaded = false;
@@ -177,6 +335,7 @@ export default function ProfilePage() {
     };
 
     fetchAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, userId]);
 
   // ===== Lấy phường/xã theo quận/huyện =====
@@ -305,7 +464,6 @@ export default function ProfilePage() {
 
       if (userInfo.defaultAddressId === id) {
         setUserInfo((prev) => ({ ...prev, defaultAddressId: null }));
-        // SỬA path đúng: không thêm /api lần nữa vì axiosAuth.baseURL đã là API_URL
         await axiosAuth.put(`/auth/users/${userId}`, { ...userInfo, defaultAddressId: null });
       }
       fetchAddresses();
@@ -342,6 +500,40 @@ export default function ProfilePage() {
     }
   };
 
+  // ===== PREORDERS =====
+  const fetchPreorders = async (quiet = false) => {
+    try {
+      if (!quiet) setPreordersLoading(true);
+      const res = await axiosAuth.get(`/api/preorders/mine`);
+      const data = res.data;
+      const listRaw = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
+      // ❗ Không ẩn các đơn đã hủy để có thể hiển thị nút Xóa
+      setPreorders(listRaw);
+    } catch (err) {
+      logErr("Lỗi lấy đơn đặt trước:", err.response?.data || err.message);
+    } finally {
+      if (!quiet) setPreordersLoading(false);
+    }
+  };
+
+  // Hủy đơn đặt trước
+  const cancelPreorder = async (id) => {
+    if (!window.confirm("Bạn chắc chắn muốn hủy đơn đặt trước này?")) return;
+    try {
+      const res = await axiosAuth.patch(`/api/preorders/${id}/cancel`);
+      const data = res.data;
+      if (!res.status || (data && data.ok === false)) {
+        throw new Error(data?.message || "Hủy đơn đặt trước thất bại");
+      }
+      alert(data?.message || "Đã hủy đơn đặt trước");
+      // Reload list để vẫn hiện bản ghi (trạng thái 'cancelled') và có nút Xóa
+      fetchPreorders(true);
+    } catch (err) {
+      logErr("Lỗi hủy đơn đặt trước:", err.response?.data || err.message);
+      alert(err?.response?.data?.message || err?.message || "Không thể hủy đơn đặt trước");
+    }
+  };
+
   // --- XỬ LÝ SỬA ĐỊA CHỈ ---
   const startEditAddress = (addr) => {
     setEditingAddressId(addr._id);
@@ -355,7 +547,6 @@ export default function ProfilePage() {
       districtCode: addr.districtCode ? String(addr.districtCode) : "",
       wardCode: addr.wardCode ? String(addr.wardCode) : "",
     });
-    // Tự động tải wards theo quận hiện có (nếu có mã)
     if (addr.districtCode) {
       handleDistrictChange(String(addr.districtCode), true);
     }
@@ -829,8 +1020,9 @@ export default function ProfilePage() {
                   </button>
                 )}
 
-                {(o.status === "delivered" || o.status === "cancelled") && (
+                {o.status === "delivered" && (
                   <div className="order-actions">
+                    {/* Review cho từng item */}
                     {o.items.map((item, index) => {
                       const orderId = o.customId || "";
                       const productId = getProductId(item);
@@ -846,13 +1038,22 @@ export default function ProfilePage() {
                           ) : (
                             <small style={{ opacity: 0.7, color: "red" }}>❌ Thiếu productId</small>
                           )}
-
-                          <button className="btn-delete-order" onClick={() => hideOrder(o._id)}>
-                            Xóa
-                          </button>
                         </div>
                       );
                     })}
+                    {/* Chỉ một nút Xóa duy nhất cho cả đơn */}
+                    <button className="btn-delete-order" onClick={() => hideOrder(o._id)}>
+                      Xóa đơn
+                    </button>
+                  </div>
+                )}
+
+                {o.status === "cancelled" && (
+                  <div className="order-actions">
+                    {/* Đơn đã hủy: chỉ một nút Xóa */}
+                    <button className="btn-delete-order" onClick={() => hideOrder(o._id)}>
+                      Xóa đơn
+                    </button>
                   </div>
                 )}
               </td>
@@ -862,6 +1063,174 @@ export default function ProfilePage() {
       </table>
     </div>
   );
+
+  // ====== UI “Đơn đặt trước” ======
+  const StatusChip = ({ s }) => {
+    const map = {
+      pending_payment: { text: "Chờ thanh toán", bg: "#FEF3C7", color: "#92400E" },
+      reserved: { text: "Đã giữ chỗ", bg: "#E0F2FE", color: "#075985" },
+      awaiting_stock: { text: "Chờ hàng", bg: "#F3F4F6", color: "#374151" },
+      ready_to_fulfill: { text: "Sẵn sàng giao", bg: "#DCFCE7", color: "#065F46" },
+      payment_due: { text: "Đến hạn thanh toán", bg: "#FFE4E6", color: "#9F1239" },
+      converted: { text: "Đã chuyển thành đơn", bg: "#EDE9FE", color: "#5B21B6" },
+      cancelled: { text: "Đã hủy", bg: "#FEE2E2", color: "#991B1B" },
+      refunded: { text: "Đã hoàn tiền", bg: "#E0F2F1", color: "#0F766E" },
+      expired: { text: "Hết hạn", bg: "#EEE", color: "#555" },
+      delivered: { text: "Đã giao", bg: "#E0E7FF", color: "#3730A3" }, // thêm để hiển thị đẹp hơn
+    };
+    const ui = map[s] || { text: s, bg: "#EEE", color: "#333" };
+    return (
+      <span style={{ background: ui.bg, color: ui.color, padding: "4px 8px", borderRadius: 8, fontSize: 12 }}>
+        {ui.text}
+      </span>
+    );
+  };
+
+  const renderPreorders = () => {
+    return (
+      <div className="order-history">
+        <h2>Đơn đặt trước</h2>
+
+        {preordersLoading ? (
+          <div>Đang tải...</div>
+        ) : preorders.length === 0 ? (
+          <div style={{ padding: 16, background: "#F9FAFB", borderRadius: 12 }}>
+            Chưa có đơn đặt trước nào. <a href="/coming-soon">Khám phá hàng sắp về →</a>
+          </div>
+        ) : (
+          <table className="order-table">
+            <thead>
+              <tr>
+                <th>Mã</th>
+                <th>Ngày tạo</th>
+                <th>Sản phẩm</th>
+                <th>Tạm tính</th>
+                <th>Đã trả / Còn lại</th>
+                <th>Trạng thái</th>
+                <th className="address-col">Địa chỉ</th>
+                <th className="actions-col">Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              {preorders.map((p) => {
+                const label =
+                  p?.variant?.label ||
+                  [p?.variant?.attributes?.weight, p?.variant?.attributes?.ripeness]
+                    .filter(Boolean)
+                    .join(" · ");
+                return (
+                  <tr key={p._id}>
+                    <td className="order-id">{p.customId || p._id?.slice(-6)}</td>
+                    <td>
+                      {p.createdAt
+                        ? new Date(p.createdAt).toLocaleDateString("vi-VN")
+                        : "—"}
+                    </td>
+                    <td>
+                      <div className="product-item">
+                        {p?.product?.name || "—"}{" "}
+                        <span className="product-meta">
+                          {label ? `(${label})` : ""} × {p.qty}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      {Number(p.subtotal || 0).toLocaleString("vi-VN")}₫
+                    </td>
+                    <td>
+                      {Number(p.depositPaid || 0).toLocaleString("vi-VN")}₫ /{" "}
+                      {Number(p.remainingDue || 0).toLocaleString("vi-VN")}₫
+                    </td>
+                    <td>
+                      <StatusChip s={p.status} />
+                    </td>
+                    <td className="address-cell">
+                      {defaultAddressString || "Chưa chọn"}
+                    </td>
+                    <td className="actions-cell">
+                      {/* Hành động theo trạng thái */}
+                      {p.status === "pending_payment" && (
+                        <div className="order-actions">
+                          <button
+                            className="btn"
+                            onClick={() => handlePayDeposit(p._id)}
+                            disabled={payingId === p._id && payingKind === "deposit"}
+                            title="Thanh toán tiền cọc qua MoMo"
+                          >
+                            {payingId === p._id && payingKind === "deposit"
+                              ? "Đang tạo link..."
+                              : "Thanh toán cọc"}
+                          </button>
+                          <button
+                            className="btn-cancel"
+                            onClick={() => cancelPreorder(p._id)}
+                            disabled={payingId === p._id}
+                          >
+                            Hủy
+                          </button>
+                        </div>
+                      )}
+
+                      {["ready_to_fulfill", "payment_due"].includes(p.status) && (
+                        <div className="order-actions">
+                          <button
+                            className="btn"
+                            onClick={() => handlePayRemaining(p._id)}
+                            disabled={payingId === p._id && payingKind === "remaining"}
+                            title="Thanh toán phần còn lại qua MoMo"
+                          >
+                            {payingId === p._id && payingKind === "remaining"
+                              ? "Đang tạo link..."
+                              : "Thanh toán còn lại"}
+                          </button>
+                          <button
+                            className="btn-cancel"
+                            onClick={() => cancelPreorder(p._id)}
+                            disabled={payingId === p._id}
+                          >
+                            Hủy
+                          </button>
+                        </div>
+                      )}
+
+                      {["reserved", "awaiting_stock"].includes(p.status) && (
+                        <div className="order-actions">
+                          <button
+                            className="btn-cancel"
+                            onClick={() => cancelPreorder(p._id)}
+                            disabled={payingId === p._id}
+                          >
+                            Hủy
+                          </button>
+                        </div>
+                      )}
+
+                      {/*Thêm nút XÓA cho delivered & cancelled  */}
+                      {["delivered", "cancelled"].includes(p.status) && (
+                        <div className="order-actions">
+                          <button
+                            className="btn-delete-order"
+                            onClick={() => hidePreorder(p._id)}
+                            title="Xóa đơn đặt trước khỏi lịch sử"
+                          >
+                            Xóa
+                          </button>
+                        </div>
+                      )}
+
+                      {["converted", "refunded", "expired"].includes(p.status) && (
+                        <span style={{ opacity: 0.7 }}>—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    );
+  };
 
   const renderVouchers = () => (
     <div className="voucher-container">
@@ -926,6 +1295,9 @@ export default function ProfilePage() {
         <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}>
           Lịch sử đơn hàng
         </button>
+        <button className={tab === "preorders" ? "active" : ""} onClick={() => setTab("preorders")}>
+          Đơn đặt trước
+        </button>
         <button className={tab === "vouchers" ? "active" : ""} onClick={() => setTab("vouchers")}>
           Mã giảm giá
         </button>
@@ -935,6 +1307,7 @@ export default function ProfilePage() {
         {tab === "profile" && renderProfile()}
         {tab === "addresses" && renderAddresses()}
         {tab === "orders" && renderOrders()}
+        {tab === "preorders" && renderPreorders()}
         {tab === "vouchers" && renderVouchers()}
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import CategoryFilter from "../../components/button/CategoryFilter";
 import ViewNowButton from "../../components/button/ViewnowButton";
 import ProductList from "../../components/product/ProductList";
@@ -6,6 +7,18 @@ import ProductCarousel from "../../components/slide/Productslide";
 import { motion } from "framer-motion";
 
 function Homepage() {
+    // ✅ State và logic cho chữ nhấp nháy theo danh mục
+    const [currentCategoryIndex, setCurrentCategoryIndex] = useState(0);
+    const categories = ['nội địa', 'nhập khẩu', 'combo'];
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setCurrentCategoryIndex((prev) => (prev + 1) % categories.length);
+        }, 2000); // Đổi mỗi 2 giây
+        
+        return () => clearInterval(interval);
+    }, []);
+
     return (
         <div>
             {/* Banner Slider */}
@@ -32,7 +45,7 @@ function Homepage() {
                         <div className="text-2xl sm:text-4xl font-medium flex flex-wrap gap-4  sm:flex-row sm:items-center sm:gap-4">
                             Sản Phẩm
 
-                            <span className="relative text-[#00613C] switch-text w-[87px] sm:w-32 h-10"></span>
+                            
                             <span>
                                 của FreshFruit
                             </span>
@@ -62,16 +75,24 @@ function Homepage() {
                             <div className="text-2xl sm:text-4xl font-medium flex flex-wrap gap-4 sm:flex-row sm:items-center sm:gap-4">
                                 Sản Phẩm
 
-                                <span className="relative text-[#00613C] switch-text w-[87px] sm:w-32 h-10"></span>
+                                <motion.span 
+                                    className="relative text-[#00613C] w-[87px] sm:w-32 h-10"
+                                    key={`collection-${currentCategoryIndex}`}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -20 }}
+                                    transition={{ duration: 0.5 }}
+                                >
+                                    {categories[currentCategoryIndex]}
+                                </motion.span>
                                 <span>
-
                                     của FreshFruit
                                 </span>
                             </div>
                         </div>
                         <div>
                             <div className="flex justify-center sm:justify-end mb-4 sm:mt-4"><CategoryFilter /></div>
-                            <div><ProductList /></div>
+                            <div><ProductList currentCategory={categories[currentCategoryIndex]} /></div>
                         </div>
                     </div>
                     <div className="w-full sm:w-auto flex justify-center mb-8 sm:mb-0 order-1 sm:order-2">
@@ -81,8 +102,8 @@ function Homepage() {
                             transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
                         >
                             <img
-                                src="https://fujifruit.com.vn/wp-content/uploads/2024/08/20240823-133320.jpg"
-                                alt="Fuji Fruit promotion on My Viettel"
+                                src="../../public/image/1.5.jpg"
+                                alt="Fresh Fruit promotion on My Viettel"
                                 className="object-cover h-[300px] w-[250px] sm:h-[498px] sm:w-[337px]"
                             />
                         </motion.div>
@@ -103,15 +124,14 @@ function Homepage() {
                         <div className="flex flex-col h-auto w-full sm:w-[632px] sm:justify-center sm:text-left">
                             <div className="text-[#00613C] text-[13px]"><span>KHÁT VỌNG VƯƠN LÊN</span></div>
                             <div className="text-2xl sm:text-4xl font-medium flex flex-wrap gap-1 sm:flex-row sm:items-center sm:gap-4 sm:flex-wrap sm:justify-start">
-                                Niềm tự hào về
+                                Niềm tự hào về hoa quả
 
-                                <span className="relative text-[#00613C] switchtext w-[87px] sm:w-32 h-10"></span>
+                                
                                 <span>
-
                                     của FreshFruit
                                 </span>
                             </div>
-                            <div className="mt-3 mb-3 text-sm sm:text-base"><span>Chúng tôi luôn mong muốn và đã tạo ra nhiều giá trị về sức khỏe và niềm vui cho người dùng Việt. Điều đó thật hạnh phúc khi thật vinh dự vì khách hàng đã tin tưởng vào dịch vụ và sản phẩm của Fuji Fruit. Khách hàng và động lực lớn nhất để chúng tôi phát triển và lớn hơn từng ngày.</span></div>
+                            <div className="mt-3 mb-3 text-sm sm:text-base"><span>Chúng tôi luôn mong muốn và đã tạo ra nhiều giá trị về sức khỏe và niềm vui cho người dùng Việt. Điều đó thật hạnh phúc khi thật vinh dự vì khách hàng đã tin tưởng vào dịch vụ và sản phẩm của Fresh Fruit. Khách hàng và động lực lớn nhất để chúng tôi phát triển và lớn hơn từng ngày.</span></div>
                             <div><ViewNowButton /></div>
                         </div>
                     </div>
@@ -134,12 +154,12 @@ function Homepage() {
                             <span>chúng tôi</span>
                         </div>
                         <div className="text-sm text-left sm:text-base mt-2">
-                            <span>Hoa quả sạch Fuji với đa dạng các trái cây nhập khẩu đến từ các nền nông nghiệp tiên tiến, hiện đại bậc nhất thế giới: Nhật Bản, Hoa Kỳ, Hàn Quốc, Canada, Australia,v.v. đem đến dinh dưỡng và những sự lựa phong phú người dùng.</span>
+                            <span>Hoa quả sạch Fresh với đa dạng các trái cây nhập khẩu đến từ các nền nông nghiệp tiên tiến, hiện đại bậc nhất thế giới: Nhật Bản, Hoa Kỳ, Hàn Quốc, Canada, Australia,v.v. đem đến dinh dưỡng và những sự lựa phong phú người dùng.</span>
                         </div>
                         <div className="mx-0 sm:mx-5 mt-4 mb-8 font-medium text-sm sm:text-base text-left">
                             <ul className="list-disc list-inside space-y-2">
                                 <li>Tận tâm với khách hàng và người tiêu dùng</li>
-                                <li>Hệ thống 50 cửa hàng Fuji trên toàn quốc</li>
+                                <li>Hệ thống 50 cửa hàng Fresh trên toàn quốc</li>
                                 <li>Quy trình sản phẩm chuẩn mực hàng đầu</li>
                                 <li>Công nghệ bảo quản lạnh CAS hiện đại tân tiến</li>
                             </ul>
