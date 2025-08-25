@@ -4,6 +4,7 @@ export default function Navbar() {
     const menuItems = [
         { name: 'Trang chủ', path: '/' },
         { name: 'Sản phẩm', path: '/san-pham' },
+        { name: 'Sắp vào mùa', path: '/coming-soon'},
         { name: 'Tin tức', path: '/tin-tuc' },
         { name: 'Về chúng tôi', path: '/ve-chung-toi' },
         { name: 'Nhượng quyền', path: '/nhuong-quyen' },
