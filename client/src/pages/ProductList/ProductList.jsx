@@ -1,3 +1,4 @@
+// src/pages/ProductList/ProductList.jsx
 import React, { useEffect, useState, useCallback } from "react";
 import "./ProductList.css";
 import CategoryFilter from "../../components/button/CategoryFilter";
@@ -32,30 +33,31 @@ export default function ProductListPage() {
 
   const fetchProducts = useCallback(async () => {
     try {
+      //  Luôn loại sản phẩm Coming Soon khỏi trang list thường
+      //    bằng cách thêm preorder=false vào query
       let url = "http://localhost:3000/api/product";
       const params = [];
-      if (selectedCategories.length)
+
+      if (selectedCategories.length) {
         params.push(`category=${selectedCategories.join(",")}`);
-      if (selectedLocations.length)
+      }
+      if (selectedLocations.length) {
         params.push(`location=${selectedLocations.join(",")}`);
+      }
+      // luôn loại preorder
+      params.push("preorder=false");
+
       if (params.length) url += `?${params.join("&")}`;
 
       const res = await fetch(url);
       if (!res.ok) throw new Error("Lỗi khi lấy danh sách sản phẩm");
       const data = await res.json();
 
-      console.log("📌 API products response:", data);
-
       let productArray = [];
-      if (Array.isArray(data)) {
-        productArray = data;
-      } else if (Array.isArray(data.products)) {
-        productArray = data.products;
-      } else if (Array.isArray(data.data)) {
-        productArray = data.data;
-      } else {
-        console.error("❌ Dữ liệu trả về không phải mảng!");
-      }
+      if (Array.isArray(data)) productArray = data;
+      else if (Array.isArray(data.products)) productArray = data.products;
+      else if (Array.isArray(data.data)) productArray = data.data;
+      else console.error("❌ Dữ liệu trả về không phải mảng!");
 
       setProducts(productArray);
       setCurrentPage(1);
@@ -126,7 +128,7 @@ export default function ProductListPage() {
                 transition={{ duration: 0.5 }}
               >
                 {currentProducts.map((product) => {
-                  // --- Lấy variant đầu tiên để hiển thị stock và price ---
+                  // Giữ logic cũ: lấy variant đầu (hoặc 0) để hiển thị
                   const variantData = product.variants?.[0] || {};
                   const price = variantData.price ?? 0;
                   const stock = variantData.stock ?? 0;
@@ -153,8 +155,7 @@ export default function ProductListPage() {
                           Tồn kho: {stock > 0 ? stock : "Hết hàng"}
                         </p>
                         <p className="product-description line-clamp-2 text-sm text-gray-600">
-                          {product.description ||
-                            "Trái cây sạch chất lượng cao."}
+                          {product.description || "Trái cây sạch chất lượng cao."}
                         </p>
                       </div>
                     </motion.div>
