@@ -8,6 +8,12 @@ const router = express.Router();
 router.get("/", productController.getAll);
 router.get("/:id", productController.getById);
 
+// ✅ NEW: Lấy sản phẩm theo tên danh mục
+router.get("/category-name/:categoryName", productController.getByCategoryName);
+
+// ✅ NEW: Lấy sản phẩm theo category ID với filter
+router.get("/category/:categoryId", productController.getByCategoryWithFilter);
+
 // ADMIN
 router.post("/add", verifyToken, isAdmin, productController.create);
 router.put("/:id", verifyToken, isAdmin, productController.update);

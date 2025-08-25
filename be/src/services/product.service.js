@@ -1,4 +1,5 @@
 import Product from "../models/product.model.js";
+import Category from "../models/category.model.js"; // ✅ Thêm import này
 import mongoose from "mongoose";
 
 const generateVariants = (weights, ripenesses, baseVariant) => {
@@ -120,6 +121,87 @@ const productService = {
     }
 
     return product;
+  },
+
+  // ✅ NEW: Lấy sản phẩm theo danh mục với filter
+  getProductsByCategory: async (categoryId, options = {}) => {
+    const { limit = 4, sort = 'newest' } = options;
+    
+    let query = {};
+    if (categoryId) {
+      query.category = categoryId;
+    }
+
+    let sortOptions = {};
+    switch (sort) {
+      case 'newest':
+        sortOptions = { createdAt: -1 };
+        break;
+      case 'oldest':
+        sortOptions = { createdAt: 1 };
+        break;
+      case 'price_asc':
+        sortOptions = { 'baseVariant.price': 1 };
+        break;
+      case 'price_desc':
+        sortOptions = { 'baseVariant.price': -1 };
+        break;
+      default:
+        sortOptions = { createdAt: -1 };
+    }
+
+    const products = await Product.find(query)
+      .populate("category", "name")
+      .populate("location", "name")
+      .sort(sortOptions)
+      .limit(parseInt(limit));
+
+    const productsWithBaseId = products.map((p) => {
+      if (p.baseVariant && !p.baseVariant._id) {
+        p.baseVariant = {
+          ...p.baseVariant.toObject?.() || p.baseVariant,
+          _id: new mongoose.Types.ObjectId(),
+        };
+      }
+      return p;
+    });
+
+    return { data: productsWithBaseId };
+  },
+
+  // ✅ NEW: Lấy sản phẩm mới nhất theo tên danh mục
+  getLatestProductsByCategoryName: async (categoryName, limit = 4) => {
+    try {
+      // Tìm category theo tên
+      const category = await Category.findOne({ 
+        name: { $regex: categoryName, $options: 'i' } 
+      });
+      
+      if (!category) {
+        return { data: [] };
+      }
+
+      const products = await Product.find({ category: category._id })
+        .populate("category", "name")
+        .populate("location", "name")
+        .sort({ createdAt: -1 })
+        .limit(parseInt(limit));
+
+      const productsWithBaseId = products.map((p) => {
+        if (p.baseVariant && !p.baseVariant._id) {
+          p.baseVariant = {
+            ...p.baseVariant.toObject?.() || p.baseVariant,
+            _id: new mongoose.Types.ObjectId(),
+          };
+        }
+        return p;
+      });
+
+      return { data: productsWithBaseId };
+    } catch (error) {
+      console.error("Error in getLatestProductsByCategoryName:", error);
+      return { data: [] };
+    }
   },
 
   updateProduct: async (id, data) => {
