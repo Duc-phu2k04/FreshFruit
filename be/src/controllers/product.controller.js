@@ -34,6 +34,38 @@ const productController = {
     }
   },
 
+  // ✅ NEW: Lấy sản phẩm theo tên danh mục
+  getByCategoryName: async (req, res) => {
+    try {
+      const { categoryName } = req.params;
+      const { limit = 4 } = req.query;
+      
+      const products = await productService.getLatestProductsByCategoryName(
+        categoryName, 
+        parseInt(limit)
+      );
+      res.json(products);
+    } catch (error) {
+      res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+  },
+
+  // ✅ NEW: Lấy sản phẩm theo category ID với filter
+  getByCategoryWithFilter: async (req, res) => {
+    try {
+      const { categoryId } = req.params;
+      const { limit, sort } = req.query;
+      
+      const products = await productService.getProductsByCategory(categoryId, { 
+        limit, 
+        sort 
+      });
+      res.json(products);
+    } catch (error) {
+      res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+  },
+
   update: async (req, res) => {
     try {
       const updatedProduct = await productService.updateProduct(req.params.id, req.body);
