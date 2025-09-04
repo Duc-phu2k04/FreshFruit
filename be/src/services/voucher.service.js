@@ -128,24 +128,38 @@ const voucherService = () => {
     return voucher.assignedUsers;
   };
 
-  const assignUsersToVoucher = async (voucherId, userList) => {
-    if (!mongoose.Types.ObjectId.isValid(voucherId)) throw new Error("voucherId không hợp lệ");
+ const assignUsersToVoucher = async (voucherId, userList) => {
+  if (!mongoose.Types.ObjectId.isValid(voucherId)) throw new Error("voucherId không hợp lệ");
 
-    const voucher = await Voucher.findById(voucherId);
-    if (!voucher) throw new Error("Không tìm thấy voucher");
+  const voucher = await Voucher.findById(voucherId);
+  if (!voucher) throw new Error("Không tìm thấy voucher");
 
-    for (const { userId, quantity } of userList) {
-      const existingUser = voucher.assignedUsers.find(u => u.user.toString() === userId);
-      if (existingUser) {
-        existingUser.quantity += quantity;
-      } else {
-        voucher.assignedUsers.push({ user: userId, quantity });
-      }
+  // Chuẩn hoá dữ liệu cũ: phần tử có thể là ObjectId/string -> đổi sang { user, quantity }
+  voucher.assignedUsers = (voucher.assignedUsers || [])
+    .filter(Boolean)
+    .map((u) => {
+      if (u && u.user) return u; // đã đúng dạng
+      // legacy: u là ObjectId hoặc string
+      return { user: new mongoose.Types.ObjectId(u), quantity: 1 };
+    });
+
+  for (const item of userList) {
+    const uidStr = item?.userId?.toString?.();
+    const qty = Number(item?.quantity ?? 1);
+    if (!uidStr || !mongoose.Types.ObjectId.isValid(uidStr)) continue;
+
+    const existed = voucher.assignedUsers.find(x => x?.user?.toString?.() === uidStr);
+    if (existed) {
+      existed.quantity = (existed.quantity ?? 0) + qty;
+    } else {
+      voucher.assignedUsers.push({ user: new mongoose.Types.ObjectId(uidStr), quantity: qty });
     }
+  }
 
-    await voucher.save();
-    return voucher.populate("assignedUsers.user", "username email fullName");
-  };
+  await voucher.save();
+  return voucher.populate("assignedUsers.user", "username email fullName");
+};
+
 
   const getUserVouchers = async (userId) => {
     if (!mongoose.Types.ObjectId.isValid(userId)) throw new Error("userId không hợp lệ");
@@ -159,7 +173,8 @@ const voucherService = () => {
     const usedUpVouchers = [];
 
     vouchers.forEach(voucher => {
-      const userData = voucher.assignedUsers.find(u => u.user.toString() === userId.toString());
+     const userData = voucher.assignedUsers?.find(u => u?.user?.toString?.() === userId.toString());
+
       const userQuantity = userData?.quantity || 0;
 
       const voucherData = {

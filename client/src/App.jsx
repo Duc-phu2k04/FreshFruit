@@ -30,6 +30,7 @@ import UserList from "./pages/Admin/User/List";
 import ReviewList from "./pages/Admin/Reviews/List";
 import VoucherList from "./pages/Admin/Voucher/List";
 import AddVoucherForm from "./pages/Admin/Voucher/Add";
+import EditVoucherForm from "./pages/Admin/Voucher/Edit";
 import AdminOrderPage from "./pages/Admin/Order/list";
 import AddressList from './pages/Admin/Address/List';
 import AddAddressAdd from './pages/Admin/Address/Add';
@@ -109,6 +110,7 @@ function AppWrapper() {
           <Route path="/admin/reviews" element={<ReviewList />} />
           <Route path="/admin/vouchers" element={<VoucherList />} />
           <Route path="/admin/vouchers/add" element={<AddVoucherForm />} />
+         <Route path="/admin/vouchers/edit/:id" element={<EditVoucherForm />} />
           <Route path="/admin/orders" element={<AdminOrderPage />} />
           <Route path="/admin/address" element={<AddressList />} />
           <Route path="/admin/address/add" element={<AddAddressAdd />} />
