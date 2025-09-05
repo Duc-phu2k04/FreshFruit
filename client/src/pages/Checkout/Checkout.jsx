@@ -18,7 +18,7 @@ export default function Checkout() {
   // Địa chỉ + ship
   const [defaultAddress, setDefaultAddress] = useState(null);
   const [shippingFee, setShippingFee] = useState(0);
-  const [shippingLabel, setShippingLabel] = useState(''); // <-- chỉ hiển thị Freeship/Nội thành/Ngoại thành
+  const [shippingLabel, setShippingLabel] = useState('');
   const [quoting, setQuoting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -110,7 +110,6 @@ export default function Checkout() {
         const data = res?.data?.data || {};
         setShippingFee(Number(data.amount || 0));
 
-        // Ưu tiên label backend trả về; fallback: nếu amount=0 => Freeship, ngược lại "Ngoại thành"
         const lbl = data.label || (Number(data.amount) === 0 ? 'Freeship' : 'Ngoại thành');
         setShippingLabel(lbl);
       } catch (e) {
@@ -223,11 +222,24 @@ export default function Checkout() {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
 
+      // ✅ Giữ nguyên logic cũ, CHỈ bổ sung shippingAddress để thỏa BE
       const payload = {
         cartItems: buildCartItems(),
         voucher: appliedVoucher?.code || null,
         address: { _id: defaultAddress._id },
         paymentMethod: 'momo',
+
+        // >>> Thêm block này (lấy từ defaultAddress):
+        shippingAddress: {
+          fullName: defaultAddress.fullName,
+          phone: defaultAddress.phone,
+          addressLine: defaultAddress.detail,   // tuỳ BE: detail/addressLine
+          wardName: defaultAddress.ward,
+          districtName: defaultAddress.district,
+          provinceName: defaultAddress.province,
+        },
+        // (tuỳ BE có cần hay không) shippingFee
+        shippingFee,
       };
 
       const response = await axios.post('http://localhost:3000/api/momo/create-payment', payload, { headers });

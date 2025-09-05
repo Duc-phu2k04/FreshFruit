@@ -123,14 +123,14 @@ const preorderSchema = new Schema(
 
     /** Mốc thời gian cho bộ trạng thái mới */
     timeline: {
-      pendingPaymentAt: { type: Date, default: null }, // khi tạo (auto set trong controller nếu cần)
+      pendingPaymentAt: { type: Date, default: null }, // khi tạo
       confirmedAt: { type: Date, default: null },      // đủ cọc
       shippingAt: { type: Date, default: null },       // bắt đầu giao
       deliveredAt: { type: Date, default: null },      // giao xong
       cancelledAt: { type: Date, default: null },      // hủy
-      /** mốc thanh toán cọc (đã đủ cọc) — giữ lại để tương thích */
+
+      /** mốc cũ/tuỳ chọn còn dùng ở nơi khác */
       depositPaidAt: { type: Date, default: null },
-      /** các mốc tuỳ chọn vẫn giữ nếu nơi khác có dùng */
       windowEnd: { type: Date, default: null },
       cancelUntil: { type: Date, default: null },
     },
@@ -138,7 +138,7 @@ const preorderSchema = new Schema(
     /** Shipping snapshot */
     shipping: { type: shippingSnapshotSchema, default: () => ({}) },
 
-    /** Flags gửi thông báo (phiên bản rút gọn) */
+    /** Flags gửi thông báo */
     notifications: {
       sentDepositConfirm: { type: Boolean, default: false },
       sentShippingNotice: { type: Boolean, default: false },
@@ -166,8 +166,11 @@ const preorderSchema = new Schema(
     /** Lịch sử sự kiện độc lập */
     history: { type: [historyEntrySchema], default: [] },
 
-    /** Soft delete (ẩn khỏi danh sách) */
+    /** Soft delete (ẩn khỏi hệ thống) */
     isDeleted: { type: Boolean, default: false },
+
+    /** Ẩn khỏi danh sách phía user (admin vẫn thấy) */
+    userHidden: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -178,6 +181,9 @@ const preorderSchema = new Schema(
 preorderSchema.index({ user: 1, createdAt: -1 });
 preorderSchema.index({ product: 1, status: 1 });
 preorderSchema.index({ status: 1, createdAt: -1 });
+preorderSchema.index({ user: 1, userHidden: 1, isDeleted: 1, createdAt: -1 }); // user-side
+preorderSchema.index({ isDeleted: 1, status: 1, createdAt: -1 });              // admin list
+preorderSchema.index({ customId: "text" }); // search nhanh theo mã PO
 
 /* =========================
  * Virtuals
@@ -257,7 +263,6 @@ preorderSchema.methods.applyStatusByAmounts = function applyStatusByAmounts() {
     if (!this.timeline.depositPaidAt) this.timeline.depositPaidAt = new Date();
     if (!this.timeline.confirmedAt) this.timeline.confirmedAt = new Date();
   }
-  // Không còn auto chuyển 'delivered' hay logic khác tại đây.
 };
 
 /** Tạo mã Preorder ngắn gọn */

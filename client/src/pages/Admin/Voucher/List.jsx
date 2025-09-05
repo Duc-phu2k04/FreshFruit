@@ -159,22 +159,38 @@ export default function VoucherList() {
     };
 
     const handleAssign = async () => {
-        if (!selectedUserIds.length) {
-            alert('Vui lòng chọn ít nhất một người dùng.');
-            return;
-        }
-        try {
-            await axiosInstance.post(`/voucher/${selectedVoucher._id}/assign`, {
-                userIds: selectedUserIds
-            });
-            alert('Gán voucher thành công!');
-            setAssignModalOpen(false);
-            fetchVouchers();
-        } catch (err) {
-            console.error('Lỗi khi gán voucher:', err);
-            alert('Gán thất bại.');
-        }
-    };
+  if (!selectedUserIds.length) {
+    alert('Vui lòng chọn ít nhất một người dùng.');
+    return;
+  }
+
+  try {
+    const token = localStorage.getItem('token');
+
+    // Format lại payload đúng với backend
+    const assignments = selectedUserIds.map(id => ({
+      userId: id,
+      quantity: 1   // hoặc cho admin nhập số lượng
+    }));
+
+    console.log("Sending payload:", { assignments });
+
+   await axiosInstance.post(
+  `/voucher/${selectedVoucher._id}/assign`,
+  { assignments: selectedUserIds.map(id => ({ userId: id, quantity: 1 })) },
+  { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+);
+
+
+    alert('Gán voucher thành công!');
+    setAssignModalOpen(false);
+    fetchVouchers();
+  } catch (err) {
+    console.error('Lỗi khi gán voucher:', err.response?.data || err);
+    alert('Gán thất bại.');
+  }
+};
+
     // ======================
 
     const renderContent = () => {

@@ -31,7 +31,10 @@ export default function PreorderWidget({
   const [qty, setQty] = useState(1);
   const [payMethod, setPayMethod] = useState("deposit"); // "deposit" | "full"
   const [loading, setLoading] = useState(false);
+
+  // Phân loại thông báo (success/error) — chỉ chỉnh UI, không đổi luồng
   const [msg, setMsg] = useState(null);
+  const [msgType, setMsgType] = useState("error"); // "success" | "error"
 
   const preorderCfg = product?.preorder || {};
   const enabled = !!preorderCfg?.enabled;
@@ -147,19 +150,25 @@ export default function PreorderWidget({
       setMsg(null);
 
       if (!token) {
-        if (requireLoginHint) setMsg("Bạn cần đăng nhập để đặt trước.");
+        if (requireLoginHint) {
+          setMsgType("error");
+          setMsg("Bạn cần đăng nhập để đặt trước.");
+        }
         return;
       }
       if (!withinWindow) {
+        setMsgType("error");
         setMsg("Hiện không trong thời gian đặt trước.");
         return;
       }
       const safeQty = sanitizeInt(qty);
       if (safeQty < 1 || safeQty > remainingQuota) {
+        setMsgType("error");
         setMsg("Số lượng không hợp lệ hoặc vượt hạn mức đặt trước.");
         return;
       }
       if (!productId) {
+        setMsgType("error");
         setMsg("Thiếu mã sản phẩm, vui lòng tải lại trang.");
         return;
       }
@@ -235,6 +244,8 @@ export default function PreorderWidget({
         throw new Error(message);
       }
 
+      // Thành công: set message xanh lá, giữ nguyên logic
+      setMsgType("success");
       setMsg("Đặt trước thành công! Kiểm tra mục 'Đơn đặt trước' của bạn.");
       setQty(1);
 
@@ -243,6 +254,7 @@ export default function PreorderWidget({
       }
     } catch (err) {
       console.error("[PreorderWidget] ERROR:", err);
+      setMsgType("error");
       setMsg(err?.message || "Có lỗi xảy ra. Vui lòng thử lại.");
     } finally {
       setLoading(false);
@@ -279,6 +291,47 @@ export default function PreorderWidget({
     </div>
   );
 
+  // Styles cho thông báo (inline, không tách file, không icon)
+  const notifyStyleBase = {
+    marginTop: 10,
+    padding: "12px 16px",
+    borderRadius: 12,
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    boxShadow: "0 6px 20px rgba(2,6,23,0.06)",
+    fontSize: 14,
+    fontWeight: 500,
+    lineHeight: 1.45,
+    animation: "fadeIn .25s ease-out",
+  };
+  const notifyStyle =
+    msgType === "success"
+      ? {
+          ...notifyStyleBase,
+          background: "#ECFDF5",           // emerald-50
+          border: "1px solid #10B981",     // emerald-500
+          color: "#065F46",                // emerald-700
+        }
+      : {
+          ...notifyStyleBase,
+          background: "#FEF2F2",           // rose-50
+          border: "1px solid #FCA5A5",     // rose-300
+          color: "#991B1B",                // rose-900
+        };
+
+  const closeBtnStyle = {
+    marginLeft: "auto",
+    background: "transparent",
+    border: "none",
+    fontSize: 18,
+    cursor: "pointer",
+    color: "inherit",
+    padding: 2,
+    lineHeight: 1,
+    opacity: 0.8,
+  };
+
   return (
     <div
       className="preorder-widget"
@@ -290,9 +343,7 @@ export default function PreorderWidget({
         marginTop: 16,
       }}
     >
-      <div
-        style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}
-      >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <Badge>ĐẶT TRƯỚC</Badge>
         <div style={{ color: "#6B7280", fontSize: 13 }}>
           {withinWindow ? "Đang mở đặt trước" : "Ngoài thời gian đặt trước"}
@@ -301,8 +352,7 @@ export default function PreorderWidget({
 
       {/* ETA */}
       <Row label="Dự kiến giao">
-        {fmtDate(preorderCfg?.expectedHarvestStart)} –{" "}
-        {fmtDate(preorderCfg?.expectedHarvestEnd)}
+        {fmtDate(preorderCfg?.expectedHarvestStart)} – {fmtDate(preorderCfg?.expectedHarvestEnd)}
       </Row>
 
       {/* Quota */}
@@ -425,35 +475,27 @@ export default function PreorderWidget({
         <Row label="Trả ngay">{totalToPayNow.toLocaleString()}đ</Row>
       </div>
 
-      {/* Policy */}
-      <div style={{ marginTop: 8, fontSize: 12, color: "#6B7280", lineHeight: 1.6 }}>
-        {preorderCfg?.cancelPolicy?.untilDate ? (
-          <>
-            Hủy trước <b>{fmtDate(preorderCfg.cancelPolicy.untilDate)}</b> hoàn cọc 100%.
-            {typeof preorderCfg?.cancelPolicy?.feePercent === "number" && (
-              <> Sau đó, phí hủy <b>{preorderCfg.cancelPolicy.feePercent}%</b>.</>
-            )}
-          </>
-        ) : (
-          <>Vui lòng xem chính sách hủy đặt trước của cửa hàng.</>
-        )}
-      </div>
-
-      {/* Status / Errors */}
+      {/* Notification (success/error) — không icon */}
       {msg && (
-        <div
-          style={{
-            marginTop: 8,
-            padding: 8,
-            background: "#FEF2F2",
-            border: "1px solid #FCA5A5",
-            color: "#991B1B",
-            borderRadius: 8,
-          }}
-        >
-          {msg}
+        <div style={notifyStyle}>
+          <span style={{ flex: 1 }}>
+            {msgType === "success" ? (
+              <>Đặt trước thành công! Kiểm tra mục <b>“Đơn đặt trước”</b> của bạn.</>
+            ) : (
+              msg
+            )}
+          </span>
+          <button
+            onClick={() => setMsg(null)}
+            aria-label="Đóng"
+            style={closeBtnStyle}
+            title="Đóng"
+          >
+            ×
+          </button>
         </div>
       )}
+
       {!token && requireLoginHint && (
         <div style={{ marginTop: 8, fontSize: 12, color: "#6B7280" }}>
           Bạn chưa đăng nhập. Vui lòng <b>đăng nhập</b> để đặt trước.

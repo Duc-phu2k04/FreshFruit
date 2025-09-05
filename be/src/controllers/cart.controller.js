@@ -110,30 +110,39 @@ export const getCartByUser = async (req, res) => {
   }
 };
 
-
 export const removeCartItem = async (req, res) => {
   try {
     const userId = req.user._id;
     const { productId, variantId } = req.params;
 
-    const cart = await Cart.findOne({ user: userId });
+    console.log("🟢 API DELETE CART");
+    console.log("👉 productId từ FE:", productId);
+    console.log("👉 variantId từ FE:", variantId);
+
+    const cart = await Cart.findOneAndUpdate(
+      { user: userId },
+      {
+        $pull: {
+          items: {
+            product: productId,
+            variantId: variantId,
+          },
+        },
+      },
+      { new: true }
+    ).populate("items.product");
+
     if (!cart) {
       return res.status(404).json({ message: "Giỏ hàng không tồn tại" });
     }
 
-    cart.items = cart.items.filter(
-      (item) =>
-        item.product.toString() !== productId ||
-        item.variantId.toString() !== variantId
-    );
-
-    await cart.save();
-    const updatedCart = await Cart.findOne({ user: userId }).populate("items.product");
-
-    res.status(200).json({ message: "Đã xoá sản phẩm", items: updatedCart.items });
+    res.status(200).json({ message: "Đã xoá sản phẩm", items: cart.items });
   } catch (error) {
-    console.error("Lỗi khi xoá sản phẩm:", error.message);
-    res.status(500).json({ message: "Lỗi server khi xoá sản phẩm", error: error.message });
+    console.error("❌ Lỗi khi xoá sản phẩm:", error);
+    res.status(500).json({
+      message: "Lỗi server khi xoá sản phẩm",
+      error: error.message,
+    });
   }
 };
 

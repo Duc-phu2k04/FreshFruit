@@ -326,51 +326,91 @@ export const recalcPreorder = async (req, res) => {
 };
 
 /* =================================
- * ADMIN LIST
+ * ADMIN LIST (đã tối ưu tìm kiếm)
  * ================================= */
 export const listAdminPreorders = async (req, res) => {
   try {
     const { status, q = "", page = 1, limit = 20 } = req.query;
 
-    const findCond = { isDeleted: { $ne: true } };
-    if (status && status !== "all") findCond.status = status;
-
     const pageNum = Math.max(1, Number(page));
     const limitNum = Math.max(1, Math.min(100, Number(limit)));
     const skip = (pageNum - 1) * limitNum;
 
-    if (q) {
-      // tìm nhanh theo customId; các tiêu chí khác filter sau
-      findCond.$or = [{ customId: { $regex: q, $options: "i" } }];
-    }
+    // Ẩn các bản ghi đã xóa mềm trong admin
+    const baseMatch = { isDeleted: { $ne: true } };
+    if (status && status !== "all") baseMatch.status = status;
 
-    let items = await Preorder.find(findCond)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum)
-      .populate({ path: "product", select: "name" })
-      .populate({ path: "user", select: "email username name" })
-      .lean();
+    const searchMatch = q
+      ? {
+          $or: [
+            { customId: { $regex: q, $options: "i" } },
+            { "productDoc.name": { $regex: q, $options: "i" } },
+            { "userDoc.email": { $regex: q, $options: "i" } },
+            { "userDoc.username": { $regex: q, $options: "i" } },
+            { "userDoc.name": { $regex: q, $options: "i" } },
+          ],
+        }
+      : {};
 
-    let total;
-    if (q) {
-      const t = String(q).toLowerCase();
-      items = items.filter((it) => {
-        return (
-          (it?.customId || "").toLowerCase().includes(t) ||
-          (it?.product?.name || "").toLowerCase().includes(t) ||
-          (it?.user?.email || it?.user?.username || it?.user?.name || "").toLowerCase().includes(t)
-        );
-      });
-      total = items.length;
-    } else {
-      total = await Preorder.countDocuments(findCond);
-    }
+    const pipeline = [
+      { $match: baseMatch },
+      {
+        $lookup: {
+          from: "products",
+          localField: "product",
+          foreignField: "_id",
+          as: "productDoc",
+        },
+      },
+      { $unwind: { path: "$productDoc", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "user",
+          foreignField: "_id",
+          as: "userDoc",
+        },
+      },
+      { $unwind: { path: "$userDoc", preserveNullAndEmptyArrays: true } },
+      ...(q ? [{ $match: searchMatch }] : []),
+      { $sort: { createdAt: -1 } },
+      {
+        $facet: {
+          items: [{ $skip: skip }, { $limit: limitNum }],
+          totalCount: [{ $count: "total" }],
+        },
+      },
+      {
+        $project: {
+          items: 1,
+          total: { $ifNull: [{ $arrayElemAt: ["$totalCount.total", 0] }, 0] },
+        },
+      },
+    ];
+
+    const [agg] = await Preorder.aggregate(pipeline);
+    const items = (agg?.items || []).map((it) => ({
+      ...it,
+      product: it.productDoc ? { _id: it.productDoc._id, name: it.productDoc.name } : null,
+      user: it.userDoc
+        ? {
+            _id: it.userDoc._id,
+            email: it.userDoc.email,
+            username: it.userDoc.username,
+            name: it.userDoc.name,
+          }
+        : null,
+    }));
 
     return res.json({
       ok: true,
       items,
-      pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) },
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: agg?.total || 0,
+        pages: Math.ceil((agg?.total || 0) / limitNum) || 1,
+      },
     });
   } catch (err) {
     console.error("[listAdminPreorders] ERROR:", err);
@@ -512,7 +552,10 @@ export const cancelPreorder = async (req, res) => {
     preorder.status = "cancelled";
     preorder.timeline = preorder.timeline || {};
     preorder.timeline.cancelledAt = now;
-    preorder.isDeleted = true; // user hủy: ẩn khỏi list user
+
+    // ⬇️ Ẩn với user, NHƯNG KHÔNG xóa khỏi admin
+    preorder.userHidden = true;
+    // KHÔNG đặt isDeleted ở đây
 
     if (typeof preorder.recalcTotals === "function") preorder.recalcTotals();
     await preorder.save();
@@ -896,7 +939,7 @@ export const adminMarkPaidInFull = async (req, res) => {
       intentId: null,
       amount: amt,
       status: "succeeded",
-      meta: { source: "admin_mark_paid_in_full" },
+      meta: "admin_mark_paid_in_full",
       at: new Date(),
     });
 

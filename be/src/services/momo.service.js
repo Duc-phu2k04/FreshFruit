@@ -13,12 +13,29 @@ const secretKey = "K951B6PE1waDMi640xX08PD3vg6EkVlz";
 
 // Link callback và redirect
 const redirectUrl = "http://localhost:5173/order-success";
-const ipnUrl = "https://7bf39f1ff22c.ngrok-free.app/api/momo/ipn";
+const ipnUrl = "https://e864bfe7d05b.ngrok-free.app/api/momo/ipn";
 
 const isSameVariant = (a, b) => a.weight === b.weight && a.ripeness === b.ripeness;
 
+// ✅ Chuẩn hoá địa chỉ để tránh lệch key giữa FE/DB
+const normalizeShippingAddress = (src = {}) => ({
+  fullName: src.fullName,
+  phone: src.phone,
+  addressLine: src.addressLine ?? src.detail ?? src.street ?? src.address,
+  wardName: src.wardName ?? src.ward,
+  districtName: src.districtName ?? src.district,
+  provinceName: src.provinceName ?? src.province,
+  wardCode: src.wardCode ?? null,
+  districtCode: src.districtCode ?? null,
+  provinceCode: src.provinceCode ?? null,
+});
+
 const createOrderTemp = async ({ userId, cartItems, voucher, shippingAddress }) => {
-  if (!shippingAddress || !shippingAddress.fullName || !shippingAddress.phone || !shippingAddress.province) {
+  // Chuẩn hoá địa chỉ
+  const ship = normalizeShippingAddress(shippingAddress || {});
+
+  // Validate tối thiểu
+  if (!ship || !ship.fullName || !ship.phone || !ship.provinceName) {
     throw new Error("Thiếu thông tin địa chỉ giao hàng");
   }
 
@@ -78,7 +95,7 @@ const createOrderTemp = async ({ userId, cartItems, voucher, shippingAddress }) 
     items,
     total,
     voucher: appliedVoucher || null,
-    shippingAddress,
+    shippingAddress: ship, // ✅ dùng địa chỉ đã chuẩn hoá
     status: 'pending',
     paymentStatus: 'unpaid',
     paymentMethod: 'momo'
@@ -86,7 +103,7 @@ const createOrderTemp = async ({ userId, cartItems, voucher, shippingAddress }) 
 
   await order.save();
 
-  //  TRỪ TỒN KHO NGAY (Option 2)
+  //  TRỪ TỒN KHO NGAY
   for (const item of items) {
     await Product.updateOne(
       { _id: item.product, "variants._id": item.variantId },
