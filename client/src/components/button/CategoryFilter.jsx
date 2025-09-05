@@ -16,11 +16,6 @@ const CategoryFilter = ({ categories = [], selected = [], onChange }) => {
 
   return (
     <div className="space-y-3">
-      {/* Tiêu đề */}
-      <div className="flex items-center gap-2 font-semibold text-base text-green-700">
-        <FaList />
-        <span>Danh mục</span>
-      </div>
 
       {/* Nút "Bỏ chọn tất cả" */}
       {selected.length > 0 && categories.length > 0 && (

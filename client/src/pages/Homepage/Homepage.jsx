@@ -132,7 +132,7 @@ function Homepage() {
                                 </span>
                             </div>
                             <div className="mt-3 mb-3 text-sm sm:text-base"><span>Chúng tôi luôn mong muốn và đã tạo ra nhiều giá trị về sức khỏe và niềm vui cho người dùng Việt. Điều đó thật hạnh phúc khi thật vinh dự vì khách hàng đã tin tưởng vào dịch vụ và sản phẩm của Fresh Fruit. Khách hàng và động lực lớn nhất để chúng tôi phát triển và lớn hơn từng ngày.</span></div>
-                            <div><ViewNowButton /></div>
+                            
                         </div>
                     </div>
                 </div>
@@ -159,12 +159,12 @@ function Homepage() {
                         <div className="mx-0 sm:mx-5 mt-4 mb-8 font-medium text-sm sm:text-base text-left">
                             <ul className="list-disc list-inside space-y-2">
                                 <li>Tận tâm với khách hàng và người tiêu dùng</li>
-                                <li>Hệ thống 50 cửa hàng Fresh trên toàn quốc</li>
+                                <li>Sắp mở 50 cửa hàng Fresh trên toàn quốc</li>
                                 <li>Quy trình sản phẩm chuẩn mực hàng đầu</li>
                                 <li>Công nghệ bảo quản lạnh CAS hiện đại tân tiến</li>
                             </ul>
                         </div>
-                        <div className="self-left sm:self-start"><ViewNowButton /></div>
+                        
                     </div>
                     <div className="w-full sm:w-auto flex justify-center items-center p-4 sm:p-0">
                         <div>
