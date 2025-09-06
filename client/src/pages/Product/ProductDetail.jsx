@@ -1,16 +1,17 @@
 // src/pages/Product/ProductDetail.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
 import { FaStar } from "react-icons/fa";
-
-// ✅ ĐÚNG PATH + có đuôi .jsx
 import PreorderWidget from "../../components/preoder/PreorderWidget";
+
+// Helpers hạn sử dụng
+import { computeExpiryInfo, fmtDate } from "../../utils/expiryHelpers";
 
 export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const allowPreorder = searchParams.get("preorder") === "1"; // chỉ bật widget khi đi từ Sắp vào mùa
+  const allowPreorder = searchParams.get("preorder") === "1";
 
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
@@ -22,8 +23,8 @@ export default function ProductDetail() {
   const [quantity, setQuantity] = useState(1);
   const [currentVariant, setCurrentVariant] = useState(null);
 
-  // tiện ích ảnh (nếu BE trả sẵn absolute URL thì dùng luôn)
-  const imgSrc = (path) => (path?.startsWith("http") ? path : `http://localhost:3000${path || ""}`);
+  const imgSrc = (path) =>
+    path?.startsWith("http") ? path : `http://localhost:3000${path || ""}`;
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -33,18 +34,28 @@ export default function ProductDetail() {
         const data = await res.json();
         setProduct(data);
 
-        // Sản phẩm liên quan: lọc theo category + loại bỏ Coming Soon
         const relatedRes = await fetch(
-          `http://localhost:3000/api/product?category=${data.category?._id || ""}&preorder=false`
+          `http://localhost:3000/api/product?category=${
+            data.category?._id || ""
+          }&preorder=false`
         );
         if (!relatedRes.ok) throw new Error("Không lấy được sản phẩm liên quan");
         const related = await relatedRes.json();
-        const relatedArray = Array.isArray(related) ? related : (Array.isArray(related.data) ? related.data : []);
+        const relatedArray = Array.isArray(related)
+          ? related
+          : Array.isArray(related.data)
+          ? related.data
+          : [];
         setRelatedProducts(relatedArray.filter((item) => item._id !== id));
 
-        // Default chọn theo baseVariant nếu có
-        const bw = data?.baseVariant?.attributes?.weight || data?.weightOptions?.[0] || "";
-        const br = data?.baseVariant?.attributes?.ripeness || data?.ripenessOptions?.[0] || "";
+        const bw =
+          data?.baseVariant?.attributes?.weight ||
+          data?.weightOptions?.[0] ||
+          "";
+        const br =
+          data?.baseVariant?.attributes?.ripeness ||
+          data?.ripenessOptions?.[0] ||
+          "";
         setSelectedWeight(bw);
         setSelectedRipeness(br);
       } catch (err) {
@@ -73,7 +84,6 @@ export default function ProductDetail() {
     fetchComments();
   }, [id]);
 
-  // chọn biến thể
   const handleSelectVariant = (type, value) => {
     if (type === "weight") setSelectedWeight((prev) => (prev === value ? "" : value));
     if (type === "ripeness") setSelectedRipeness((prev) => (prev === value ? "" : value));
@@ -95,7 +105,48 @@ export default function ProductDetail() {
     }
   }, [selectedWeight, selectedRipeness, product]);
 
-  // thêm giỏ
+  // ===== HSD & giảm giá cận hạn =====
+  const isComingSoon = !!product?.preorder?.enabled;
+  const expiryInfo = useMemo(() => (product ? computeExpiryInfo(product) : null), [product]);
+
+  // Chỉ coi là có giảm cận hạn khi: isNearExpiry + % > 0 + không phải Coming Soon
+  const discountPercent =
+    expiryInfo?.isNearExpiry && !isComingSoon ? Number(expiryInfo.discountPercent || 0) : 0;
+  const showExpiryUI = Boolean(discountPercent > 0 && expiryInfo?.isNearExpiry && !isComingSoon);
+
+  const getFinalVariantPrice = (variant) => {
+    const base = Number(variant?.price || 0);
+    if (discountPercent > 0) return Math.max(0, Math.round(base * (1 - discountPercent / 100)));
+    return base;
+  };
+
+  const priceBlock = (() => {
+    if (!currentVariant) return <p className="text-gray-500 mb-2">Vui lòng chọn biến thể</p>;
+    const basePrice = Number(currentVariant.price || 0);
+    const final = getFinalVariantPrice(currentVariant);
+
+    if (discountPercent > 0) {
+      return (
+        <div className="mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-green-700 text-2xl font-semibold">
+              {final.toLocaleString()}đ
+            </span>
+            <span className="line-through text-gray-400">{basePrice.toLocaleString()}đ</span>
+            <span className="inline-block bg-red-100 text-red-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+              Cận hạn -{discountPercent}%
+            </span>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <p className="text-green-700 text-2xl font-semibold mb-2">
+        {basePrice.toLocaleString()}đ
+      </p>
+    );
+  })();
+
   const addToCartServer = async () => {
     if (!currentVariant) return alert("Vui lòng chọn biến thể trước khi thêm vào giỏ hàng");
     if (currentVariant.stock <= 0) return alert("Sản phẩm này đã hết hàng");
@@ -129,10 +180,11 @@ export default function ProductDetail() {
     }
   };
 
-  // mua ngay
   const handleBuyNow = () => {
     if (!currentVariant) return alert("Vui lòng chọn biến thể trước khi mua");
     if (currentVariant.stock <= 0) return alert("Sản phẩm này đã hết hàng");
+
+    const finalPrice = getFinalVariantPrice(currentVariant);
 
     navigate("/checkout", {
       state: {
@@ -141,7 +193,7 @@ export default function ProductDetail() {
             product: { _id: product._id, name: product.name },
             variant: {
               _id: currentVariant._id,
-              price: currentVariant.price,
+              price: finalPrice, // Gửi giá sau giảm nếu có
               attributes: currentVariant.attributes,
             },
             variantInfo: {
@@ -155,7 +207,6 @@ export default function ProductDetail() {
     });
   };
 
-  // rating TB
   const averageRating =
     comments.length > 0
       ? comments.reduce((sum, c) => sum + (c.rating || 0), 0) / comments.length
@@ -164,9 +215,12 @@ export default function ProductDetail() {
   if (!product)
     return <p className="text-center mt-10">Đang tải dữ liệu sản phẩm...</p>;
 
-  const isComingSoon = !!product?.preorder?.enabled;
   const showPreorderWidget = isComingSoon && allowPreorder;
-  const showBuySection = !isComingSoon; // nếu là Coming Soon thì ẩn mua ngay/giỏ
+  const showBuySection = !isComingSoon;
+
+  // isExpired chỉ dùng nội bộ nếu có hiển thị box (nhưng box chỉ hiển thị khi có giảm)
+  const isExpired =
+    typeof expiryInfo?.daysLeft === "number" && expiryInfo.daysLeft < 0;
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
@@ -184,8 +238,37 @@ export default function ProductDetail() {
           className="w-full rounded-lg shadow"
         />
         <div>
-          <h1 className="text-4xl font-bold mb-3">{product.name}</h1>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-4xl font-bold">{product.name}</h1>
+            {showExpiryUI && (
+              <span className="inline-block bg-red-50 text-red-700 text-xs font-semibold px-3 py-1 rounded-full border border-red-200">
+                Cận hạn -{discountPercent}%
+              </span>
+            )}
+            {isComingSoon && (
+              <span className="inline-block bg-amber-50 text-amber-700 text-xs font-semibold px-3 py-1 rounded-full border border-amber-200">
+                Sắp vào mùa
+              </span>
+            )}
+          </div>
+
           <p className="text-gray-700 mb-4">{product.description}</p>
+
+          {/* Box Hạn sử dụng — CHỈ hiển thị khi có GIẢM GIÁ CẬN HẠN */}
+          {showExpiryUI && (
+            <div className="mb-4 p-3 rounded border bg-yellow-50 border-yellow-200 text-yellow-800">
+              <div className="font-semibold">Hạn sử dụng</div>
+              <div>
+                Ngày hết hạn: <b>{fmtDate(expiryInfo.expireAt)}</b>{" "}
+                {typeof expiryInfo.daysLeft === "number" && expiryInfo.daysLeft >= 0 && (
+                  <span>— còn {expiryInfo.daysLeft} ngày</span>
+                )}
+              </div>
+              <div>
+                Giảm giá cận hạn: <b>-{discountPercent}%</b> (đã áp vào giá hiển thị)
+              </div>
+            </div>
+          )}
 
           {isComingSoon && !allowPreorder && (
             <div className="mb-4 p-3 rounded bg-yellow-50 border border-yellow-300 text-yellow-800">
@@ -197,20 +280,13 @@ export default function ProductDetail() {
             </div>
           )}
 
-          {currentVariant ? (
-            <p className="text-green-700 text-2xl font-semibold mb-2">
-              {currentVariant.price.toLocaleString()}đ
-            </p>
-          ) : (
-            <p className="text-gray-500 mb-2">Vui lòng chọn biến thể</p>
-          )}
+          {/* Giá hiển thị (có xét cận hạn) */}
+          {priceBlock}
 
           {currentVariant && (
             <p className="mb-4 text-sm text-gray-600">
               Tồn kho:{" "}
-              {currentVariant.stock > 0
-                ? `${currentVariant.stock} sản phẩm`
-                : "Hết hàng"}
+              {currentVariant.stock > 0 ? `${currentVariant.stock} sản phẩm` : "Hết hàng"}
             </p>
           )}
 
@@ -266,7 +342,7 @@ export default function ProductDetail() {
             </div>
           </div>
 
-          {/* ✅ Preorder chỉ hiển thị khi đi từ trang Sắp vào mùa (?preorder=1) */}
+          {/* Preorder chỉ khi đi từ trang Sắp vào mùa (?preorder=1) */}
           {showPreorderWidget && (
             <PreorderWidget
               product={{ ...product, id: product?._id || product?.id }}
@@ -275,7 +351,7 @@ export default function ProductDetail() {
             />
           )}
 
-          {/* Số lượng + Hành động mua (giữ logic cũ) — Ẩn nếu là Coming Soon */}
+          {/* Số lượng + Hành động mua — Ẩn nếu là Coming Soon */}
           {showBuySection && currentVariant && currentVariant.stock > 0 && (
             <>
               <div className="mb-4 flex items-center gap-3">
@@ -323,9 +399,7 @@ export default function ProductDetail() {
                 color={i < Math.round(averageRating) ? "#facc15" : "#e5e7eb"}
               />
             ))}
-            <span className="ml-2 text-gray-600">
-              ({averageRating.toFixed(1)} / 5)
-            </span>
+            <span className="ml-2 text-gray-600">({averageRating.toFixed(1)} / 5)</span>
           </div>
         )}
         {comments.length === 0 ? (

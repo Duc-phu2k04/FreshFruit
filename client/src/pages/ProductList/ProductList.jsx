@@ -1,5 +1,5 @@
 // src/pages/ProductList/ProductList.jsx
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import "./ProductList.css";
 import CategoryFilter from "../../components/button/CategoryFilter";
 import LocationFilter from "../../components/button/LocationFilter";
@@ -7,14 +7,20 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import Pagination from "../../components/common/Pagination";
 
+// Helpers hạn sử dụng
+import { computeExpiryInfo, fmtDate } from "../../utils/expiryHelpers";
+
 export default function ProductListPage() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedLocations, setSelectedLocations] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
 
+  //  Bộ lọc “chỉ sản phẩm giảm giá (cận hạn)”
+  const [discountOnly, setDiscountOnly] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState(1);
   const productsPerPage = 12;
   const navigate = useNavigate();
 
@@ -33,8 +39,7 @@ export default function ProductListPage() {
 
   const fetchProducts = useCallback(async () => {
     try {
-      //  Luôn loại sản phẩm Coming Soon khỏi trang list thường
-      //    bằng cách thêm preorder=false vào query
+      // Luôn loại sản phẩm Coming Soon khỏi trang list thường
       let url = "http://localhost:3000/api/product";
       const params = [];
 
@@ -44,7 +49,6 @@ export default function ProductListPage() {
       if (selectedLocations.length) {
         params.push(`location=${selectedLocations.join(",")}`);
       }
-      // luôn loại preorder
       params.push("preorder=false");
 
       if (params.length) url += `?${params.join("&")}`;
@@ -78,10 +82,20 @@ export default function ProductListPage() {
     navigate(`/san-pham/${product._id}`, { state: product });
   };
 
+  //  Áp bộ lọc “giảm giá” ở client (trước khi phân trang)
+  const filteredProducts = useMemo(() => {
+    if (!discountOnly) return products;
+    return (products || []).filter((p) => {
+      const exp = computeExpiryInfo(p);
+      return Boolean(exp?.isNearExpiry) && Number(exp?.discountPercent || 0) > 0;
+    });
+  }, [products, discountOnly]);
+
+  // Phân trang dựa trên danh sách đã lọc
   const indexOfLastProduct = currentPage * productsPerPage;
   const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
-  const currentProducts = Array.isArray(products)
-    ? products.slice(indexOfFirstProduct, indexOfLastProduct)
+  const currentProducts = Array.isArray(filteredProducts)
+    ? filteredProducts.slice(indexOfFirstProduct, indexOfLastProduct)
     : [];
 
   return (
@@ -107,6 +121,19 @@ export default function ProductListPage() {
             selected={selectedLocations}
             onChange={setSelectedLocations}
           />
+          <hr className="my-5 border-gray-300" />
+          {/*  Bộ lọc: chỉ hiển thị sản phẩm đang giảm giá (cận hạn) */}
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={discountOnly}
+              onChange={(e) => {
+                setDiscountOnly(e.target.checked);
+                setCurrentPage(1);
+              }}
+            />
+            <b className="font-semibold"> Sản phẩm giảm giá (cận hạn)</b>
+          </label>
         </aside>
 
         <main>
@@ -117,7 +144,9 @@ export default function ProductListPage() {
           <div className="product-grid-container">
             {currentProducts.length === 0 ? (
               <p className="text-center text-gray-500 mt-10">
-                Không tìm thấy sản phẩm phù hợp.
+                {discountOnly
+                  ? "Không có sản phẩm đang giảm giá."
+                  : "Không tìm thấy sản phẩm phù hợp."}
               </p>
             ) : (
               <motion.div
@@ -128,33 +157,93 @@ export default function ProductListPage() {
                 transition={{ duration: 0.5 }}
               >
                 {currentProducts.map((product) => {
-                  // Giữ logic cũ: lấy variant đầu (hoặc 0) để hiển thị
+                  // Fallback giá/stock từ biến thể đầu
                   const variantData = product.variants?.[0] || {};
-                  const price = variantData.price ?? 0;
+                  const fallbackPrice =
+                    variantData.price ??
+                    product?.displayVariant?.price ??
+                    product?.baseVariant?.price ??
+                    0;
                   const stock = variantData.stock ?? 0;
+
+                  // Tính HSD & giảm cận hạn từ helper
+                  const exp = computeExpiryInfo(product);
+                  const isNearExpiry = Boolean(exp?.isNearExpiry);
+                  const discountPercent = Number(exp?.discountPercent || 0);
+                  const hasDiscount = isNearExpiry && discountPercent > 0;
+
+                  // Giá hiển thị
+                  const finalPrice = hasDiscount
+                    ? Number(exp.finalPrice ?? fallbackPrice)
+                    : Number(fallbackPrice);
+
+                  // Expiry strings (chỉ dùng khi hasDiscount)
+                  const daysLeft = hasDiscount ? exp.daysLeft ?? null : null;
+                  const expiryStr = hasDiscount ? fmtDate(exp.expireAt) : null;
+
+                  const cardClass = `product-card ${hasDiscount ? "is-discounted" : ""}`;
 
                   return (
                     <motion.div
                       key={product._id}
-                      className="product-card"
+                      className={cardClass}
                       whileHover={{ scale: 1.05 }}
                       transition={{ duration: 0.3 }}
                     >
-                      <img
-                        src={`http://localhost:3000${product.image}`}
-                        alt={product.name}
-                        className="product-image cursor-pointer"
-                        onClick={() => handleViewDetail(product)}
-                      />
+                      <div className="relative">
+                        {hasDiscount && (
+                          <span className="absolute left-2 top-2 bg-amber-500 text-white text-xs font-semibold px-2 py-1 rounded">
+                            Cận hạn -{discountPercent}%
+                          </span>
+                        )}
+                        <img
+                          src={`http://localhost:3000${product.image}`}
+                          alt={product.name}
+                          className="product-image cursor-pointer"
+                          onClick={() => handleViewDetail(product)}
+                        />
+                      </div>
+
                       <div className="product-info">
+                        {/*  Mục để CSS: “sản phẩm giảm giá” */}
+                        {hasDiscount && (
+                          <div className="product-sale">Sản phẩm giảm giá</div>
+                        )}
+
                         <h2 className="product-name">{product.name}</h2>
-                        <p className="product-price">
-                          {price.toLocaleString()}đ
-                        </p>
+
+                        {hasDiscount ? (
+                          <div className="flex items-baseline gap-2">
+                            <span className="line-through text-gray-400">
+                              {Number(fallbackPrice).toLocaleString("vi-VN")}đ
+                            </span>
+                            <span className="product-price font-semibold text-red-600">
+                              {Number(finalPrice).toLocaleString("vi-VN")}đ
+                            </span>
+                          </div>
+                        ) : (
+                          <p className="product-price">
+                            {Number(finalPrice).toLocaleString("vi-VN")}đ
+                          </p>
+                        )}
+
                         <p className="text-sm text-gray-500">
                           Tồn kho: {stock > 0 ? stock : "Hết hàng"}
                         </p>
-                        <p className="product-description line-clamp-2 text-sm text-gray-600">
+
+                        {/* Hạn sử dụng — chỉ hiển thị khi cận hạn có giảm giá */}
+                        {hasDiscount && expiryStr && (
+                          <p className="text-xs text-gray-600 mt-1">
+                            Ngày hết hạn: {expiryStr}
+                            {Number.isFinite(daysLeft) && daysLeft >= 0 && (
+                              <span className="ml-2 italic">
+                                (còn {daysLeft} ngày)
+                              </span>
+                            )}
+                          </p>
+                        )}
+
+                        <p className="product-description line-clamp-2 text-sm text-gray-600 mt-1">
                           {product.description || "Trái cây sạch chất lượng cao."}
                         </p>
                       </div>
@@ -167,7 +256,7 @@ export default function ProductListPage() {
 
           <Pagination
             currentPage={currentPage}
-            totalPages={Math.ceil(products.length / productsPerPage)}
+            totalPages={Math.ceil(filteredProducts.length / productsPerPage)}
             onPageChange={setCurrentPage}
           />
         </main>
