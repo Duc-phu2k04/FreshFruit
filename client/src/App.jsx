@@ -37,6 +37,9 @@ import AddAddressAdd from './pages/Admin/Address/Add';
 import EditAddressEdit from './pages/Admin/Address/Edit';
 import PreordersAdmin from "./pages/Admin/Preorder/PreordersAdmin";
 
+//  Import trang ComingSoonAdmin
+import ComingSoonAdmin from "./pages/Admin/CommingSoon/ComingSoonAdmin";
+
 // Các trang mới thêm
 import About from './pages/About/About';
 import News from './pages/News/News';
@@ -55,7 +58,6 @@ function AppWrapper() {
   const location = useLocation();
   const path = location.pathname;
 
-  // Ẩn chatbot nếu ở trang admin hoặc login/register/forgot password
   const hiddenPaths = ["/login", "/register", "/dang-nhap", "/dang-ky", "/quen-mat-khau"];
   const isAdminPath = path.startsWith("/admin");
   const isHiddenAuth = hiddenPaths.includes(path);
@@ -110,16 +112,18 @@ function AppWrapper() {
           <Route path="/admin/reviews" element={<ReviewList />} />
           <Route path="/admin/vouchers" element={<VoucherList />} />
           <Route path="/admin/vouchers/add" element={<AddVoucherForm />} />
-         <Route path="/admin/vouchers/edit/:id" element={<EditVoucherForm />} />
+          <Route path="/admin/vouchers/edit/:id" element={<EditVoucherForm />} />
           <Route path="/admin/orders" element={<AdminOrderPage />} />
           <Route path="/admin/address" element={<AddressList />} />
           <Route path="/admin/address/add" element={<AddAddressAdd />} />
           <Route path="/admin/address/edit/:id" element={<EditAddressEdit />} />
           <Route path="/admin/preorders" element={<PreordersAdmin />} />
+
+          {/*  Route Coming Soon Admin */}
+          <Route path="/admin/coming-soon" element={<ComingSoonAdmin />} />
         </Route>
       </Routes>
 
-      {/*  Chatbot chỉ hiển thị nếu không ở admin/login/register */}
       {!hideChatbot && <ChatFruitBot />}
     </>
   );
