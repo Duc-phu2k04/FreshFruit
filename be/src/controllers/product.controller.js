@@ -1,24 +1,63 @@
-// controllers/product.controller.js
+// server/controllers/product.controller.js
 import productService from "../services/product.service.js";
-import Product from "../models/product.model.js"; // dùng cho getComingSoon
+import { computeExpiryInfo } from "../utils/expiryHelpers.js";
+
+/** Gắn _expiry vào 1 product (dựa trên giá của variant đầu tiên hoặc baseVariant) */
+function attachExpiryView(p) {
+  if (!p) return p;
+  // Nếu service đã gắn sẵn _expiry thì giữ nguyên
+  if (p._expiry) return p;
+
+  // Lưu ý: p có thể là document mongoose hoặc plain object
+  const plain = typeof p.toObject === "function" ? p.toObject() : p;
+  const firstPrice =
+    plain?.variants?.[0]?.price ??
+    plain?.baseVariant?.price ??
+    0;
+
+  const info = computeExpiryInfo(plain, firstPrice);
+  return { ...plain, _expiry: info };
+}
+
+/** Gắn _expiry cho mảng sản phẩm */
+function attachExpiryList(arr) {
+  if (!Array.isArray(arr)) return arr;
+  return arr.map(attachExpiryView);
+}
 
 const productController = {
   create: async (req, res) => {
     try {
-      const newProduct = await productService.createProduct(req.body);
-      res.status(201).json(newProduct);
+      // Cho phép gửi kèm "expiry" trong body; service chịu trách nhiệm merge/sanitize
+      const created = await productService.createProduct(req.body);
+
+      // Lấy lại theo service để có dữ liệu đầy đủ rồi đảm bảo _expiry
+      const full = await productService.getProductById(created._id);
+      return res.status(201).json(attachExpiryView(full));
     } catch (error) {
-      res.status(500).json({ message: "Lỗi server", error: error.message });
+      return res.status(500).json({ message: "Lỗi server", error: error.message });
     }
   },
 
   getAll: async (req, res) => {
     try {
-      // Quan trọng: truyền req.query để service có thể lọc preorder=true/false
-      const products = await productService.getAllProducts(req.query);
-      res.json(products);
+      // Truyền req.query để service có thể lọc (vd: preorder=true/false, sort, limit, ...)
+      const data = await productService.getAllProducts(req.query);
+
+      // Trường hợp service trả { products } hoặc trả mảng trực tiếp — chuẩn hoá để gắn _expiry
+      if (Array.isArray(data)) {
+        return res.json(attachExpiryList(data));
+      }
+      if (Array.isArray(data?.products)) {
+        return res.json({ ...data, products: attachExpiryList(data.products) });
+      }
+      // Data không theo chuẩn trên -> vẫn trả về, cố gắng gắn _expiry nếu là 1 item
+      if (data && typeof data === "object" && data._id) {
+        return res.json(attachExpiryView(data));
+      }
+      return res.json(data);
     } catch (error) {
-      res.status(500).json({ message: "Lỗi server", error: error.message });
+      return res.status(500).json({ message: "Lỗi server", error: error.message });
     }
   },
 
@@ -28,53 +67,57 @@ const productController = {
       if (!product) {
         return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
       }
-      res.json(product);
+      return res.json(attachExpiryView(product));
     } catch (error) {
-      res.status(500).json({ message: "Lỗi server", error: error.message });
+      return res.status(500).json({ message: "Lỗi server", error: error.message });
     }
   },
 
-  // ✅ NEW: Lấy sản phẩm theo tên danh mục
+  //  Lấy sản phẩm theo tên danh mục (mới)
   getByCategoryName: async (req, res) => {
     try {
       const { categoryName } = req.params;
-      const { limit = 4 } = req.query;
-      
+      const limit = parseInt(req.query.limit ?? 4, 10);
+
       const products = await productService.getLatestProductsByCategoryName(
-        categoryName, 
-        parseInt(limit)
+        categoryName,
+        limit
       );
-      res.json(products);
+      return res.json(attachExpiryList(products));
     } catch (error) {
-      res.status(500).json({ message: "Lỗi server", error: error.message });
+      return res.status(500).json({ message: "Lỗi server", error: error.message });
     }
   },
 
-  // ✅ NEW: Lấy sản phẩm theo category ID với filter
+  //  Lấy sản phẩm theo category ID với filter (mới)
   getByCategoryWithFilter: async (req, res) => {
     try {
       const { categoryId } = req.params;
       const { limit, sort } = req.query;
-      
-      const products = await productService.getProductsByCategory(categoryId, { 
-        limit, 
-        sort 
+
+      const products = await productService.getProductsByCategory(categoryId, {
+        limit,
+        sort,
       });
-      res.json(products);
+      return res.json(attachExpiryList(products));
     } catch (error) {
-      res.status(500).json({ message: "Lỗi server", error: error.message });
+      return res.status(500).json({ message: "Lỗi server", error: error.message });
     }
   },
 
   update: async (req, res) => {
     try {
-      const updatedProduct = await productService.updateProduct(req.params.id, req.body);
-      if (!updatedProduct) {
+      // Cho phép cập nhật kèm "expiry" trong body; service merge/sanitize
+      const updated = await productService.updateProduct(req.params.id, req.body);
+      if (!updated) {
         return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
       }
-      res.json(updatedProduct);
+
+      // Lấy lại để có dữ liệu đầy đủ rồi gắn _expiry
+      const full = await productService.getProductById(updated._id);
+      return res.json(attachExpiryView(full));
     } catch (error) {
-      res.status(500).json({ message: "Lỗi server", error: error.message });
+      return res.status(500).json({ message: "Lỗi server", error: error.message });
     }
   },
 
@@ -84,9 +127,9 @@ const productController = {
       if (!deletedProduct) {
         return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
       }
-      res.json({ message: "Xoá sản phẩm thành công" });
+      return res.json({ message: "Xoá sản phẩm thành công" });
     } catch (error) {
-      res.status(500).json({ message: "Lỗi server", error: error.message });
+      return res.status(500).json({ message: "Lỗi server", error: error.message });
     }
   },
 
@@ -97,13 +140,19 @@ const productController = {
       if (!Array.isArray(attributesList) || attributesList.length === 0) {
         return res.status(400).json({ message: "Cần truyền danh sách biến thể để xóa" });
       }
-      const updatedProduct = await productService.deleteVariants(req.params.id, attributesList);
+      const updatedProduct = await productService.deleteVariants(
+        req.params.id,
+        attributesList
+      );
       if (!updatedProduct) {
         return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
       }
-      res.json({ message: "Xóa biến thể thành công", product: updatedProduct });
+      return res.json({
+        message: "Xóa biến thể thành công",
+        product: attachExpiryView(updatedProduct),
+      });
     } catch (error) {
-      res.status(500).json({ message: "Lỗi server", error: error.message });
+      return res.status(500).json({ message: "Lỗi server", error: error.message });
     }
   },
 
@@ -116,11 +165,14 @@ const productController = {
         req.body
       );
       if (!updatedProduct) {
-        return res.status(404).json({ message: "Không tìm thấy sản phẩm hoặc biến thể" });
+        return res
+          .status(404)
+          .json({ message: "Không tìm thấy sản phẩm hoặc biến thể" });
       }
-      res.json(updatedProduct);
+      // Trả lại product kèm _expiry mới
+      return res.json(attachExpiryView(updatedProduct));
     } catch (error) {
-      res.status(500).json({ message: "Lỗi server", error: error.message });
+      return res.status(500).json({ message: "Lỗi server", error: error.message });
     }
   },
 
@@ -132,47 +184,31 @@ const productController = {
         req.params.variantId
       );
       if (!updatedProduct) {
-        return res.status(404).json({ message: "Không tìm thấy sản phẩm hoặc biến thể" });
+        return res
+          .status(404)
+          .json({ message: "Không tìm thấy sản phẩm hoặc biến thể" });
       }
-      res.json({ message: "Xóa biến thể thành công", product: updatedProduct });
+      return res.json({
+        message: "Xóa biến thể thành công",
+        product: attachExpiryView(updatedProduct),
+      });
     } catch (error) {
-      res.status(500).json({ message: "Lỗi server", error: error.message });
+      return res.status(500).json({ message: "Lỗi server", error: error.message });
     }
   },
 
   /* =========================================================
    *  MỚI: Danh sách "Sắp vào mùa" (Coming Soon)
-   * Route: GET /api/product/coming-soon?limit=24&category=<id>
-   * Trả về sản phẩm có preorder.enabled = true
-   * và (còn trong windowEnd hoặc chưa tới expectedHarvestStart
-   *     hoặc không cấu hình ngày nhưng đã bật preorder)
+   *  GET /api/product/coming-soon?limit=24&category=<id>
    * ========================================================= */
   getComingSoon: async (req, res) => {
     try {
-      const now = new Date();
-      const { limit = 24, category } = req.query;
-
-      const filter = {
-        "preorder.enabled": true,
-        $or: [
-          { "preorder.windowEnd": { $gte: now } },
-          { "preorder.expectedHarvestStart": { $gte: now } },
-          { "preorder.windowEnd": { $exists: false } }
-        ]
-      };
-      if (category) filter.category = category;
-
-      const items = await Product.find(filter)
-        .sort({ "preorder.expectedHarvestStart": 1, createdAt: -1 })
-        .limit(Number(limit))
-        .populate("category", "name")
-        .populate("location", "name");
-
-      res.json(items);
+      const items = await productService.getComingSoonProducts(req.query);
+      return res.json(attachExpiryList(items));
     } catch (error) {
-      res.status(500).json({ message: "Lỗi server", error: error.message });
+      return res.status(500).json({ message: "Lỗi server", error: error.message });
     }
-  }
+  },
 };
 
 export default productController;

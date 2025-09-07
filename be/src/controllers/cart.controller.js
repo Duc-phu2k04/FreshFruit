@@ -1,6 +1,36 @@
-// ✅ controllers/cart.controller.js
+// controllers/cart.controller.js
 import Cart from "../models/cart.model.js";
 import Product from "../models/product.model.js";
+import { computeExpiryInfo } from "../utils/expiryHelpers.js";
+
+/** Gắn variant + _expiry (theo giá variant đang chọn) vào 1 cart item đã populate product */
+function enrichItemWithVariantAndExpiry(itemDoc) {
+  const item = typeof itemDoc.toObject === "function" ? itemDoc.toObject() : itemDoc;
+  const product = item.product;
+
+  // Tìm variant khớp variantId
+  const variant =
+    product?.variants?.find((v) => String(v._id) === String(item.variantId)) ||
+    null;
+
+  // Giá variant để tính helper
+  const vPrice =
+    Number(variant?.price ?? product?.baseVariant?.price ?? 0);
+
+  // _expiry theo helper (dựa vào product + vPrice)
+  const info = computeExpiryInfo(product, vPrice);
+
+  return {
+    ...item,
+    variant,   // thêm đầy đủ thông tin biến thể
+    _expiry: info, // { expireAt, daysLeft, discountPercent, basePrice, finalPrice, ... }
+  };
+}
+
+/** Map toàn bộ items */
+function enrichItems(items) {
+  return items.map(enrichItemWithVariantAndExpiry);
+}
 
 export const addToCart = async (req, res) => {
   try {
@@ -11,21 +41,20 @@ export const addToCart = async (req, res) => {
       return res.status(400).json({ message: "Thiếu productId, variantId hoặc quantity" });
     }
 
-    const parsedQuantity = parseInt(quantity);
+    const parsedQuantity = parseInt(quantity, 10);
     if (isNaN(parsedQuantity) || parsedQuantity <= 0) {
       return res.status(400).json({ message: "Số lượng không hợp lệ" });
     }
 
     let cart = await Cart.findOne({ user: userId });
-
     if (!cart) {
       cart = new Cart({ user: userId, items: [] });
     }
 
     const existingItemIndex = cart.items.findIndex(
       (item) =>
-        item.product.toString() === productId &&
-        item.variantId.toString() === variantId
+        String(item.product) === String(productId) &&
+        String(item.variantId) === String(variantId)
     );
 
     if (existingItemIndex >= 0) {
@@ -35,9 +64,11 @@ export const addToCart = async (req, res) => {
     }
 
     await cart.save();
-    const updatedCart = await Cart.findOne({ user: userId }).populate("items.product");
 
-    res.status(200).json({ message: "Đã thêm vào giỏ hàng", items: updatedCart.items });
+    const updatedCart = await Cart.findOne({ user: userId }).populate("items.product");
+    const enriched = enrichItems(updatedCart.items);
+
+    res.status(200).json({ message: "Đã thêm vào giỏ hàng", items: enriched });
   } catch (error) {
     console.error("Lỗi khi thêm vào giỏ:", error.message);
     res.status(500).json({ message: "Lỗi server", error: error.message });
@@ -54,8 +85,8 @@ export const updateCartItem = async (req, res) => {
 
     const itemIndex = cart.items.findIndex(
       (item) =>
-        item.product.toString() === productId &&
-        item.variantId.toString() === variantId
+        String(item.product) === String(productId) &&
+        String(item.variantId) === String(variantId)
     );
 
     if (itemIndex === -1) {
@@ -70,8 +101,9 @@ export const updateCartItem = async (req, res) => {
 
     await cart.save();
     const updatedCart = await Cart.findOne({ user: userId }).populate("items.product");
+    const enriched = enrichItems(updatedCart.items);
 
-    res.status(200).json({ message: "Cập nhật thành công", items: updatedCart.items });
+    res.status(200).json({ message: "Cập nhật thành công", items: enriched });
   } catch (error) {
     console.error("Lỗi khi cập nhật giỏ hàng:", error.message);
     res.status(500).json({ message: "Lỗi server", error: error.message });
@@ -79,7 +111,7 @@ export const updateCartItem = async (req, res) => {
 };
 
 export const getCartByUser = async (req, res) => {
-  try {
+  try{
     const userId = req.user._id;
 
     const cart = await Cart.findOne({ user: userId }).populate("items.product");
@@ -88,21 +120,7 @@ export const getCartByUser = async (req, res) => {
       return res.status(200).json({ message: "Giỏ hàng trống", items: [] });
     }
 
-    // Tìm thông tin variant tương ứng cho từng item
-    const enrichedItems = cart.items.map((item) => {
-      const product = item.product;
-
-      // Tìm biến thể khớp với variantId
-      const variant = product.variants.find(
-        (v) => v._id.toString() === item.variantId.toString()
-      );
-
-      return {
-        ...item.toObject(),
-        variant, // gắn thêm thông tin variant vào item
-      };
-    });
-
+    const enrichedItems = enrichItems(cart.items);
     res.status(200).json({ items: enrichedItems });
   } catch (error) {
     console.error("Lỗi khi lấy giỏ hàng:", error.message);
@@ -114,10 +132,6 @@ export const removeCartItem = async (req, res) => {
   try {
     const userId = req.user._id;
     const { productId, variantId } = req.params;
-
-    console.log("🟢 API DELETE CART");
-    console.log("👉 productId từ FE:", productId);
-    console.log("👉 variantId từ FE:", variantId);
 
     const cart = await Cart.findOneAndUpdate(
       { user: userId },
@@ -136,9 +150,10 @@ export const removeCartItem = async (req, res) => {
       return res.status(404).json({ message: "Giỏ hàng không tồn tại" });
     }
 
-    res.status(200).json({ message: "Đã xoá sản phẩm", items: cart.items });
+    const enriched = enrichItems(cart.items);
+    res.status(200).json({ message: "Đã xoá sản phẩm", items: enriched });
   } catch (error) {
-    console.error("❌ Lỗi khi xoá sản phẩm:", error);
+    console.error(" Lỗi khi xoá sản phẩm:", error);
     res.status(500).json({
       message: "Lỗi server khi xoá sản phẩm",
       error: error.message,

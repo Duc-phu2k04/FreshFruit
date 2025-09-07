@@ -66,7 +66,8 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: box-shadow 0.3s ease-in-out;
+  transition: box-shadow 0.3s ease-in-out, transform .2s ease;
+  border: 1px solid transparent;
 }
 
 .product-card:hover {
@@ -157,7 +158,6 @@
   margin-bottom: 1.5rem;
 }
 
-
 .success-toast {
   position: fixed;
   top: 1rem;
@@ -174,19 +174,10 @@
 }
 
 @keyframes fadeOut {
-  0% {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-  80% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-10px);
-  }
+  0% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
 }
-
 
 .fly-to-cart {
   position: fixed;
@@ -196,4 +187,98 @@
   transition: all 0.8s ease-in-out;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
   opacity: 1;
+}
+
+/* ===========================
+   ✨ Bổ sung: style phần LỌC mới
+   =========================== */
+
+/* Bo góc & khoảng cách chung cho panel lọc */
+aside {
+  border-radius: 12px;
+}
+
+/* Làm đẹp checkbox trong panel lọc (áp dụng nhẹ nhàng, không phá vỡ layout cũ) */
+aside label > input[type="checkbox"] {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid #16a34a;
+  border-radius: 4px;
+  display: inline-block;
+  position: relative;
+  cursor: pointer;
+  transition: all .15s ease;
+  margin-right: 6px;
+}
+
+aside label > input[type="checkbox"]:hover {
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+}
+
+aside label > input[type="checkbox"]:checked {
+  background: #16a34a;
+  border-color: #16a34a;
+}
+
+aside label > input[type="checkbox"]:checked::after {
+  content: "✓";
+  color: #fff;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -63%);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Dòng lọc “sản phẩm giảm giá (cận hạn)” */
+aside .discount-only-toggle,
+aside .discount-only-toggle * {
+  cursor: pointer;
+}
+
+/* ===========================
+   ✨ Bổ sung: style cho card GIẢM GIÁ
+   =========================== */
+
+.product-card.is-discounted {
+  border-color: rgba(234, 88, 12, 0.35); /* orange-600 */
+  background:
+    linear-gradient(0deg, rgba(255, 237, 213, 0.35), rgba(255, 237, 213, 0.35)) ,
+    #fff; /* amber-100 overlay */
+}
+
+.product-card.is-discounted .product-price {
+  color: #dc2626; /* red-600 */
+}
+
+/* Tag “Sản phẩm giảm giá” được render bằng <div class="product-sale"> */
+.product-sale {
+  display: inline-block;
+  margin-bottom: .35rem;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #9a3412;              /* amber-800 */
+  background: #ffedd5;         /* amber-100 */
+  border: 1px solid #fdba74;   /* amber-300 */
+  border-radius: 9999px;
+}
+
+/* Badge “cận hạn” (nếu muốn dùng class thay vì inline) */
+.badge-near-expiry {
+  display: inline-block;
+  background: #f59e0b; /* amber-500 */
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+
+/* Gợi ý hover nổi bật hơn với sản phẩm giảm giá */
+.product-card.is-discounted:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(234, 88, 12, 0.18);
 }

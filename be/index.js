@@ -41,7 +41,13 @@ app.get('/', (req, res) => {
 
 // Routes
 app.use('/auth', authRoutes);
+
+//  Giữ mount cũ (singular) để backward compatible
 app.use('/api/product', productRoutes);
+
+//  Thêm alias plural để FE gọi /api/products ...
+app.use('/api/products', productRoutes);
+
 app.use('/api/category', categoryRoutes);
 app.use('/api/locations', locationRoute);
 app.use('/api/cart', cartRoute);
@@ -52,7 +58,6 @@ app.use('/api/momo', momoRoutes);
 app.use('/api/upload', uploadRoute);
 app.use('/api/address', addressRoute);
 app.use("/api/momo-preorder", momoPreorderRoutes);  // đơn đặt trước
-
 
 // Mount shipping routes (bao gồm /api/shipping/quote, v.v.)
 app.use('/api', shippingRoutes);
