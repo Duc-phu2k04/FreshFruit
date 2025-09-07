@@ -198,6 +198,7 @@ export default function CartPage() {
               type="checkbox"
               checked={selectedItems.length === items.length}
               onChange={handleSelectAll}
+              className="w-5 h-5 cursor-pointer"
             />
             <span className="text-sm font-medium">
               Chọn tất cả ({selectedItems.length}/{items.length})
@@ -226,6 +227,7 @@ export default function CartPage() {
                     onChange={() =>
                       handleSelectItem(item.product._id, item.variantId)
                     }
+                    className="w-5 h-5 cursor-pointer"
                   />
 
                   <img
