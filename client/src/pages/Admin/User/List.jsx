@@ -23,6 +23,7 @@ export default function UserList() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [modalMessage, setModalMessage] = useState('');
   const [modalAction, setModalAction] = useState(null);
+  const [showRoleDropdown, setShowRoleDropdown] = useState(null);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -88,6 +89,32 @@ export default function UserList() {
       : <ArrowDownIcon className="h-4 w-4 ml-1 inline" />;
   };
 
+  const getRoleColor = (role) => {
+    switch (role) {
+      case 'admin':
+        return 'bg-red-100 text-red-800';
+      case 'manager':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'user':
+        return 'bg-blue-100 text-blue-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getRoleDisplayName = (role) => {
+    switch (role) {
+      case 'admin':
+        return 'Quản trị viên';
+      case 'manager':
+        return 'Quản lý';
+      case 'user':
+        return 'Người dùng';
+      default:
+        return role;
+    }
+  };
+
   const handleDeleteUser = async (user) => {
     setSelectedUser(user);
     setModalMessage(`Bạn có chắc chắn muốn **xóa vĩnh viễn** tài khoản "${user.username}" không? Hành động này không thể hoàn tác.`);
@@ -108,17 +135,16 @@ export default function UserList() {
     setShowModal(true);
   };
 
-  const handleToggleRole = async (user) => {
-    const newRole = user.role === 'admin' ? 'user' : 'admin';
+  const handleChangeRole = async (user, newRole) => {
     setSelectedUser(user);
-    setModalMessage(`Bạn có chắc chắn muốn chuyển vai trò của "${user.username}" từ **${user.role}** sang **${newRole}** không?`);
+    setModalMessage(`Bạn có chắc chắn muốn chuyển vai trò của "${user.username}" từ **${getRoleDisplayName(user.role)}** sang **${getRoleDisplayName(newRole)}** không?`);
     setModalAction(() => async () => {
       try {
         await axiosInstance.put(`http://localhost:3000/auth/users/${user._id}`, { role: newRole });
         setUsers(prevUsers =>
           prevUsers.map(u => (u._id === user._id ? { ...u, role: newRole } : u))
         );
-        alert(`Vai trò của "${user.username}" đã được chuyển thành **${newRole}** thành công!`);
+        alert(`Vai trò của "${user.username}" đã được chuyển thành **${getRoleDisplayName(newRole)}** thành công!`);
       } catch (err) {
         setError('Lỗi khi cập nhật vai trò. Vui lòng thử lại.');
         console.error(err);
@@ -126,10 +152,71 @@ export default function UserList() {
         setShowModal(false);
         setSelectedUser(null);
         setModalAction(null);
+        setShowRoleDropdown(null);
       }
     });
     setShowModal(true);
   };
+
+  const renderRoleDropdown = (user) => {
+    const roles = [
+      { value: 'user', label: 'Người dùng' },
+      { value: 'manager', label: 'Quản lý' },
+      { value: 'admin', label: 'Quản trị viên' }
+    ];
+
+    return (
+      <div className="relative">
+        <button
+          onClick={() => setShowRoleDropdown(showRoleDropdown === user._id ? null : user._id)}
+          className="flex items-center text-indigo-600 hover:text-indigo-900 bg-indigo-50 px-2 py-1 rounded transition-colors"
+          title="Chuyển đổi vai trò"
+        >
+          <UserCircleIcon className="h-4 w-4 mr-1" />
+          Đổi vai trò
+        </button>
+        
+        {showRoleDropdown === user._id && (
+          <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+            <div className="py-1">
+              <div className="px-3 py-2 text-xs text-gray-500 border-b">
+                Hiện tại: {getRoleDisplayName(user.role)}
+              </div>
+              {roles
+                .filter(role => role.value !== user.role)
+                .map(role => (
+                  <button
+                    key={role.value}
+                    onClick={() => handleChangeRole(user, role.value)}
+                    className="block w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    → {role.label}
+                  </button>
+                ))
+              }
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.relative')) {
+        setShowRoleDropdown(null);
+      }
+    };
+
+    if (showRoleDropdown) {
+      document.addEventListener('click', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [showRoleDropdown]);
 
   const renderContent = () => {
     if (loading) return <div className="text-center p-10"><Loader /></div>;
@@ -164,7 +251,7 @@ export default function UserList() {
                   Vai trò {getSortIcon('role')}
                 </button>
               </th>
-              <th className="relative px-4 py-3 text-right w-1/6">
+              <th className="relative px-4 py-3 text-right w-1/4">
                 <span className="sr-only">Hành động</span>
               </th>
             </tr>
@@ -182,38 +269,27 @@ export default function UserList() {
                   {user.email || 'N/A'}
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === 'admin'
-                    ? 'bg-purple-100 text-purple-800'
-                    : 'bg-blue-100 text-blue-800'}`}>
-                    {user.role || 'user'}
+                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleColor(user.role)}`}>
+                    {getRoleDisplayName(user.role || 'user')}
                   </span>
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <div className="flex items-center justify-end space-x-4">
-                    <button
-                      onClick={() => handleToggleRole(user)}
-                      className={`flex items-center ${user.role === 'admin'
-                        ? 'text-blue-600 hover:text-blue-900'
-                        : 'text-purple-600 hover:text-purple-900'}`}
-                      title={user.role === 'admin' ? 'Chuyển thành User' : 'Chuyển thành Admin'}
-                    >
-                      <UserCircleIcon className="h-5 w-5 mr-1" />
-                      {user.role === 'admin' ? 'Chuyển sang User' : 'Chuyển sang Admin'}
-                    </button>
+                  <div className="flex items-center justify-end space-x-3">
+                    {renderRoleDropdown(user)}
                     <Link
-                      to={`/admin/edit/${user._id}`}
-                      className="text-green-600 hover:text-green-900 flex items-center"
+                      to={`/admin/users/edit/${user._id}`}
+                      className="text-green-600 hover:text-green-900 flex items-center bg-green-50 px-2 py-1 rounded transition-colors"
                       title="Sửa tài khoản"
                     >
-                      <PencilIcon className="h-5 w-5 mr-1" />
+                      <PencilIcon className="h-4 w-4 mr-1" />
                       Sửa
                     </Link>
                     <button
                       onClick={() => handleDeleteUser(user)}
-                      className="text-red-600 hover:text-red-900 flex items-center"
+                      className="text-red-600 hover:text-red-900 flex items-center bg-red-50 px-2 py-1 rounded transition-colors"
                       title="Xóa tài khoản người dùng"
                     >
-                      <TrashIcon className="h-5 w-5 mr-1" />
+                      <TrashIcon className="h-4 w-4 mr-1" />
                       Xóa
                     </button>
                   </div>
@@ -242,7 +318,7 @@ export default function UserList() {
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
           </div>
           <Link
-            to="/admin/user/add"
+            to="/admin/users/add"
             className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
             <PlusIcon className="h-5 w-5 mr-2" />

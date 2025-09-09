@@ -72,3 +72,24 @@ export function verifyTokenAndAuthorization(req, res, next) {
     return res.status(401).json({ message: 'Invalid token' });
   }
 }
+
+/**
+ * Middleware kiểm tra quyền manager
+ */
+export function isManager(req, res, next) {
+  if (!req.user || req.user.role !== 'manager') {
+    return res.status(403).json({ message: 'Access denied: Manager only' });
+  }
+  next();
+}
+
+/**
+ * Cho phép admin hoặc manager
+ */
+export function isAdminOrManager(req, res, next) {
+  if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+    return res.status(403).json({ message: 'Access denied: Admin or Manager only' });
+  }
+  next();
+}
+

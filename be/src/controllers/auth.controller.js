@@ -84,9 +84,9 @@ export const updateUser = async (req, res) => {
     if (email !== undefined) user.email = email;
     if (phone !== undefined) user.phone = phone;
     if (address !== undefined) user.address = address;
-    if (role !== undefined && ['user', 'admin'].includes(role)) {
-      user.role = role;
-    }
+    if (role !== undefined && ['user', 'admin', 'manager'].includes(role)) {
+  user.role = role;
+}
     if (defaultAddressId !== undefined) {
       user.defaultAddressId = defaultAddressId;
     }

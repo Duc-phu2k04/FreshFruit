@@ -8,7 +8,7 @@ import {
   deleteOrder,
   hideOrderFromHistory, // giữ controller hiện có
 } from "../controllers/order.controller.js";
-import { verifyToken, isAdmin } from "../middlewares/auth.middleware.js";
+import { verifyToken, isAdmin,isAdminOrManager } from "../middlewares/auth.middleware.js";
 
 // ✅ import đúng service & model
 import { quoteShipping } from "../services/shipping.service.js";
@@ -35,10 +35,10 @@ router.post("/add", verifyToken, checkout); // POST /api/orders/add
 router.get("/user", verifyToken, getUserOrders); // GET /api/orders/user
 
 // Lấy toàn bộ đơn hàng (admin)
-router.get("/all", verifyToken, isAdmin, getAllOrders); // GET /api/orders/all
+router.get("/all", verifyToken, isAdminOrManager, getAllOrders); // GET /api/orders/all
 
 // Cập nhật trạng thái đơn (admin)
-router.put("/:id/status", verifyToken, isAdmin, updateStatus); // PUT /api/orders/:id/status
+router.put("/:id/status", verifyToken, isAdminOrManager, updateStatus); // PUT /api/orders/:id/status
 
 // Huỷ đơn hàng (user hoặc admin)
 router.delete("/:id", verifyToken, deleteOrder); // DELETE /api/orders/:id

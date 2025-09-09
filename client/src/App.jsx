@@ -27,6 +27,9 @@ import EditProductForm from "./pages/Admin/Product/Edit";
 import ProductDetailAdmin from "./pages/Admin/Product/Detail";
 import ProductDetail from "./pages/Product/ProductDetail";
 import UserList from "./pages/Admin/User/List";
+import UserAdd from "./pages/Admin/User/Add";
+import UserEdit from "./pages/Admin/User/Edit";
+
 import ReviewList from "./pages/Admin/Reviews/List";
 import VoucherList from "./pages/Admin/Voucher/List";
 import AddVoucherForm from "./pages/Admin/Voucher/Add";
@@ -109,6 +112,9 @@ function AppWrapper() {
           <Route path="/admin/products/edit/:id" element={<EditProductForm />} />
           <Route path="/admin/products/detail/:id" element={<ProductDetailAdmin />} />
           <Route path="/admin/users" element={<UserList />} />
+          <Route path="/admin/users/add" element={<UserAdd />} />
+          <Route path="/admin/users/edit/:id" element={<UserEdit />} />
+
           <Route path="/admin/reviews" element={<ReviewList />} />
           <Route path="/admin/vouchers" element={<VoucherList />} />
           <Route path="/admin/vouchers/add" element={<AddVoucherForm />} />

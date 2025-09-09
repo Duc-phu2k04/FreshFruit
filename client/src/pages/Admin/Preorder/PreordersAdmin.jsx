@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "./PreordersAdmin.css";
 
-const API_URL = "http://localhost:4000";
+const API_URL = "http://localhost:3000";
 
 /** ===============================
  *  Trạng thái sử dụng ở FE (VN)
