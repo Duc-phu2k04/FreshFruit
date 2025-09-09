@@ -67,10 +67,10 @@ export default function AdminOrderPage() {
 
   if (loading) return <div className="text-center mt-10">Đang tải...</div>;
 
-  // Lọc đơn hàng theo tên sản phẩm
+  // Lọc đơn hàng theo tên sản phẩm (sửa lỗi .toLowerCase() khi productName null/undefined)
   const filteredOrders = orders.filter((order) =>
     order.items.some((item) =>
-      item.productName.toLowerCase().includes(searchTerm.toLowerCase())
+      (item.productName || "").toLowerCase().includes(searchTerm.toLowerCase())
     )
   );
 
