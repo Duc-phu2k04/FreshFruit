@@ -4,20 +4,18 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useAuth } from "../../context/useAuth";
 import ReviewButton from "./ReviewButton";
+import { useNavigate } from "react-router-dom";
 
-const API_URL = "http://localhost:3000"; // Đổi baseURL cho khớp backend
+const API_URL = "http://localhost:3000";
 
-// ===== Helpers (log) =====
-const log = (...args) => console.log("🏷️[Address]", ...args);
+// const log = (...args) => console.log("🏷️[Address]", ...args); // ← đã bỏ vì không dùng
 const logErr = (...args) => console.error("⛔[Address]", ...args);
 
-// Dùng absolute URL để tránh lệ thuộc proxy Vite + fallback legacy
 const PROVINCES_BASES = [
   "https://provinces.open-api.vn/api/v1",
   "https://provinces.open-api.vn/api",
 ];
 
-// Chuẩn hoá code về chuỗi, và tạo các biến thể để thử (vd: "6" -> ["6","006"])
 const codeVariants = (code) => {
   const s = String(code ?? "").trim();
   if (!s) return [];
@@ -30,17 +28,16 @@ const codeVariants = (code) => {
 };
 
 export default function ProfilePage() {
+  const navigate = useNavigate();
   const { user, updateUser } = useAuth();
   const token = localStorage.getItem("token");
   const userId = user?._id || null;
 
-  // ===== ĐỊA CHỈ =====
   const HANOI_CODE = 1;
   const [districts, setDistricts] = useState([]);
   const [wards, setWards] = useState([]);
   const [editingWards, setEditingWards] = useState([]);
 
-  // Tabs
   const [tab, setTab] = useState("profile");
   const [userInfo, setUserInfo] = useState({ username: "", email: "", defaultAddressId: null });
   const [isEditing, setIsEditing] = useState(false);
@@ -56,9 +53,8 @@ export default function ProfilePage() {
     usedUpVouchers: [],
   });
 
-  // ====== MoMo Preorder (FE gọi trực tiếp BE) ======
-  const [payingId, setPayingId] = useState(null);     // để disable nút khi đang tạo link
-  const [payingKind, setPayingKind] = useState(null); // 'deposit' | 'remaining'
+  const [payingId, setPayingId] = useState(null);
+  const [payingKind, setPayingKind] = useState(null);
 
   async function callMomo(url) {
     const res = await fetch(url, {
@@ -70,84 +66,69 @@ export default function ProfilePage() {
       body: JSON.stringify({}),
     });
 
-    // Đọc body 1 lần → parse JSON nếu có, nếu không thì giữ text để báo lỗi
     const text = await res.text();
     let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { message: text };
-    }
+    try { data = JSON.parse(text); } catch { data = { message: text }; }
 
-    if (!res.ok) {
-      throw new Error(data?.message || "Tạo liên kết thanh toán thất bại");
-    }
-    if (!data?.payUrl) {
-      throw new Error("Không nhận được payUrl từ server");
-    }
+    if (!res.ok) throw new Error(data?.message || "Tạo liên kết thanh toán thất bại");
+    if (!data?.payUrl) throw new Error("Không nhận được payUrl từ server");
     window.location.href = data.payUrl;
   }
 
-  // ==== Post-payment refresh (polling sau khi quay về từ MoMo) ====
   const beginPostPaymentRefresh = async () => {
     const params = new URLSearchParams(window.location.search);
     const hasMomoParams =
       params.has("resultCode") || params.has("orderId") || params.has("partnerCode");
 
-    // Có thể có marker do ta set trước khi rời trang
-    const markerRaw = localStorage.getItem("preorderPaying");
-    const marker = markerRaw ? (() => { try { return JSON.parse(markerRaw); } catch { return null; } })() : null;
+    the: {
+      const markerRaw = localStorage.getItem("preorderPaying");
+      const marker = markerRaw ? (() => { try { return JSON.parse(markerRaw); } catch { return null; } })() : null;
 
-    if (!hasMomoParams && !marker) return;
+      if (!hasMomoParams && !marker) break the;
 
-    // Poll 6 lần, mỗi 2s
-    let tries = 0;
-    const maxTries = 6;
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      let tries = 0;
+      const maxTries = 6;
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-    try {
-      while (tries < maxTries) {
-        tries += 1;
-        await fetchPreorders(true); // true → quiet (không bật loading)
-        // Nếu có marker, thử đọc trạng thái của đúng preorder
-        if (marker?.id) {
-          const p = preorders.find((x) => x._id === marker.id);
-          if (p) {
-            // Nếu đã đủ cọc hoặc status không còn "pending_payment" → coi như xong
-            const paidEnough = Number(p.depositPaid || 0) >= Number(p.depositDue || 0);
-            const statusChanged = p.status !== "pending_payment";
-            if (paidEnough || statusChanged) break;
+      try {
+        while (tries < maxTries) {
+          tries += 1;
+          await fetchPreorders(true);
+          if (marker?.id) {
+            // Lưu ý: state preorders có thể không cập nhật ngay trong vòng lặp;
+            // đây là polling "best effort" sau khi thanh toán.
+            const fresh = await axiosAuth.get(`/api/preorders/mine`).then(r => r.data).catch(() => null);
+            const list = Array.isArray(fresh?.items) ? fresh.items : (Array.isArray(fresh) ? fresh : []);
+            const p = list.find((x) => x._id === marker.id);
+            if (p) {
+              const paidEnough = Number(p.depositPaid || 0) >= Number(p.depositDue || 0);
+              const statusChanged = p.status !== "pending_payment";
+              if (paidEnough || statusChanged) break;
+            }
+          } else {
+            if (tries >= 2) break;
           }
-        } else {
-          // Không có marker (chỉ có query) → poll 1-2 lần là đủ
-          if (tries >= 2) break;
+          await sleep(2000);
         }
-        await sleep(2000);
-      }
-    } catch (e) {
-      console.warn("Polling preorder after payment error:", e);
-    } finally {
-      // Xoá marker & dọn URL
-      localStorage.removeItem("preorderPaying");
-      if (hasMomoParams) {
-        const cleanUrl = window.location.origin + window.location.pathname;
-        window.history.replaceState({}, "", cleanUrl);
+      } catch (e) {
+        console.warn("Polling preorder after payment error:", e);
+      } finally {
+        localStorage.removeItem("preorderPaying");
+        if (hasMomoParams) {
+          const cleanUrl = window.location.origin + window.location.pathname;
+          window.history.replaceState({}, "", cleanUrl);
+        }
       }
     }
   };
 
   async function handlePayDeposit(preorderId) {
     try {
-      // set marker trước khi điều hướng
-      localStorage.setItem(
-        "preorderPaying",
-        JSON.stringify({ id: preorderId, kind: "deposit", ts: Date.now() })
-      );
+      localStorage.setItem("preorderPaying", JSON.stringify({ id: preorderId, kind: "deposit", ts: Date.now() }));
       setPayingId(preorderId);
       setPayingKind("deposit");
       await callMomo(`${API_URL}/api/momo-preorder/create-payment-deposit/${preorderId}`);
     } catch (err) {
-      console.error("pay deposit error:", err);
       alert(err?.message || "Không thể tạo thanh toán cọc");
       localStorage.removeItem("preorderPaying");
     } finally {
@@ -158,16 +139,11 @@ export default function ProfilePage() {
 
   async function handlePayRemaining(preorderId) {
     try {
-      // set marker trước khi điều hướng
-      localStorage.setItem(
-        "preorderPaying",
-        JSON.stringify({ id: preorderId, kind: "remaining", ts: Date.now() })
-      );
+      localStorage.setItem("preorderPaying", JSON.stringify({ id: preorderId, kind: "remaining", ts: Date.now() }));
       setPayingId(preorderId);
       setPayingKind("remaining");
       await callMomo(`${API_URL}/api/momo-preorder/create-payment-remaining/${preorderId}`);
     } catch (err) {
-      console.error("pay remaining error:", err);
       alert(err?.message || "Không thể tạo thanh toán phần còn lại");
       localStorage.removeItem("preorderPaying");
     } finally {
@@ -176,15 +152,16 @@ export default function ProfilePage() {
     }
   }
 
-  // Lấy chuỗi địa chỉ mặc định hiện tại
-  const defaultAddressString = (() => {
+  const defaultAddress = (() => {
     if (!userInfo.defaultAddressId) return null;
     const addr = addresses.find((a) => a._id === userInfo.defaultAddressId);
-    if (!addr) return null;
-    return `${addr.fullName}, ${addr.phone}, ${addr.detail}, ${addr.ward}, ${addr.district}, ${addr.province}`;
+    return addr || null;
   })();
 
-  // Hàm lấy productId linh hoạt + log chi tiết
+  const defaultAddressString = defaultAddress
+    ? `${defaultAddress.fullName}, ${defaultAddress.phone}, ${defaultAddress.detail}, ${defaultAddress.ward}, ${defaultAddress.district}, ${defaultAddress.province}`
+    : null;
+
   const getProductId = (item) => {
     if (!item) return "";
     let productId = "";
@@ -210,67 +187,48 @@ export default function ProfilePage() {
         "";
     }
 
-    if (!productId) {
-      logErr("[getProductId] Không tìm được productId cho item:", item);
-    } else {
-      log("[getProductId] Tìm thấy productId:", productId);
-    }
+    if (!productId) logErr("[getProductId] Không tìm được productId cho item:", item);
     return productId;
   };
 
   const hideOrder = async (orderId) => {
     if (!window.confirm("Bạn có chắc muốn xóa đơn hàng này khỏi lịch sử?")) return;
-
     try {
       const res = await fetch(`${API_URL}/api/orders/${orderId}/hide`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}` },
       });
-
       const data = await res.json();
-      if (!res.ok) {
-        alert(data.message || "Xóa đơn hàng thất bại");
-        return;
-      }
-
+      if (!res.ok) return alert(data.message || "Xóa đơn hàng thất bại");
       alert(data.message || "Đã xóa đơn hàng khỏi lịch sử");
       setOrders((prev) => prev.filter((o) => o._id !== orderId));
-    } catch (err) {
-      console.error(err);
+    } catch {
       alert("Có lỗi xảy ra khi xóa đơn hàng");
     }
   };
 
-  // NEW: Ẩn (xóa khỏi lịch sử) đơn đặt trước
   const hidePreorder = async (preorderId) => {
     if (!window.confirm("Bạn có chắc muốn xóa đơn đặt trước này khỏi lịch sử?")) return;
-
     try {
       const res = await fetch(`${API_URL}/api/preorders/${preorderId}/hide`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}` },
       });
-
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || data?.ok === false) {
-        alert(data?.message || "Xóa đơn đặt trước thất bại");
-        return;
-      }
-
+      if (!res.ok || data?.ok === false) return alert(data?.message || "Xóa đơn đặt trước thất bại");
       alert(data?.message || "Đã xóa đơn đặt trước khỏi lịch sử");
       setPreorders((prev) => prev.filter((p) => p._id !== preorderId));
-    } catch (err) {
-      console.error(err);
+    } catch {
       alert("Có lỗi xảy ra khi xóa đơn đặt trước");
     }
   };
 
-  // Trạng thái sửa/ thêm địa chỉ
+  // ===== Address edit/new =====
   const [editingAddressId, setEditingAddressId] = useState(null);
   const [editingAddressData, setEditingAddressData] = useState({
     fullName: "",
     phone: "",
-    province: "",
+    province: "Hà Nội",
     district: "",
     ward: "",
     detail: "",
@@ -282,7 +240,7 @@ export default function ProfilePage() {
   const [newAddressForm, setNewAddressForm] = useState({
     fullName: "",
     phone: "",
-    province: "",
+    province: "Hà Nội",
     district: "",
     ward: "",
     detail: "",
@@ -290,45 +248,34 @@ export default function ProfilePage() {
     wardCode: "",
   });
 
-  // Axios instance
   const axiosAuth = axios.create({
     baseURL: API_URL,
     headers: { Authorization: `Bearer ${token}` },
   });
 
-  // ===== useEffect chung =====
   useEffect(() => {
-    if (!token || !userId) {
-      console.warn("Token hoặc userId không tồn tại");
-      return;
-    }
+    if (!token || !userId) return;
 
     const fetchAll = async () => {
       try {
         await Promise.all([fetchUserInfo(), fetchAddresses(), fetchOrders(), fetchVouchers(), fetchPreorders()]);
-        // Sau khi load dữ liệu lần đầu, kiểm tra xem có vừa quay về từ MoMo hay không để poll cập nhật
         beginPostPaymentRefresh();
 
-        // 🔧 Dùng absolute URL (không qua proxy) + fallback + log chi tiết
         let loaded = false;
         for (const base of PROVINCES_BASES) {
           const url = `${base}/p/${HANOI_CODE}?depth=2`;
-          log("Fetch districts of province:", { url });
           const res = await fetch(url);
-          log("Fetch districts status:", res.status);
           if (res.ok) {
             const data = await res.json();
             const ds = (data.districts || []).map((d) => ({ ...d, code: String(d.code) }));
             setDistricts(ds);
-            log("Loaded districts sample:", ds.slice(0, 3));
             loaded = true;
             break;
           } else {
-            const text = await res.text().catch(() => "");
-            logErr(`Load districts failed ${res.status}:`, text?.slice(0, 200));
+            await res.text().catch(() => "");
           }
         }
-        if (!loaded) throw new Error("Không tải được danh sách quận/huyện Hà Nội từ tất cả endpoints.");
+        if (!loaded) throw new Error("Không tải được danh sách quận/huyện.");
       } catch (error) {
         logErr("Lỗi khi tải dữ liệu:", error);
       }
@@ -338,41 +285,31 @@ export default function ProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, userId]);
 
-  // ===== Lấy phường/xã theo quận/huyện =====
   const handleDistrictChange = async (districtCode, isEditing = false) => {
     const variants = codeVariants(districtCode);
     if (variants.length === 0) return;
-
-    log("handleDistrictChange() start", { districtCode, variants, isEditing });
 
     let lastErr = null;
     for (const variant of variants) {
       for (const base of PROVINCES_BASES) {
         const url = `${base}/d/${variant}?depth=2`;
-        log("→ Try URL:", url);
         try {
           const res = await fetch(url);
-          log("   status:", res.status);
           if (!res.ok) {
             const txt = await res.text().catch(() => "");
             throw new Error(`status ${res.status} body: ${txt.slice(0, 200)}`);
           }
           const data = await res.json();
-          log("   wards sample:", Array.isArray(data.wards) ? data.wards.slice(0, 3) : data);
-
           if (isEditing) setEditingWards(data.wards || []);
           else setWards(data.wards || []);
-          return; // thành công → thoát hẳn
+          return;
         } catch (e) {
           lastErr = e;
-          logErr("   failed:", { variant, base, err: e?.message || e });
         }
       }
     }
-
-    // Nếu tất cả variant đều fail:
-    logErr("Lỗi khi tải phường/xã (tất cả biến thể thất bại)", lastErr?.message || lastErr);
-    alert("Không tải được danh sách phường/xã cho quận đã chọn. Vui lòng thử lại.");
+    logErr("Lỗi khi tải phường/xã", lastErr?.message || lastErr);
+    alert("Không tải được danh sách phường/xã. Vui lòng thử lại.");
   };
 
   // ===== Vouchers =====
@@ -381,8 +318,6 @@ export default function ProfilePage() {
       const res = await axios.get("/api/voucher/my-vouchers", {
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
-
-      log("📦 API voucher trả về:", res.data);
 
       const apiData = res.data.data || {};
       const formattedData = {
@@ -472,6 +407,22 @@ export default function ProfilePage() {
     }
   };
 
+  const selectDefaultAddress = async (addressId) => {
+    try {
+      await axiosAuth.put(`/auth/users/${userId}`, {
+        ...userInfo,
+        defaultAddressId: addressId,
+      });
+      setUserInfo((prev) => ({ ...prev, defaultAddressId: addressId }));
+      updateUser({ ...user, defaultAddressId: addressId });
+      alert("Đã chọn địa chỉ mặc định thành công ✅");
+    } catch (err) {
+      logErr("Lỗi chọn địa chỉ mặc định:", err.response?.data || err.message);
+      alert("Không thể chọn địa chỉ mặc định");
+    }
+  };
+
+  // ===== Orders =====
   const cancelOrder = async (id) => {
     if (!window.confirm("Hủy đơn hàng này?")) return;
     try {
@@ -491,7 +442,7 @@ export default function ProfilePage() {
         ...order,
         items: order.items.map((item) => ({
           ...item,
-          hasReviewed: item.reviewData ? true : false,
+          hasReviewed: !!item.reviewData,
         })),
       }));
       setOrders(processedOrders);
@@ -500,14 +451,13 @@ export default function ProfilePage() {
     }
   };
 
-  // ===== PREORDERS =====
+  // ===== Preorders =====
   const fetchPreorders = async (quiet = false) => {
     try {
       if (!quiet) setPreordersLoading(true);
       const res = await axiosAuth.get(`/api/preorders/mine`);
       const data = res.data;
       const listRaw = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
-      // ❗ Không ẩn các đơn đã hủy để có thể hiển thị nút Xóa
       setPreorders(listRaw);
     } catch (err) {
       logErr("Lỗi lấy đơn đặt trước:", err.response?.data || err.message);
@@ -516,17 +466,13 @@ export default function ProfilePage() {
     }
   };
 
-  // Hủy đơn đặt trước
   const cancelPreorder = async (id) => {
     if (!window.confirm("Bạn chắc chắn muốn hủy đơn đặt trước này?")) return;
     try {
       const res = await axiosAuth.patch(`/api/preorders/${id}/cancel`);
       const data = res.data;
-      if (!res.status || (data && data.ok === false)) {
-        throw new Error(data?.message || "Hủy đơn đặt trước thất bại");
-      }
+      if (!res.status || (data && data.ok === false)) throw new Error(data?.message || "Hủy đơn đặt trước thất bại");
       alert(data?.message || "Đã hủy đơn đặt trước");
-      // Reload list để vẫn hiện bản ghi (trạng thái 'cancelled') và có nút Xóa
       fetchPreorders(true);
     } catch (err) {
       logErr("Lỗi hủy đơn đặt trước:", err.response?.data || err.message);
@@ -534,18 +480,18 @@ export default function ProfilePage() {
     }
   };
 
-  // --- XỬ LÝ SỬA ĐỊA CHỈ ---
+  // ===== Address helpers (bổ sung) =====
   const startEditAddress = (addr) => {
     setEditingAddressId(addr._id);
     setEditingAddressData({
       fullName: addr.fullName || "",
       phone: addr.phone || "",
-      province: addr.province || "",
+      province: addr.province || "Hà Nội",
       district: addr.district || "",
       ward: addr.ward || "",
       detail: addr.detail || "",
-      districtCode: addr.districtCode ? String(addr.districtCode) : "",
-      wardCode: addr.wardCode ? String(addr.wardCode) : "",
+      districtCode: addr.districtCode || "",
+      wardCode: addr.wardCode || "",
     });
     if (addr.districtCode) {
       handleDistrictChange(String(addr.districtCode), true);
@@ -557,98 +503,55 @@ export default function ProfilePage() {
     setEditingAddressData({
       fullName: "",
       phone: "",
-      province: "",
+      province: "Hà Nội",
       district: "",
       ward: "",
       detail: "",
       districtCode: "",
       wardCode: "",
     });
+    setEditingWards([]);
   };
 
-  const saveEditAddress = () => {
-    log("📝 [saveEditAddress] data:", editingAddressData);
-    const { fullName, phone, district, ward, detail } = editingAddressData;
-    if (!fullName || !phone || !district || !ward || !detail) {
-      alert("Vui lòng điền đầy đủ thông tin địa chỉ");
-      logErr("⚠️ [saveEditAddress] Thiếu trường:", {
-        fullName: !!fullName,
-        phone: !!phone,
-        district: !!district,
-        ward: !!ward,
-        detail: !!detail,
-      });
-      return;
-    }
+  const saveEditAddress = async () => {
+    if (!editingAddressId) return;
     const payload = {
       ...editingAddressData,
-      province: editingAddressData.province || "Hà Nội",
+      province: "Hà Nội",
     };
-    updateAddress(editingAddressId, payload);
+    if (!payload.fullName || !payload.phone || !payload.district || !payload.ward || !payload.detail) {
+      alert("Vui lòng điền đầy đủ thông tin địa chỉ.");
+      return;
+    }
+    await updateAddress(editingAddressId, payload);
     cancelEditAddress();
   };
 
-  // --- XỬ LÝ THÊM ĐỊA CHỈ MỚI ---
-  const saveNewAddress = () => {
-    log("📝 [saveNewAddress] form:", newAddressForm);
-
-    const { fullName, phone, district, ward, detail } = newAddressForm;
-    if (!fullName || !phone || !district || !ward || !detail) {
-      alert("Vui lòng điền đầy đủ thông tin địa chỉ");
-      logErr("⚠️ [saveNewAddress] Thiếu trường:", {
-        fullName: !!fullName,
-        phone: !!phone,
-        district: !!district,
-        ward: !!ward,
-        detail: !!detail,
-      });
-      return;
-    }
-
+  const saveNewAddress = async () => {
     const payload = {
       ...newAddressForm,
-      province: newAddressForm.province || "Hà Nội",
+      province: "Hà Nội",
     };
-
-    log("📤 [saveNewAddress] Submit payload:", payload);
-    addAddress(payload);
-
-    // Reset form
+    if (!payload.fullName || !payload.phone || !payload.district || !payload.ward || !payload.detail) {
+      alert("Vui lòng điền đầy đủ thông tin địa chỉ.");
+      return;
+    }
+    await addAddress(payload);
     setNewAddressForm({
       fullName: "",
       phone: "",
-      province: "",
+      province: "Hà Nội",
       district: "",
       ward: "",
       detail: "",
       districtCode: "",
       wardCode: "",
     });
+    setWards([]);
     setShowAddForm(false);
   };
 
-  // --- CHỌN ĐỊA CHỈ MẶC ĐỊNH ---
-  const selectDefaultAddress = async (addressId) => {
-    try {
-      await axiosAuth.put(`/auth/users/${userId}`, {
-        ...userInfo,
-        defaultAddressId: addressId,
-      });
-
-      setUserInfo((prev) => ({ ...prev, defaultAddressId: addressId }));
-      updateUser({
-        ...user,
-        defaultAddressId: addressId,
-      });
-
-      alert("Đã chọn địa chỉ mặc định thành công ✅");
-    } catch (err) {
-      logErr("Lỗi chọn địa chỉ mặc định:", err.response?.data || err.message);
-      alert("Không thể chọn địa chỉ mặc định");
-    }
-  };
-
-  // ===== Render =====
+  // ===== UI Renders =====
   const renderProfile = () => (
     <div className="profile-section">
       <h2>Thông tin cá nhân</h2>
@@ -674,13 +577,7 @@ export default function ProfilePage() {
       <label>Địa chỉ mặc định</label>
       {!isEditing ? (
         <div className="default-address" style={{ marginBottom: "12px" }}>
-          {userInfo.defaultAddressId
-            ? (() => {
-                const addr = addresses.find((a) => a._id === userInfo.defaultAddressId);
-                if (!addr) return "Chưa chọn địa chỉ";
-                return `${addr.fullName}, ${addr.phone}, ${addr.detail}, ${addr.ward}, ${addr.district}, ${addr.province}`;
-              })()
-            : "Chưa chọn địa chỉ"}
+          {defaultAddressString || "Chưa chọn địa chỉ"}
         </div>
       ) : (
         <select
@@ -748,22 +645,17 @@ export default function ProfilePage() {
                   }
                   style={{ marginBottom: "6px", display: "block", width: "100%" }}
                 />
-
-                {/* Province: cố định Hà Nội */}
                 <input
                   type="text"
                   value="Hà Nội"
                   disabled
                   style={{ marginBottom: "6px", display: "block", width: "100%" }}
                 />
-
-                {/* District select */}
                 <select
                   value={editingAddressData.districtCode || ""}
                   onChange={(e) => {
                     const code = String(e.target.value);
                     const selectedDistrict = districts.find((d) => String(d.code) === code);
-                    log("Edit district select change:", { code, selectedDistrict });
                     setEditingAddressData({
                       ...editingAddressData,
                       district: selectedDistrict?.name || "",
@@ -782,14 +674,11 @@ export default function ProfilePage() {
                     </option>
                   ))}
                 </select>
-
-                {/* Ward select */}
                 <select
                   value={editingAddressData.wardCode || ""}
                   onChange={(e) => {
                     const code = String(e.target.value);
                     const selectedWard = editingWards.find((w) => String(w.code) === code);
-                    log("Edit ward select change:", { code, selectedWard });
                     setEditingAddressData({
                       ...editingAddressData,
                       ward: selectedWard?.name || "",
@@ -805,7 +694,6 @@ export default function ProfilePage() {
                     </option>
                   ))}
                 </select>
-
                 <input
                   type="text"
                   placeholder="Địa chỉ chi tiết"
@@ -815,7 +703,6 @@ export default function ProfilePage() {
                   }
                   style={{ marginBottom: "6px", display: "block", width: "100%" }}
                 />
-
                 <button onClick={saveEditAddress}>Lưu</button>
                 <button onClick={cancelEditAddress} style={{ marginLeft: "8px" }}>
                   Hủy
@@ -837,13 +724,11 @@ export default function ProfilePage() {
                       <button
                         onClick={() => selectDefaultAddress(addr._id)}
                         className="btn-default-select"
-                        title="Chọn làm mặc định"
                       >
                         Chọn làm mặc định
                       </button>
                     )}
                   </div>
-
                   <button onClick={() => startEditAddress(addr)} className="btn-edit">
                     Sửa
                   </button>
@@ -857,7 +742,6 @@ export default function ProfilePage() {
         ))}
       </ul>
 
-      {/* Form thêm địa chỉ mới */}
       {showAddForm ? (
         <div
           style={{
@@ -881,22 +765,17 @@ export default function ProfilePage() {
             onChange={(e) => setNewAddressForm({ ...newAddressForm, phone: e.target.value })}
             style={{ marginBottom: "6px", display: "block", width: "100%" }}
           />
-
-          {/* Province: cố định Hà Nội */}
           <input
             type="text"
             value="Hà Nội"
             disabled
             style={{ marginBottom: "6px", display: "block", width: "100%" }}
           />
-
-          {/* District select */}
           <select
             value={newAddressForm.districtCode || ""}
             onChange={(e) => {
               const code = String(e.target.value);
               const selectedDistrict = districts.find((d) => String(d.code) === code);
-              log("New district select change:", { code, selectedDistrict });
               setNewAddressForm({
                 ...newAddressForm,
                 district: selectedDistrict?.name || "",
@@ -915,14 +794,11 @@ export default function ProfilePage() {
               </option>
             ))}
           </select>
-
-          {/* Ward select */}
           <select
             value={newAddressForm.wardCode || ""}
             onChange={(e) => {
               const code = String(e.target.value);
               const selectedWard = wards.find((w) => String(w.code) === code);
-              log("New ward select change:", { code, selectedWard });
               setNewAddressForm({
                 ...newAddressForm,
                 ward: selectedWard?.name || "",
@@ -938,7 +814,6 @@ export default function ProfilePage() {
               </option>
             ))}
           </select>
-
           <input
             type="text"
             placeholder="Địa chỉ chi tiết"
@@ -946,7 +821,6 @@ export default function ProfilePage() {
             onChange={(e) => setNewAddressForm({ ...newAddressForm, detail: e.target.value })}
             style={{ marginBottom: "6px", display: "block", width: "100%" }}
           />
-
           <button onClick={saveNewAddress}>Thêm địa chỉ</button>
           <button onClick={() => setShowAddForm(false)} style={{ marginLeft: "8px" }}>
             Hủy
@@ -1003,11 +877,7 @@ export default function ProfilePage() {
                   ? "Chưa thanh toán"
                   : "Thanh toán thất bại"}
               </td>
-              <td>
-                {o.paymentMethod === "cod"
-                  ? "Thanh toán khi nhận hàng"
-                  : o.paymentMethod.toUpperCase()}
-              </td>
+              <td>{o.paymentMethod === "cod" ? "Thanh toán khi nhận hàng" : o.paymentMethod.toUpperCase()}</td>
               <td>
                 {o.shippingAddress
                   ? `${o.shippingAddress.fullName}, ${o.shippingAddress.phone}, ${o.shippingAddress.detail}, ${o.shippingAddress.ward}, ${o.shippingAddress.district}, ${o.shippingAddress.province}`
@@ -1019,38 +889,28 @@ export default function ProfilePage() {
                     Hủy
                   </button>
                 )}
-
                 {o.status === "delivered" && (
                   <div className="order-actions">
-                    {/* Review cho từng item */}
                     {o.items.map((item, index) => {
                       const orderId = o.customId || "";
                       const productId = getProductId(item);
                       const itemKey =
-                        item?._id?.$oid ||
-                        item?._id ||
-                        `${orderId}-${productId || "noProductId"}-${index}`;
-
+                        item?._id?.$oid || item?._id || `${orderId}-${productId || "noProductId"}-${index}`;
                       return (
                         <div key={itemKey} className="review-wrapper">
                           {orderId && productId ? (
                             <ReviewButton orderId={orderId} productId={productId} itemData={item} />
-                          ) : (
-                            <small style={{ opacity: 0.7, color: "red" }}>❌ Thiếu productId</small>
-                          )}
+                          ) : null}
                         </div>
                       );
                     })}
-                    {/* Chỉ một nút Xóa duy nhất cho cả đơn */}
                     <button className="btn-delete-order" onClick={() => hideOrder(o._id)}>
                       Xóa đơn
                     </button>
                   </div>
                 )}
-
                 {o.status === "cancelled" && (
                   <div className="order-actions">
-                    {/* Đơn đã hủy: chỉ một nút Xóa */}
                     <button className="btn-delete-order" onClick={() => hideOrder(o._id)}>
                       Xóa đơn
                     </button>
@@ -1064,23 +924,26 @@ export default function ProfilePage() {
     </div>
   );
 
-  // ====== UI “Đơn đặt trước” ======
-  const StatusChip = ({ s }) => {
+  // Status chip: chỉ hiển thị “Đổi/Trả” khi đã có yêu cầu hoàn trả
+  const StatusChip = ({ s, isReturnRequested }) => {
+    if (isReturnRequested) {
+      const ui = { text: "Đổi/Trả", bg: "#EDE9FE", color: "#5B21B6" };
+      return (
+        <span className="status-chip" style={{ background: ui.bg, color: ui.color }}>
+          {ui.text}
+        </span>
+      );
+    }
     const map = {
       pending_payment: { text: "Chờ thanh toán", bg: "#FEF3C7", color: "#92400E" },
-      reserved: { text: "Đã giữ chỗ", bg: "#E0F2FE", color: "#075985" },
-      awaiting_stock: { text: "Chờ hàng", bg: "#F3F4F6", color: "#374151" },
-      ready_to_fulfill: { text: "Sẵn sàng giao", bg: "#DCFCE7", color: "#065F46" },
-      payment_due: { text: "Đến hạn thanh toán", bg: "#FFE4E6", color: "#9F1239" },
-      converted: { text: "Đã chuyển thành đơn", bg: "#EDE9FE", color: "#5B21B6" },
+      confirmed: { text: "Đã xác nhận đơn hàng", bg: "#DCFCE7", color: "#065F46" },
+      shipping: { text: "Đang giao hàng", bg: "#E0F2FE", color: "#075985" },
+      delivered: { text: "Đã giao hàng", bg: "#D1FAE5", color: "#065F46" },
       cancelled: { text: "Đã hủy", bg: "#FEE2E2", color: "#991B1B" },
-      refunded: { text: "Đã hoàn tiền", bg: "#E0F2F1", color: "#0F766E" },
-      expired: { text: "Hết hạn", bg: "#EEE", color: "#555" },
-      delivered: { text: "Đã giao", bg: "#E0E7FF", color: "#3730A3" }, // thêm để hiển thị đẹp hơn
     };
     const ui = map[s] || { text: s, bg: "#EEE", color: "#333" };
     return (
-      <span style={{ background: ui.bg, color: ui.color, padding: "4px 8px", borderRadius: 8, fontSize: 12 }}>
+      <span className="status-chip" style={{ background: ui.bg, color: ui.color }}>
         {ui.text}
       </span>
     );
@@ -1118,14 +981,21 @@ export default function ProfilePage() {
                   [p?.variant?.attributes?.weight, p?.variant?.attributes?.ripeness]
                     .filter(Boolean)
                     .join(" · ");
+
+                const canUserCancel =
+                  !["shipping", "delivered", "cancelled"].includes(p.status);
+                const canPayRemaining =
+                  ["confirmed", "shipping"].includes(p.status) &&
+                  Number(p.remainingDue || 0) > 0;
+
+                const returnOpen = !!p?.returnFlow?.isOpen;
+                const returnStatus = p?.returnFlow?.status || null;
+                const returnRequested = !!(p?.returnFlow?.isOpen || p?.returnFlow?.status || p?.returnFlow?.createdAt);
+
                 return (
                   <tr key={p._id}>
                     <td className="order-id">{p.customId || p._id?.slice(-6)}</td>
-                    <td>
-                      {p.createdAt
-                        ? new Date(p.createdAt).toLocaleDateString("vi-VN")
-                        : "—"}
-                    </td>
+                    <td>{p.createdAt ? new Date(p.createdAt).toLocaleDateString("vi-VN") : "—"}</td>
                     <td>
                       <div className="product-item">
                         {p?.product?.name || "—"}{" "}
@@ -1134,92 +1004,116 @@ export default function ProfilePage() {
                         </span>
                       </div>
                     </td>
-                    <td>
-                      {Number(p.subtotal || 0).toLocaleString("vi-VN")}₫
-                    </td>
+                    <td>{Number(p.subtotal || 0).toLocaleString("vi-VN")}₫</td>
                     <td>
                       {Number(p.depositPaid || 0).toLocaleString("vi-VN")}₫ /{" "}
                       {Number(p.remainingDue || 0).toLocaleString("vi-VN")}₫
                     </td>
                     <td>
-                      <StatusChip s={p.status} />
+                      <StatusChip s={p.status} isReturnRequested={returnRequested} />
+                      {returnOpen && returnStatus ? (
+                        <div style={{ fontSize: 12, opacity: 0.8 }}>{`(${returnStatus})`}</div>
+                      ) : null}
                     </td>
-                    <td className="address-cell">
-                      {defaultAddressString || "Chưa chọn"}
-                    </td>
+                    <td className="address-cell">{defaultAddressString || "Chưa chọn"}</td>
                     <td className="actions-cell">
-                      {/* Hành động theo trạng thái */}
                       {p.status === "pending_payment" && (
                         <div className="order-actions">
                           <button
                             className="btn"
                             onClick={() => handlePayDeposit(p._id)}
                             disabled={payingId === p._id && payingKind === "deposit"}
-                            title="Thanh toán tiền cọc qua MoMo"
                           >
-                            {payingId === p._id && payingKind === "deposit"
-                              ? "Đang tạo link..."
-                              : "Thanh toán cọc"}
+                            {payingId === p._id && payingKind === "deposit" ? "Đang tạo link..." : "Thanh toán cọc"}
                           </button>
-                          <button
-                            className="btn-cancel"
-                            onClick={() => cancelPreorder(p._id)}
-                            disabled={payingId === p._id}
-                          >
-                            Hủy
-                          </button>
+
+                          {canUserCancel && (
+                            <button
+                              className="btn-cancel"
+                              onClick={() => cancelPreorder(p._id)}
+                              disabled={payingId === p._id}
+                            >
+                              Hủy
+                            </button>
+                          )}
                         </div>
                       )}
 
-                      {["ready_to_fulfill", "payment_due"].includes(p.status) && (
+                      {p.status === "confirmed" && (
                         <div className="order-actions">
-                          <button
-                            className="btn"
-                            onClick={() => handlePayRemaining(p._id)}
-                            disabled={payingId === p._id && payingKind === "remaining"}
-                            title="Thanh toán phần còn lại qua MoMo"
-                          >
-                            {payingId === p._id && payingKind === "remaining"
-                              ? "Đang tạo link..."
-                              : "Thanh toán còn lại"}
-                          </button>
-                          <button
-                            className="btn-cancel"
-                            onClick={() => cancelPreorder(p._id)}
-                            disabled={payingId === p._id}
-                          >
-                            Hủy
-                          </button>
+                          {canPayRemaining && (
+                            <button
+                              className="btn"
+                              onClick={() => handlePayRemaining(p._id)}
+                              disabled={payingId === p._id && payingKind === "remaining"}
+                            >
+                              {payingId === p._id && payingKind === "remaining" ? "Đang tạo link..." : "Thanh toán còn lại"}
+                            </button>
+                          )}
+
+                          {canUserCancel && (
+                            <button
+                              className="btn-cancel"
+                              onClick={() => cancelPreorder(p._id)}
+                              disabled={payingId === p._id}
+                            >
+                              Hủy
+                            </button>
+                          )}
                         </div>
                       )}
 
-                      {["reserved", "awaiting_stock"].includes(p.status) && (
+                      {p.status === "shipping" && (
                         <div className="order-actions">
-                          <button
-                            className="btn-cancel"
-                            onClick={() => cancelPreorder(p._id)}
-                            disabled={payingId === p._id}
-                          >
-                            Hủy
-                          </button>
+                          {canPayRemaining && (
+                            <button
+                              className="btn"
+                              onClick={() => handlePayRemaining(p._id)}
+                              disabled={payingId === p._id && payingKind === "remaining"}
+                            >
+                              {payingId === p._id && payingKind === "remaining" ? "Đang tạo link..." : "Thanh toán còn lại"}
+                            </button>
+                          )}
                         </div>
                       )}
 
-                      {/*Thêm nút XÓA cho delivered & cancelled  */}
-                      {["delivered", "cancelled"].includes(p.status) && (
-                        <div className="order-actions">
+                      {p.status === "delivered" && (
+                        <div className="order-actions" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {!returnRequested && (
+                            <button
+                              className="btn return-btn"
+                              onClick={() =>
+                                navigate(`/return-request/${p._id}`, {
+                                  state: {
+                                    preorderId: p._id,
+                                    productName: p?.product?.name || "",
+                                    variantLabel: label || "",
+                                    qty: p.qty,
+                                    defaultPhone: defaultAddress?.phone || "",
+                                  },
+                                })
+                              }
+                            >
+                              Yêu cầu đổi/trả
+                            </button>
+                          )}
+
                           <button
                             className="btn-delete-order"
                             onClick={() => hidePreorder(p._id)}
-                            title="Xóa đơn đặt trước khỏi lịch sử"
+                            disabled={returnOpen}
                           >
                             Xóa
                           </button>
                         </div>
                       )}
 
-                      {["converted", "refunded", "expired"].includes(p.status) && (
-                        <span style={{ opacity: 0.7 }}>—</span>
+                      {p.status === "cancelled" && (
+                        <div className="order-actions">
+                          <button className="btn-delete-order" onClick={() => hidePreorder(p._id)}>
+                            Xóa
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>

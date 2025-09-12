@@ -1,261 +1,518 @@
-/* src/pages/admin/PreordersAdmin.css */
+/* ========================================
+   Preorders Admin — CSS gọn, đẹp, hiện đại
+   ======================================== */
 
-.preorders-admin {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 16px;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  color: #111827;
+/* --------- Biến chủ đạo --------- */
+:root {
+  --bg: #f8fafc;             /* nền chung */
+  --card: #ffffff;           /* nền thẻ/bảng */
+  --text: #0f172a;           /* màu chữ chính */
+  --text-dim: #475569;       /* chữ phụ */
+  --border: #e2e8f0;         /* viền nhạt */
+  --muted: #94a3b8;          /* nhãn phụ */
+
+  --brand: #16a34a;          /* xanh lá */
+  --brand-600: #15803d;
+  --brand-50: #f0fdf4;
+
+  --accent: #2563eb;         /* xanh dương */
+  --accent-600: #1d4ed8;
+  --accent-50: #eff6ff;
+
+  --warn: #f59e0b;           /* vàng */
+  --danger: #dc2626;         /* đỏ */
+  --danger-600: #b91c1c;
+
+  --chip-pending-bg: #fef3c7;
+  --chip-pending-fg: #92400e;
+  --chip-confirmed-bg: #dcfce7;
+  --chip-confirmed-fg: #065f46;
+  --chip-shipping-bg: #e0f2fe;
+  --chip-shipping-fg: #075985;
+  --chip-delivered-bg: #ede9fe;
+  --chip-delivered-fg: #5b21b6;
+  --chip-cancelled-bg: #fee2e2;
+  --chip-cancelled-fg: #991b1b;
+
+  --radius: 14px;
+  --radius-sm: 10px;
+  --shadow: 0 10px 24px rgba(2, 6, 23, 0.08);
+  --shadow-soft: 0 8px 18px rgba(2, 6, 23, 0.06);
+
+  --gap: 16px;
+  --gap-sm: 10px;
+
+  --focus: 0 0 0 3px rgba(37, 99, 235, 0.25);
 }
 
+/* Dark mode (tự kích hoạt nếu prefer-dark) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1220;
+    --card: #0f172a;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --border: #1e293b;
+    --muted: #64748b;
+
+    --shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+    --shadow-soft: 0 8px 18px rgba(0, 0, 0, 0.35);
+
+    --chip-pending-bg: #3a2e12;
+    --chip-pending-fg: #facc15;
+    --chip-confirmed-bg: #0b2b1a;
+    --chip-confirmed-fg: #86efac;
+    --chip-shipping-bg: #0a2540;
+    --chip-shipping-fg: #93c5fd;
+    --chip-delivered-bg: #241b3a;
+    --chip-delivered-fg: #c4b5fd;
+    --chip-cancelled-bg: #3a1414;
+    --chip-cancelled-fg: #fecaca;
+  }
+}
+
+/* --------- Reset nhẹ --------- */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+button { font: inherit; }
+input, select { font: inherit; color: var(--text); }
+
+/* --------- Khung trang --------- */
+.preorders-admin {
+  max-width: 1200px;
+  margin: 28px auto;
+  padding: 0 16px 64px;
+}
+
+/* --------- Header --------- */
 .pa-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 18px;
 }
 .pa-header h1 {
-  font-size: 22px;
-  font-weight: 700;
   margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
 }
-.pa-actions .pa-refresh {
-  padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  background: #fff;
+.pa-actions { display: flex; gap: 10px; }
+
+/* --------- Nút --------- */
+.btn,
+.btn-secondary,
+.btn-light,
+.pa-refresh,
+.pa-clear {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-soft);
   cursor: pointer;
-}
-.pa-actions .pa-refresh:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  transition: transform .06s ease, box-shadow .2s ease, background .2s ease, color .2s ease, border-color .2s ease;
+  text-decoration: none; /* Link <a> dùng lớp btn cũng đẹp */
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.pa-filters {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 12px;
-  margin-bottom: 16px;
+.btn {
+  background: linear-gradient(180deg, var(--brand) 0%, var(--brand-600) 110%);
+  color: #fff;
+  border-color: transparent;
 }
+.btn:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+.btn:active { transform: translateY(0); }
+
+.btn-secondary {
+  background: var(--card);
+  color: var(--text);
+}
+.btn-secondary:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+
+.btn-light {
+  background: var(--accent-50);
+  color: var(--accent-600);
+  border-color: color-mix(in srgb, var(--accent-50) 50%, var(--border));
+}
+.btn-light:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+
+.pa-refresh { background: var(--accent); color: #fff; border-color: transparent; }
+.pa-refresh:hover { filter: brightness(1.02); transform: translateY(-1px); box-shadow: var(--shadow); }
+
+.pa-clear { background: var(--card); }
+.pa-clear:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+
+button:disabled,
+.btn[aria-disabled="true"] {
+  opacity: .55;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+  pointer-events: none;
+}
+
+/* --------- Bộ lọc --------- */
+.pa-filters {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-soft);
+}
+
 .pa-filter-row {
   display: grid;
+  gap: var(--gap);
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
 }
 .pa-filter label {
   display: block;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--muted);
   margin-bottom: 6px;
 }
+
 .pa-filter input,
 .pa-filter select {
   width: 100%;
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 10px;
+  padding: 10px 12px;
+  outline: none;
+  transition: box-shadow .15s ease, border-color .15s ease, background .2s ease;
 }
-.pa-filter .pa-clear {
-  width: 100%;
-  height: 36px;
-  border-radius: 8px;
-  background: #fff;
-  border: 1px solid #d1d5db;
-  cursor: pointer;
+.pa-filter input:focus,
+.pa-filter select:focus {
+  border-color: var(--accent);
+  box-shadow: var(--focus);
 }
 
+/* --------- Bảng --------- */
 .pa-table-wrap {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
   overflow: hidden;
 }
 
 .pa-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
 }
+
 .pa-table thead th {
-  background: #f3f4f6;
+  background: linear-gradient(180deg, var(--bg), var(--card));
   text-align: left;
-  padding: 10px;
-  font-weight: 600;
-  font-size: 13px;
-  border-bottom: 1px solid #e5e7eb;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+  padding: 14px 14px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
-.pa-table tbody td {
-  padding: 10px;
-  border-bottom: 1px solid #f3f4f6;
+
+.pa-table td {
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
   vertical-align: top;
-  font-size: 14px;
+  color: var(--text);
+}
+.pa-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--accent-50) 24%, transparent);
 }
 
 .ta-right { text-align: right; }
 
-.po-status-chip {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 999px;
+/* --------- Cột "Mã" & ngày --------- */
+.po-id-text {
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+.po-date {
+  margin-top: 4px;
   font-size: 12px;
-  font-weight: 600;
+  color: var(--muted);
 }
 
-.po-id .po-id-text {
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-.po-id .po-date {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.po-user {
-  font-weight: 600;
-}
+/* --------- Cột "Người dùng" --------- */
+.po-user { font-weight: 600; }
 .po-note {
+  margin-top: 4px;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-dim);
 }
-.po-product {
+
+/* --------- Cột "Sản phẩm" --------- */
+.po-product { font-weight: 600; }
+.po-variant {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* --------- Điều chỉnh --------- */
+.po-adjust {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--warn);
   font-weight: 600;
 }
-.po-variant {
-  font-size: 12px;
-  color: #6b7280;
-}
 
-.po-adjust {
-  margin-top: 2px;
+/* --------- Status Chip --------- */
+.po-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
   font-size: 12px;
-  color: #6b7280;
-}
-
-.po-actions {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.btn,
-.btn-secondary {
-  height: 34px;
-  padding: 0 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 13px;
+  font-weight: 800;
+  border-radius: 999px;
+  letter-spacing: .2px;
+  user-select: none;
   border: 1px solid transparent;
 }
-.btn {
-  background: #111827;
-  color: #fff;
-}
-.btn:hover { filter: brightness(1.05); }
-.btn-secondary {
-  background: #fff;
-  border-color: #d1d5db;
-  color: #111827;
-}
-.btn-secondary:hover { background: #f9fafb; }
 
+.po-status-chip[data-status="pending_payment"],
+.po-status-chip.pending_payment { background: var(--chip-pending-bg); color: var(--chip-pending-fg); }
+.po-status-chip[data-status="confirmed"],
+.po-status-chip.confirmed { background: var(--chip-confirmed-bg); color: var(--chip-confirmed-fg); }
+.po-status-chip[data-status="shipping"],
+.po-status-chip.shipping { background: var(--chip-shipping-bg); color: var(--chip-shipping-fg); }
+.po-status-chip[data-status="delivered"],
+.po-status-chip.delivered { background: var(--chip-delivered-bg); color: var(--chip-delivered-fg); }
+.po-status-chip[data-status="cancelled"],
+.po-status-chip.cancelled { background: var(--chip-cancelled-bg); color: var(--chip-cancelled-fg); }
+
+/* --------- Hành động --------- */
+.po-actions {
+  display: flex;
+  flex-wrap: wrap;   /* cho phép xuống dòng ở màn hẹp */
+  gap: 8px;
+  margin-bottom: 10px;
+}
+@media (min-width: 1100px) {
+  .po-actions { flex-wrap: nowrap; } /* desktop: giữ 1 hàng */
+}
+
+/* --------- Khối đổi trạng thái / thanh toán --------- */
+.po-status-edit {
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--accent-50) 14%, transparent);
+}
+
+.po-status-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 140px 1fr;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.po-status-row > label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+}
+.po-status-row input,
+.po-status-row select {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 10px;
+  padding: 10px 12px;
+  outline: none;
+  transition: box-shadow .15s ease, border-color .15s ease;
+}
+.po-status-row input:focus,
+.po-status-row select:focus {
+  border-color: var(--accent);
+  box-shadow: var(--focus);
+}
+.po-status-actions { margin-top: 6px; }
+
+/* --------- Khối chỉnh sửa inline --------- */
 .po-edit {
   display: grid;
+  gap: var(--gap);
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 12px;
-  align-items: end;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--brand-50) 15%, transparent);
 }
 .po-edit-row label {
   display: block;
   font-size: 12px;
-  color: #6b7280;
-  margin-bottom: 4px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  font-weight: 700;
 }
-.po-edit-row input {
+.po-edit-row input,
+.po-edit-row select {
   width: 100%;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 10px;
+  padding: 10px 12px;
+  outline: none;
+  transition: box-shadow .15s ease, border-color .15s ease;
 }
-.po-edit-actions {
-  grid-column: 1 / -1;
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
+.po-edit-row input:focus,
+.po-edit-row select:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(22,163,74,.22);
+}
+.po-edit-actions { grid-column: 1 / -1; display: flex; gap: 10px; }
+
+/* --------- RETURN PANEL (đổi/trả) --------- */
+.po-return-wrap {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  background: linear-gradient(180deg, var(--card), color-mix(in srgb, var(--brand-50) 18%, transparent));
+  box-shadow: var(--shadow-soft);
 }
 
+.po-return-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+.po-return-status {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--accent-50);
+  color: var(--accent-600);
+  border: 1px solid color-mix(in srgb, var(--accent-50) 50%, var(--border));
+}
+.po-return-open { color: var(--warn); font-weight: 800; }
+
+.po-return-box {
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--accent-50) 12%, transparent);
+  margin-bottom: 12px;
+}
+.po-return-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 160px 1fr;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.po-return-row > label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+}
+.po-return-row input,
+.po-return-row select {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 10px;
+  padding: 10px 12px;
+  outline: none;
+  transition: box-shadow .15s ease, border-color .15s ease;
+}
+.po-return-row input:focus,
+.po-return-row select:focus {
+  border-color: var(--accent);
+  box-shadow: var(--focus);
+}
+.po-return-actions { display: flex; gap: 8px; margin-top: 6px; }
+
+.po-return-evidences {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 10px;
+  margin: 10px 0 14px;
+}
+.po-return-evidences a {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--card);
+  box-shadow: var(--shadow-soft);
+}
+.po-return-evidences img {
+  width: 100%;
+  height: 80px;
+  object-fit: cover;
+  display: block;
+}
+
+/* Link xem chi tiết đổi/trả (nếu có) */
+.po-return-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-600) 110%);
+  color: #fff !important;
+  text-decoration: none;
+  box-shadow: var(--shadow-soft);
+}
+.po-return-link:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+
+/* --------- Phân trang --------- */
 .pa-pagination {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--card);
 }
 .pa-pageinfo {
-  font-size: 13px;
-  color: #374151;
-}
-/* ===== Khối đổi trạng thái thủ công ===== */
-.po-status-edit {
-  margin-top: 12px;
-  padding: 10px;
-  border: 1px dashed #d1d5db;
-  border-radius: 8px;
-  background: #fafafa;
-}
-.po-status-edit .po-status-row {
-  margin-bottom: 8px;
-}
-.po-status-edit label {
-  display: block;
-  font-size: 12px;
-  color: #6b7280;
-  margin-bottom: 4px;
-}
-.po-status-edit select,
-.po-status-edit input {
-  width: 100%;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 13px;
-}
-.po-status-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-}
-.po-status-actions .po-help {
-  font-size: 12px;
-  color: #9ca3af;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  font-weight: 600;
 }
 
-/* Làm màu sắc theo trạng thái */
-.po-status-chip[data-status="pending_payment"] {
-  background: #fef3c7;
-  color: #92400e;
-}
-.po-status-chip[data-status="confirmed"] {
-  background: #e0f2fe;
-  color: #075985;
-}
-.po-status-chip[data-status="shipping"] {
-  background: #dcfce7;
-  color: #166534;
-}
-.po-status-chip[data-status="delivered"] {
-  background: #ede9fe;
-  color: #5b21b6;
-}
-.po-status-chip[data-status="cancelled"] {
-  background: #fee2e2;
-  color: #991b1b;
+/* --------- Scrollbar đẹp hơn (WebKit) --------- */
+.pa-table-wrap::-webkit-scrollbar,
+.preorders-admin::-webkit-scrollbar { height: 10px; width: 10px; }
+.pa-table-wrap::-webkit-scrollbar-thumb,
+.preorders-admin::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
-/* Hover trên dòng bảng */
-.pa-table tbody tr:hover {
-  background: #fafafa;
+/* --------- Responsive --------- */
+@media (max-width: 1024px) {
+  .pa-filter-row { grid-template-columns: 1fr 1fr; }
+  .po-status-row { grid-template-columns: 1fr; }
+  .po-edit { grid-template-columns: 1fr; }
+  .po-return-row { grid-template-columns: 1fr; }
+  .pa-table thead th:nth-child(2),
+  .pa-table tbody td:nth-child(2) { min-width: 220px; }
+}
+
+@media (max-width: 680px) {
+  .pa-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .pa-filter-row { grid-template-columns: 1fr; }
+  .po-actions { gap: 6px; }
+  .pa-pagination { flex-direction: column; gap: 8px; }
 }

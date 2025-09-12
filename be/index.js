@@ -25,21 +25,36 @@ import { fruitbotRouter } from './src/routes/fruitbot.route.js';
 //  Preorder routes
 import preorderRouter from './src/routes/preorder.route.js';
 import momoPreorderRoutes from './src/routes/momoPreorder.route.js';
+
 dotenv.config();
 
 const app = express();
 
-// Middlewares
+/* ===================== Middlewares ===================== */
 app.use(cors());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
 
-// Test route
+// NỚI GIỚI HẠN BODY để tránh 413 khi gửi ảnh base64 (đổi qua ENV nếu muốn)
+const BODY_LIMIT = process.env.BODY_LIMIT || '25mb';
+app.use(express.json({ limit: BODY_LIMIT }));
+app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT, parameterLimit: 100000 }));
+
+// (Tuỳ chọn) handler gọn cho lỗi entity too large
+app.use((err, req, res, next) => {
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({
+      ok: false,
+      message: `Payload quá lớn. Vui lòng giảm dung lượng ảnh hoặc tăng BODY_LIMIT (hiện tại ${BODY_LIMIT}).`,
+    });
+  }
+  next(err);
+});
+
+/* ===================== Test route ===================== */
 app.get('/', (req, res) => {
   res.send('API is working');
 });
 
-// Routes
+/* ===================== Routes ===================== */
 app.use('/auth', authRoutes);
 
 //  Giữ mount cũ (singular) để backward compatible
@@ -57,22 +72,21 @@ app.use('/api/voucher', voucherRoutes);
 app.use('/api/momo', momoRoutes);
 app.use('/api/upload', uploadRoute);
 app.use('/api/address', addressRoute);
-app.use("/api/momo-preorder", momoPreorderRoutes);  // đơn đặt trước
+app.use("/api/momo-preorder", momoPreorderRoutes);
 
-// Mount shipping routes (bao gồm /api/shipping/quote, v.v.)
+// Mount shipping routes
 app.use('/api', shippingRoutes);
 
-// Mount chatbot routes (rule-based + có thể fallback AI nếu bạn thêm ở route)
+// Mount chatbot routes
 app.use('/api/fruitbot', fruitbotRouter);
 
-//  NEW: Mount Preorder routes
-//    → cung cấp các endpoint: /api/preorders (create, cancel, pay-remaining, admin, ...)
+// Preorder routes
 app.use('/api/preorders', preorderRouter);
 
 // Static file route
 app.use('/images', express.static('public/images'));
 
-// Connect MongoDB and start server
+/* ===================== Mongo & Server ===================== */
 mongoose.connect('mongodb://localhost:27017/freshfruit')
   .then(() => {
     console.log(' Connected to MongoDB');

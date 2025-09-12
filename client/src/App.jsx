@@ -54,6 +54,9 @@ import ComingSoon from "./pages/comingsoon/ComingSoon";
 import PreorderPayDeposit from "./pages/Deposit/PreorderPayDeposit"
 import PreorderPayRemaining from "./pages/Deposit/PreorderPayRemaining";
 import PreorderSuccess from "./pages/Deposit/PreorderSuccess";
+import ReturnRequestPage from "./pages/ProfilePage/ReturnRequestPage";
+import ReturnRequestAdmin from "./pages/Admin/Preorder/ReturnRequestAdmin";
+
 //  Import Chatbot
 import ChatFruitBot from "./components/chatbot/ChatFruitBot";
 
@@ -84,6 +87,9 @@ function AppWrapper() {
           <Route path="dang-nhap" element={<LoginForm />} />
           <Route path="/quen-mat-khau" element={<ForgotPassword />} />
           <Route path="/thong-tin" element={<ProfilePage />} />
+          <Route path="/return-request/:preorderId" element={<ReturnRequestPage />} />
+          <Route path="/admin/preorders/:id/return" element={<ReturnRequestAdmin />} />
+          
 
           {/* Các trang nội dung mới */}
           <Route path="tin-tuc" element={<News />} />
