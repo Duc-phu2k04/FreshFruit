@@ -35,8 +35,10 @@ export default function Checkout() {
   const [appliedVoucher, setAppliedVoucher] = useState(null);
   const [discountAmount, setDiscountAmount] = useState(0);
 
-  // Địa chỉ + ship
-  const [defaultAddress, setDefaultAddress] = useState(null);
+  // Địa chỉ + ship - UPDATED
+  const [addresses, setAddresses] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
+  const [showAddressForm, setShowAddressForm] = useState(true);
   const [shippingFee, setShippingFee] = useState(0);
   const [shippingLabel, setShippingLabel] = useState("");
   const [quoting, setQuoting] = useState(false);
@@ -56,6 +58,9 @@ export default function Checkout() {
   });
   const [districts, setDistricts] = useState([]);
   const [wards, setWards] = useState([]);
+
+  // Get selected address object
+  const selectedAddress = addresses.find(addr => addr._id === selectedAddressId);
 
   // fetch districts (Hà Nội)
   useEffect(() => {
@@ -106,11 +111,14 @@ export default function Checkout() {
       const payload = {
         ...newAddressForm,
         province: newAddressForm.province || "Hà Nội",
-        isDefault: false,
+        isDefault: addresses.length === 0, // First address becomes default
       };
       const res = await axios.post(`${API_URL}/api/address`, payload, { headers });
-      const addr = res.data;
-      setDefaultAddress(addr); // dùng ngay địa chỉ mới
+      const newAddr = res.data;
+      
+      // Update addresses list and select the new address
+      setAddresses(prev => [...prev, newAddr]);
+      setSelectedAddressId(newAddr._id);
       setShowAddForm(false);
       setNewAddressForm({
         fullName: "",
@@ -234,38 +242,47 @@ export default function Checkout() {
 
   const total = Math.max(0, subtotal + (shippingFee || 0) - (discountAmount || 0));
 
-  // fetch default address
+  // fetch addresses - UPDATED
   useEffect(() => {
-    const fetchDefaultAddress = async () => {
+    const fetchAddresses = async () => {
       try {
         const token = localStorage.getItem("token");
         if (!token) return;
         const headers = { Authorization: `Bearer ${token}` };
+        
+        // Fetch user profile for defaultAddressId
         const userRes = await axios.get(`${API_URL}/auth/profile`, { headers });
         const user = userRes.data;
         const defaultAddressId = user?.defaultAddressId;
+        
+        // Fetch all addresses
+        const addressesRes = await axios.get(`${API_URL}/api/address`, { headers });
+        const addressList = addressesRes.data || [];
+        setAddresses(addressList);
+        
+        // Set selected address
         if (defaultAddressId) {
-          const addressRes = await axios.get(`${API_URL}/api/address/${defaultAddressId}`, {
-            headers,
-          });
-          setDefaultAddress(addressRes.data);
+          setSelectedAddressId(defaultAddressId);
         } else {
-          const addressesRes = await axios.get(`${API_URL}/api/address`, { headers });
-          const list = addressesRes.data || [];
-          const def = list.find((a) => a.isDefault) || null;
-          setDefaultAddress(def);
+          const defaultAddr = addressList.find((a) => a.isDefault);
+          if (defaultAddr) {
+            setSelectedAddressId(defaultAddr._id);
+          } else if (addressList.length > 0) {
+            setSelectedAddressId(addressList[0]._id);
+          }
         }
-      } catch {
-        setDefaultAddress(null);
+      } catch (err) {
+        console.error("Lỗi tải địa chỉ:", err);
+        setAddresses([]);
       }
     };
-    fetchDefaultAddress();
+    fetchAddresses();
   }, []);
 
-  // quote shipping
+  // quote shipping - UPDATED
   useEffect(() => {
     const quote = async () => {
-      if (!defaultAddress?._id) {
+      if (!selectedAddressId) {
         setShippingFee(0);
         setShippingLabel("");
         return;
@@ -276,7 +293,7 @@ export default function Checkout() {
         const headers = { Authorization: `Bearer ${token}` };
         const res = await axios.get(`${API_URL}/api/orders/shipping/quote`, {
           headers,
-          params: { addressId: defaultAddress._id, subtotal },
+          params: { addressId: selectedAddressId, subtotal },
         });
         const data = res?.data?.data || {};
         setShippingFee(Number(data.amount || 0));
@@ -291,7 +308,7 @@ export default function Checkout() {
       }
     };
     quote();
-  }, [defaultAddress?._id, subtotal]);
+  }, [selectedAddressId, subtotal]);
 
   // voucher
   const handleApplyVoucher = async () => {
@@ -338,10 +355,10 @@ export default function Checkout() {
     }));
   };
 
-  // thanh toán COD
+  // thanh toán COD - UPDATED
   const handlePayment = async () => {
     if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
-    if (!defaultAddress?._id) return alert("Chưa có địa chỉ giao hàng.");
+    if (!selectedAddressId) return alert("Chưa chọn địa chỉ giao hàng.");
     try {
       setSubmitting(true);
       const token = localStorage.getItem("token");
@@ -349,7 +366,7 @@ export default function Checkout() {
       const payload = {
         cartItems: buildCartItems(),
         voucher: appliedVoucher?.code || null,
-        address: { _id: defaultAddress._id },
+        address: { _id: selectedAddressId },
         paymentMethod: "cod",
       };
       await axios.post(`${API_URL}/api/orders/add`, payload, { headers });
@@ -362,10 +379,10 @@ export default function Checkout() {
     }
   };
 
-  // thanh toán MOMO
+  // thanh toán MOMO - UPDATED
   const handlePaymentMomo = async () => {
     if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
-    if (!defaultAddress?._id) return alert("Chưa có địa chỉ giao hàng.");
+    if (!selectedAddressId) return alert("Chưa chọn địa chỉ giao hàng.");
     try {
       setSubmitting(true);
       const token = localStorage.getItem("token");
@@ -373,15 +390,15 @@ export default function Checkout() {
       const payload = {
         cartItems: buildCartItems(),
         voucher: appliedVoucher?.code || null,
-        address: { _id: defaultAddress._id },
+        address: { _id: selectedAddressId },
         paymentMethod: "momo",
         shippingAddress: {
-          fullName: defaultAddress.fullName,
-          phone: defaultAddress.phone,
-          addressLine: defaultAddress.detail,
-          wardName: defaultAddress.ward,
-          districtName: defaultAddress.district,
-          provinceName: defaultAddress.province,
+          fullName: selectedAddress?.fullName,
+          phone: selectedAddress?.phone,
+          addressLine: selectedAddress?.detail,
+          wardName: selectedAddress?.ward,
+          districtName: selectedAddress?.district,
+          provinceName: selectedAddress?.province,
         },
         shippingFee,
       };
@@ -413,103 +430,185 @@ export default function Checkout() {
       </div>
 
       <main className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* địa chỉ */}
+        {/* địa chỉ - UPDATED DESIGN */}
         <div>
-          <h1 className="text-lg font-bold mb-4">Địa Chỉ Nhận Hàng</h1>
-          {defaultAddress ? (
-            <div className="bg-white border rounded p-4">
-              <p className="font-medium">
-                {defaultAddress.fullName} | {defaultAddress.phone}
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-lg font-bold">Địa Chỉ Nhận Hàng</h1>
+            <button 
+              onClick={() => setShowAddressForm(!showAddressForm)} 
+              className="text-blue-600 hover:underline text-sm"
+            >
+              {showAddressForm ? "Ẩn danh sách" : "Xem danh sách"}
+            </button>
+          </div>
+
+          {/* Address Selection Form */}
+          {showAddressForm && (
+            <div className="bg-white border rounded-lg p-4 mb-4 max-h-80 overflow-y-auto">
+              <h3 className="font-medium mb-3 text-gray-700">Chọn địa chỉ giao hàng:</h3>
+              
+              {addresses.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">Chưa có địa chỉ nào. Vui lòng thêm địa chỉ mới.</p>
+              ) : (
+                <div className="space-y-3">
+                  {addresses.map((address) => (
+                    <label 
+                      key={address._id} 
+                      className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
+                        selectedAddressId === address._id 
+                          ? 'border-blue-500 bg-blue-50' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="address"
+                        value={address._id}
+                        checked={selectedAddressId === address._id}
+                        onChange={(e) => setSelectedAddressId(e.target.value)}
+                        className="mt-1 text-blue-600"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-800">{address.fullName}</span>
+                          <span className="text-gray-600">|</span>
+                          <span className="text-gray-600">{address.phone}</span>
+                          {address.isDefault && (
+                            <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">
+                              Mặc định
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-gray-600 text-sm mt-1">
+                          {address.detail}, {address.ward}, {address.district}, {address.province}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Selected Address Display */}
+          {selectedAddress && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="text-green-800 font-medium text-sm">Địa chỉ đã chọn:</span>
+              </div>
+              <p className="font-medium text-gray-800">
+                {selectedAddress.fullName} | {selectedAddress.phone}
               </p>
-              <p>
-                {defaultAddress.detail}, {defaultAddress.ward},{" "}
-                {defaultAddress.district}, {defaultAddress.province}
+              <p className="text-gray-600 text-sm">
+                {selectedAddress.detail}, {selectedAddress.ward}, {selectedAddress.district}, {selectedAddress.province}
               </p>
             </div>
-          ) : (
-            <p className="text-red-600">Không tìm thấy địa chỉ mặc định.</p>
           )}
 
           {/* form thêm địa chỉ */}
           {showAddForm ? (
-            <div className="bg-gray-50 border rounded p-4 mt-4">
-              <input
-                type="text"
-                placeholder="Họ và tên"
-                value={newAddressForm.fullName}
-                onChange={(e) => setNewAddressForm({ ...newAddressForm, fullName: e.target.value })}
-                className="border rounded px-2 py-1 mb-2 w-full"
-              />
-              <input
-                type="text"
-                placeholder="Số điện thoại"
-                value={newAddressForm.phone}
-                onChange={(e) => setNewAddressForm({ ...newAddressForm, phone: e.target.value })}
-                className="border rounded px-2 py-1 mb-2 w-full"
-              />
-              <input type="text" value="Hà Nội" disabled className="border rounded px-2 py-1 mb-2 w-full" />
-              <select
-                value={newAddressForm.districtCode || ""}
-                onChange={(e) => {
-                  const code = String(e.target.value);
-                  const selectedDistrict = districts.find((d) => String(d.code) === code);
-                  setNewAddressForm({
-                    ...newAddressForm,
-                    district: selectedDistrict?.name || "",
-                    districtCode: code,
-                    ward: "",
-                    wardCode: "",
-                  });
-                  handleDistrictChange(code);
-                }}
-                className="border rounded px-2 py-1 mb-2 w-full"
-              >
-                <option value="">-- Chọn Quận/Huyện --</option>
-                {districts.map((d) => (
-                  <option key={d.code} value={String(d.code)}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={newAddressForm.wardCode || ""}
-                onChange={(e) => {
-                  const code = String(e.target.value);
-                  const selectedWard = wards.find((w) => String(w.code) === code);
-                  setNewAddressForm({
-                    ...newAddressForm,
-                    ward: selectedWard?.name || "",
-                    wardCode: selectedWard ? String(selectedWard.code) : "",
-                  });
-                }}
-                className="border rounded px-2 py-1 mb-2 w-full"
-              >
-                <option value="">-- Chọn Phường/Xã --</option>
-                {wards.map((w) => (
-                  <option key={w.code} value={String(w.code)}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="text"
-                placeholder="Địa chỉ chi tiết"
-                value={newAddressForm.detail}
-                onChange={(e) => setNewAddressForm({ ...newAddressForm, detail: e.target.value })}
-                className="border rounded px-2 py-1 mb-2 w-full"
-              />
-              <div className="flex gap-2">
-                <button onClick={addAddress} className="bg-green-600 text-white px-4 py-2 rounded">
-                  Lưu địa chỉ
-                </button>
-                <button onClick={() => setShowAddForm(false)} className="px-4 py-2 rounded border">
-                  Hủy
-                </button>
+            <div className="bg-gray-50 border rounded-lg p-4">
+              <h3 className="font-medium mb-3">Thêm địa chỉ mới</h3>
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  placeholder="Họ và tên"
+                  value={newAddressForm.fullName}
+                  onChange={(e) => setNewAddressForm({ ...newAddressForm, fullName: e.target.value })}
+                  className="border rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Số điện thoại"
+                  value={newAddressForm.phone}
+                  onChange={(e) => setNewAddressForm({ ...newAddressForm, phone: e.target.value })}
+                  className="border rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <input 
+                  type="text" 
+                  value="Hà Nội" 
+                  disabled 
+                  className="border rounded-lg px-3 py-2 w-full bg-gray-100 text-gray-600" 
+                />
+                <select
+                  value={newAddressForm.districtCode || ""}
+                  onChange={(e) => {
+                    const code = String(e.target.value);
+                    const selectedDistrict = districts.find((d) => String(d.code) === code);
+                    setNewAddressForm({
+                      ...newAddressForm,
+                      district: selectedDistrict?.name || "",
+                      districtCode: code,
+                      ward: "",
+                      wardCode: "",
+                    });
+                    handleDistrictChange(code);
+                  }}
+                  className="border rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- Chọn Quận/Huyện --</option>
+                  {districts.map((d) => (
+                    <option key={d.code} value={String(d.code)}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={newAddressForm.wardCode || ""}
+                  onChange={(e) => {
+                    const code = String(e.target.value);
+                    const selectedWard = wards.find((w) => String(w.code) === code);
+                    setNewAddressForm({
+                      ...newAddressForm,
+                      ward: selectedWard?.name || "",
+                      wardCode: selectedWard ? String(selectedWard.code) : "",
+                    });
+                  }}
+                  className="border rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- Chọn Phường/Xã --</option>
+                  {wards.map((w) => (
+                    <option key={w.code} value={String(w.code)}>
+                      {w.name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  placeholder="Địa chỉ chi tiết"
+                  value={newAddressForm.detail}
+                  onChange={(e) => setNewAddressForm({ ...newAddressForm, detail: e.target.value })}
+                  className="border rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <div className="flex gap-2">
+                  <button 
+                    onClick={addAddress} 
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
+                  >
+                    Lưu địa chỉ
+                  </button>
+                  <button 
+                    onClick={() => setShowAddForm(false)} 
+                    className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                  >
+                    Hủy
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
-            <button onClick={() => setShowAddForm(true)} className="mt-3 px-4 py-2 rounded bg-blue-600 text-white">
-              + Thêm địa chỉ mới
+            <button 
+              onClick={() => setShowAddForm(true)} 
+              className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Thêm địa chỉ mới
             </button>
           )}
         </div>
@@ -627,14 +726,14 @@ export default function Checkout() {
           <button
             onClick={handlePaymentMomo}
             className="w-full h-14 bg-blue-600 text-white rounded-lg mb-3 disabled:opacity-60"
-            disabled={submitting || !dataCart?.products?.length}
+            disabled={submitting || !dataCart?.products?.length || !selectedAddressId}
           >
             Thanh Toán Qua MOMO
           </button>
           <button
             onClick={handlePayment}
             className="w-full h-14 bg-red-600 text-white rounded-lg disabled:opacity-60"
-            disabled={submitting || !dataCart?.products?.length}
+            disabled={submitting || !dataCart?.products?.length || !selectedAddressId}
           >
             Thanh Toán Khi Nhận Hàng
           </button>
