@@ -1,3 +1,4 @@
+import React from 'react'; // Thêm dòng này
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import Layout from "./layouts/Main-layout";
 import Homepage from "./pages/Homepage/Homepage";
@@ -27,6 +28,9 @@ import EditProductForm from "./pages/Admin/Product/Edit";
 import ProductDetailAdmin from "./pages/Admin/Product/Detail";
 import ProductDetail from "./pages/Product/ProductDetail";
 import UserList from "./pages/Admin/User/List";
+import UserAdd from "./pages/Admin/User/Add";
+import UserEdit from "./pages/Admin/User/Edit";
+
 import ReviewList from "./pages/Admin/Reviews/List";
 import VoucherList from "./pages/Admin/Voucher/List";
 import AddVoucherForm from "./pages/Admin/Voucher/Add";
@@ -53,6 +57,8 @@ import PreorderPayRemaining from "./pages/Deposit/PreorderPayRemaining";
 import PreorderSuccess from "./pages/Deposit/PreorderSuccess";
 //  Import Chatbot
 import ChatFruitBot from "./components/chatbot/ChatFruitBot";
+//
+import sessionManager from './utils/sessionManager';
 
 function AppWrapper() {
   const location = useLocation();
@@ -109,6 +115,9 @@ function AppWrapper() {
           <Route path="/admin/products/edit/:id" element={<EditProductForm />} />
           <Route path="/admin/products/detail/:id" element={<ProductDetailAdmin />} />
           <Route path="/admin/users" element={<UserList />} />
+          <Route path="/admin/users/add" element={<UserAdd />} />
+          <Route path="/admin/users/edit/:id" element={<UserEdit />} />
+
           <Route path="/admin/reviews" element={<ReviewList />} />
           <Route path="/admin/vouchers" element={<VoucherList />} />
           <Route path="/admin/vouchers/add" element={<AddVoucherForm />} />
@@ -130,6 +139,11 @@ function AppWrapper() {
 }
 
 function App() {
+  // Thêm dòng này để kích hoạt sessionManager
+  React.useEffect(() => {
+    // sessionManager sẽ tự động hoạt động khi component mount
+    console.log('SessionManager activated');
+  }, []);
   return (
     <AuthProvider>
       <CartProvider>

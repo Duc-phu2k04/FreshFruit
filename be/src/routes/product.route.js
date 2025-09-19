@@ -1,11 +1,9 @@
 import express from "express";
 import mongoose from "mongoose";
 import productController from "../controllers/product.controller.js";
-import { verifyToken, isAdmin } from "../middlewares/auth.middleware.js";
+import { verifyToken, isAdminOrManager } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
-
-
 
 /* ================= PUBLIC ================= */
 
@@ -24,27 +22,27 @@ router.get("/category/:categoryId", productController.getByCategoryWithFilter);
 // Chi tiết sản phẩm (đặt CUỐI để không nuốt các route tĩnh)
 router.get("/:id", productController.getById);
 
-/* ================= ADMIN ================= */
+/* ================= ADMIN / MANAGER ================= */
 
 // Tạo mới sản phẩm
-router.post("/add", verifyToken, isAdmin, productController.create);
+router.post("/add", verifyToken, isAdminOrManager, productController.create);
 
 // Cập nhật sản phẩm
-router.put("/:id", verifyToken, isAdmin, productController.update);
+router.put("/:id", verifyToken, isAdminOrManager, productController.update);
 
 // Xoá sản phẩm
-router.delete("/:id", verifyToken, isAdmin, productController.remove);
+router.delete("/:id", verifyToken, isAdminOrManager, productController.remove);
 
 // Xoá NHIỀU biến thể theo danh sách attributes
-router.delete("/:id/variant", verifyToken, isAdmin, productController.removeVariants);
+router.delete("/:id/variant", verifyToken, isAdminOrManager, productController.removeVariants);
 
 // Cập nhật 1 biến thể theo ID
-router.put("/:id/variant/:variantId", verifyToken, isAdmin, productController.updateVariant);
+router.put("/:id/variant/:variantId", verifyToken, isAdminOrManager, productController.updateVariant);
 
 // Xoá 1 biến thể theo ID
-router.delete("/:id/variant/:variantId", verifyToken, isAdmin, productController.removeVariantById);
+router.delete("/:id/variant/:variantId", verifyToken, isAdminOrManager, productController.removeVariantById);
 
-/* ================= PARAM VALIDATION (thay cho regex inline) ================= */
+/* ================= PARAM VALIDATION ================= */
 router.param("id", (req, res, next, val) => {
   if (!mongoose.Types.ObjectId.isValid(val)) {
     return res.status(400).json({ message: "Invalid product id" });

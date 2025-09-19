@@ -14,7 +14,7 @@ const userSchema = new mongoose.Schema(
     },
     password: { type: String, required: true },
 
-    role: { type: String, enum: ['user', 'admin'], default: 'user' },
+    role: { type: String, enum: ['user', 'admin', 'manager'], default: 'user' },
 
     // Bổ sung cho ProfilePage (giữ nguyên)
     fullName: { type: String, trim: true },

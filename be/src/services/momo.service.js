@@ -13,7 +13,7 @@ const secretKey = "K951B6PE1waDMi640xX08PD3vg6EkVlz";
 
 // Link callback và redirect
 const redirectUrl = "http://localhost:5173/order-success";
-const ipnUrl = "https://2576bd6dd477.ngrok-free.app/api/momo/ipn";
+const ipnUrl = " https://570d49dabb27.ngrok-free.app/api/momo/ipn";
 
 const isSameVariant = (a, b) => a.weight === b.weight && a.ripeness === b.ripeness;
 

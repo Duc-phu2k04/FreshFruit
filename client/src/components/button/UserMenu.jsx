@@ -24,6 +24,9 @@ const UserMenu = () => {
     );
   }
 
+  // Kiểm tra xem user có quyền truy cập trang quản trị không
+  const canAccessAdmin = user.role === "admin" || user.role === "manager";
+
   return (
     <div className="relative text-sm text-right">
       <button
@@ -43,7 +46,7 @@ const UserMenu = () => {
             Thông tin cá nhân
           </Link>
 
-          {user.role === "admin" && (
+          {canAccessAdmin && (
             <Link
               to="/admin"
               className="block px-4 py-2 hover:bg-gray-100"

@@ -1,6 +1,6 @@
 // server/routes/preorder.route.js
 import express from "express";
-import { verifyToken, isAdmin } from "../middlewares/auth.middleware.js";
+import { verifyToken, isAdmin,isAdminOrManager } from "../middlewares/auth.middleware.js";
 import {
   // USER
   createPreorder,
@@ -25,17 +25,17 @@ import {
 const router = express.Router();
 
 /* ---------- ADMIN ROUTES ---------- */
-router.get("/admin", verifyToken, isAdmin, listAdminPreorders);
-router.patch("/:id/recalc", verifyToken, isAdmin, recalcPreorder);
-router.patch("/:id/admin-edit", verifyToken, isAdmin, adminEditPreorder);
-router.patch("/:id/admin-cancel", verifyToken, isAdmin, adminCancelPreorder);
-router.delete("/:id/admin-delete", verifyToken, isAdmin, adminDeletePreorder);
-router.patch("/:id/admin-set-status", verifyToken, isAdmin, adminSetStatus);
+router.get("/admin", verifyToken, isAdminOrManager, listAdminPreorders);
+router.patch("/:id/recalc", verifyToken, isAdminOrManager, recalcPreorder);
+router.patch("/:id/admin-edit", verifyToken, isAdminOrManager, adminEditPreorder);
+router.patch("/:id/admin-cancel", verifyToken, isAdminOrManager, adminCancelPreorder);
+router.delete("/:id/admin-delete", verifyToken, isAdminOrManager, adminDeletePreorder);
+router.patch("/:id/admin-set-status", verifyToken, isAdminOrManager, adminSetStatus);
 
 //  Payment ops for admin (thiếu các route này sẽ gây 404 ở FE)
-router.post("/:id/admin-add-payment", verifyToken, isAdmin, adminAddPayment);
-router.patch("/:id/admin-mark-deposit-paid", verifyToken, isAdmin, adminMarkDepositPaid);
-router.patch("/:id/admin-mark-paid-in-full", verifyToken, isAdmin, adminMarkPaidInFull);
+router.post("/:id/admin-add-payment", verifyToken, isAdminOrManager, adminAddPayment);
+router.patch("/:id/admin-mark-deposit-paid", verifyToken, isAdminOrManager, adminMarkDepositPaid);
+router.patch("/:id/admin-mark-paid-in-full", verifyToken, isAdminOrManager, adminMarkPaidInFull);
 
 /* ---------- USER ROUTES ---------- */
 router.post("/", verifyToken, createPreorder);

@@ -90,21 +90,22 @@ export default function UserEdit() {
                         onChange={handleChange}
                         className="mt-1 block w-full border rounded px-3 py-2"
                     >
-                        <option value="user">User</option>
-                        <option value="admin">Admin</option>
+                        <option value="user">Người dùng</option>
+                        <option value="manager">Quản lý</option>
+                        <option value="admin">Quản trị viên</option>
                     </select>
                 </div>
                 <div className="flex justify-end space-x-4">
                     <button
                         type="button"
-                        onClick={() => navigate('/users')}
-                        className="px-4 py-2 bg-gray-300 rounded"
+                        onClick={() => navigate('/admin/users')}
+                        className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
                     >
                         Hủy
                     </button>
                     <button
                         type="submit"
-                        className="px-4 py-2 bg-blue-600 text-white rounded"
+                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                     >
                         Lưu
                     </button>

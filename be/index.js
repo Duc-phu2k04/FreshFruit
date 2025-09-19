@@ -25,6 +25,9 @@ import { fruitbotRouter } from './src/routes/fruitbot.route.js';
 //  Preorder routes
 import preorderRouter from './src/routes/preorder.route.js';
 import momoPreorderRoutes from './src/routes/momoPreorder.route.js';
+// Dashboard
+import statisticsRoutes from './src/routes/statistics.route.js';
+
 dotenv.config();
 
 const app = express();
@@ -58,6 +61,10 @@ app.use('/api/momo', momoRoutes);
 app.use('/api/upload', uploadRoute);
 app.use('/api/address', addressRoute);
 app.use("/api/momo-preorder", momoPreorderRoutes);  // đơn đặt trước
+
+// Dashboard
+
+app.use('/api/statistics', statisticsRoutes);
 
 // Mount shipping routes (bao gồm /api/shipping/quote, v.v.)
 app.use('/api', shippingRoutes);
