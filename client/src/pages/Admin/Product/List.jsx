@@ -13,7 +13,76 @@ import Loader from "../../../components/common/Loader";
 
 /** Utils nhỏ gọn cho FE (fallback nếu BE chưa gắn _expiry/priceView) */
 const toNum = (v, def = 0) => (Number.isFinite(Number(v)) ? Number(v) : def);
-const sumBy = (arr, fn) => arr.reduce((s, x) => s + toNum(fn(x), 0), 0);
+
+// ✅ detect combo chính xác
+const isComboProduct = (p) => {
+  if (!p || typeof p !== "object") return false;
+  if (p.isCombo === true) return true;
+  const type = (p.type || "").toString().toLowerCase();
+  const category = (p.category || "").toString().toLowerCase();
+  if (type === "combo" || category === "combo") return true;
+  const anyComboPrice =
+    [p?.comboPricing?.fixedPrice, p?.combo?.finalPrice, p?.combo?.price, p?.combo?.fixedPrice]
+      .map((x) => toNum(x, NaN))
+      .some((n) => Number.isFinite(n) && n > 0);
+  return anyComboPrice;
+};
+
+// ✅ detect MIX (giỏ mix)
+const isMixProduct = (p) => {
+  if (!p || typeof p !== "object") return false;
+  const type = (p.type || "").toString().toLowerCase();
+  if (type === "mix" || p.isMix === true) return true;
+  if (Array.isArray(p?.mixItems) && p.mixItems.length) return true;
+  if (Array.isArray(p?.mix?.items) && p.mix.items.length) return true;
+  if (Array.isArray(p?.snapshot?.mixItems) && p.snapshot.mixItems.length) return true;
+  return false;
+};
+
+// Lấy các item bên trong giỏ mix (chỉ tên & số lượng)
+const getMixItemsFromProduct = (p) => {
+  if (!p) return [];
+  const arr =
+    p?.mixItems ||
+    p?.mix?.items ||
+    p?.snapshot?.mixItems ||
+    [];
+  return Array.isArray(arr) ? arr : [];
+};
+
+const getMixItemName = (m) =>
+  m?.name || m?.productName || m?.product?.name || "Sản phẩm";
+
+const getMixItemQty = (m) => {
+  const q = m?.qty ?? m?.quantity ?? m?.count ?? 1;
+  const n = Number(q);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+};
+
+// ✅ LẤY TỒN KHO HIỂN THỊ (đÃ FIX CHO COMBO)
+const resolveDisplayStock = (p) => {
+  if (!p) return 0;
+  // Combo: lấy đúng số tồn admin nhập tay: comboInventory.stock
+  if (isComboProduct(p)) {
+    return toNum(p?.comboInventory?.stock, 0);
+  }
+  // Sản phẩm thường/mix: cộng tồn các biến thể hoặc baseVariant
+  if (Array.isArray(p?.variants) && p.variants.length) {
+    const s = p.variants.reduce((sum, v) => sum + toNum(v?.stock), 0);
+    if (Number.isFinite(s)) return s;
+  }
+  if (p?.baseVariant?.stock != null) return toNum(p.baseVariant.stock);
+  if (p?.stock != null) return toNum(p.stock);
+  return 0;
+};
+
+// Chuẩn hoá mọi dạng response thành mảng
+const toArray = (resp) => {
+  if (Array.isArray(resp)) return resp;
+  if (resp && Array.isArray(resp.data)) return resp.data;
+  if (resp && Array.isArray(resp.products)) return resp.products;
+  return [];
+};
 
 const imageURL = (path) =>
   path?.startsWith("http") ? path : `http://localhost:3000${path || ""}`;
@@ -25,7 +94,11 @@ const fmtDate = (d) => {
   if (!d) return "-";
   const dt = new Date(d);
   if (Number.isNaN(dt.getTime())) return "-";
-  return dt.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return dt.toLocaleDateString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 };
 
 const deriveExpiryFE = (p) => {
@@ -34,18 +107,25 @@ const deriveExpiryFE = (p) => {
 
   // Fallback đơn giản khi BE cũ
   const ex = p?.expiry || {};
-  const expireAt = ex.expireDate || ex.expiryDate || null;
+  const expireAt = ex?.expireDate || ex?.expiryDate || null;
   let daysLeft = null;
   let isNearExpiry = false;
-  let discountPercent = toNum(ex?.discountNearExpiry?.percent || ex?.discountPercent, 0);
+  let discountPercent = toNum(
+    ex?.discountNearExpiry?.percent || ex?.discountPercent,
+    0
+  );
 
   if (expireAt) {
     const d = new Date(expireAt);
     const now = new Date();
     const ms = d.getTime() - now.getTime();
     daysLeft = Math.ceil(ms / (1000 * 60 * 60 * 24));
-    const threshold = toNum(ex?.discountNearExpiry?.thresholdDays || ex?.nearExpiryDays, 0);
-    isNearExpiry = Number.isFinite(daysLeft) && daysLeft >= 0 && daysLeft <= threshold;
+    const threshold = toNum(
+      ex?.discountNearExpiry?.thresholdDays || ex?.nearExpiryDays,
+      0
+    );
+    isNearExpiry =
+      Number.isFinite(daysLeft) && daysLeft >= 0 && daysLeft <= threshold;
   }
 
   const basePrice =
@@ -69,21 +149,24 @@ const deriveExpiryFE = (p) => {
 };
 
 export default function ProductList() {
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState([]); // luôn là mảng
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   // Tìm kiếm & sắp xếp
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortConfig, setSortConfig] = useState({ key: "name", direction: "ascending" });
+  const [sortConfig, setSortConfig] = useState({
+    key: "name",
+    direction: "ascending",
+  });
 
   // Bộ lọc nhanh theo trạng thái
   const [filterNear, setFilterNear] = useState(false); // cận hạn (có thể kèm giảm)
   const [filterDiscount, setFilterDiscount] = useState(false); // có giảm cận hạn
   const [filterExpired, setFilterExpired] = useState(false); // quá hạn
-  const [filterComing, setFilterComing] = useState(false); // sản phẩm Coming Soon
+  const [filterCombo, setFilterCombo] = useState(false); // ✅ mới: chỉ combo
 
-  // Tải cả 2 loại: thường & coming soon
+  // Tải cả 2 loại: thường & coming soon (giữ nguyên luồng fetch, chỉ bỏ UI filter Coming Soon)
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
@@ -94,28 +177,50 @@ export default function ProductList() {
         axiosInstance.get("/product", { params: { preorder: "true" } }),
       ]);
 
-      const arr1 = normalRes.data?.data || normalRes.data || [];
-      const arr2 = comingRes.data?.data || comingRes.data || [];
+      // ✅ Chuẩn hoá response về mảng trước khi gộp
+      const arr1 = toArray(normalRes?.data);
+      const arr2 = toArray(comingRes?.data);
 
       // Gộp & loại trùng theo _id
       const map = new Map();
-      [...arr1, ...arr2].forEach((p) => map.set(p._id, p));
+      for (const p of [...arr1, ...arr2]) {
+        if (p && p._id) map.set(p._id, p);
+      }
       const merged = [...map.values()];
 
       // Enrich dữ liệu để hiển thị quản trị
       const enriched = merged.map((p) => {
         const ex = deriveExpiryFE(p);
         const isComingSoon = !!p?.preorder?.enabled;
+        const isCombo = isComboProduct(p);
+
+        // ✅ LẤY GIÁ CHO COMBO (fallback = comboPricing.fixedPrice)
+        const priceBase = isCombo
+          ? toNum(p?.comboPricing?.fixedPrice) ||
+            toNum(p?.combo?.finalPrice) ||
+            toNum(p?.combo?.price) ||
+            toNum(p?.combo?.fixedPrice)
+          : toNum(p?.priceView?.base?.originalPrice) ||
+            toNum(p?.baseVariant?.price) ||
+            toNum(p?.variants?.[0]?.price);
+
+        const priceFinal = isCombo
+          ? toNum(p?.comboPricing?.fixedPrice) ||
+            toNum(p?.combo?.finalPrice) ||
+            toNum(p?.combo?.price) ||
+            toNum(p?.combo?.fixedPrice)
+          : toNum(p?.priceView?.base?.finalPrice) ||
+            toNum(ex.finalPrice) ||
+            priceBase;
+
+        // ✅ LẤY TỒN KHO ĐÃ FIX (comboInventory.stock cho combo)
+        const stockTotal = resolveDisplayStock(p);
+
         const isExpired = typeof ex.daysLeft === "number" && ex.daysLeft < 0;
         const hasDiscount = !isComingSoon && ex.isNearExpiry && ex.discountPercent > 0;
-        const stockTotal =
-          sumBy(p?.variants || [], (v) => v?.stock) ||
-          toNum(p?.baseVariant?.stock) ||
-          toNum(p?.variants?.[0]?.stock);
 
         return {
           ...p,
-          // các field đã chuẩn hoá để sắp xếp/lọc/hiển thị
           __normalized: {
             isComingSoon,
             isExpired,
@@ -123,14 +228,11 @@ export default function ProductList() {
             hasDiscount,
             daysLeft: ex.daysLeft,
             expireAt: ex.expireAt,
-            priceBase:
-              toNum(p?.priceView?.base?.originalPrice) ||
-              toNum(p?.baseVariant?.price) ||
-              toNum(p?.variants?.[0]?.price),
-            priceFinal:
-              toNum(p?.priceView?.base?.finalPrice) || toNum(ex.finalPrice) || 0,
+            priceBase,
+            priceFinal,
             discountPercent: toNum(ex.discountPercent),
             stockTotal,
+            isCombo, // ✅ gắn cờ combo để lọc/sort hiển thị
           },
         };
       });
@@ -139,6 +241,7 @@ export default function ProductList() {
     } catch (err) {
       console.error(err);
       setError("Lỗi khi tải danh sách sản phẩm. Vui lòng thử lại.");
+      setProducts([]); // đảm bảo là mảng
     } finally {
       setLoading(false);
     }
@@ -173,7 +276,8 @@ export default function ProductList() {
 
   // Tìm kiếm + lọc
   const filtered = useMemo(() => {
-    let data = [...products];
+    const safe = Array.isArray(products) ? products : [];
+    let data = [...safe];
 
     if (searchTerm) {
       const q = searchTerm.toLowerCase().trim();
@@ -195,12 +299,12 @@ export default function ProductList() {
       if (filterNear && !s.isNearExpiry) return false;
       if (filterDiscount && !s.hasDiscount) return false;
       if (filterExpired && !s.isExpired) return false;
-      if (filterComing && !s.isComingSoon) return false;
+      if (filterCombo && !s.isCombo) return false; // ✅ chỉ combo
       return true;
     });
 
     return data;
-  }, [products, searchTerm, filterNear, filterDiscount, filterExpired, filterComing]);
+  }, [products, searchTerm, filterNear, filterDiscount, filterExpired, filterCombo]);
 
   // Sắp xếp
   const sorted = useMemo(() => {
@@ -253,7 +357,10 @@ export default function ProductList() {
   const requestSort = (key) => {
     setSortConfig((prev) => {
       if (prev.key === key) {
-        return { key, direction: prev.direction === "ascending" ? "descending" : "ascending" };
+        return {
+          key,
+          direction: prev.direction === "ascending" ? "descending" : "ascending",
+        };
       }
       return { key, direction: "ascending" };
     });
@@ -274,28 +381,50 @@ export default function ProductList() {
 
     if (s.isComingSoon) {
       badges.push(
-        <span key="coming" className="inline-block px-2 py-0.5 text-xs rounded-full border border-amber-300 text-amber-700 bg-amber-50">
+        <span
+          key="coming"
+          className="inline-block px-2 py-0.5 text-xs rounded-full border border-amber-300 text-amber-700 bg-amber-50"
+        >
           Coming Soon
         </span>
       );
     }
     if (s.isExpired) {
       badges.push(
-        <span key="expired" className="inline-block px-2 py-0.5 text-xs rounded-full bg-red-600 text-white">
+        <span
+          key="expired"
+          className="inline-block px-2 py-0.5 text-xs rounded-full bg-red-600 text-white"
+        >
           Quá hạn
         </span>
       );
     } else if (s.isNearExpiry) {
       badges.push(
-        <span key="near" className="inline-block px-2 py-0.5 text-xs rounded-full bg-amber-500 text-white">
+        <span
+          key="near"
+          className="inline-block px-2 py-0.5 text-xs rounded-full bg-amber-500 text-white"
+        >
           Cận hạn{s.discountPercent > 0 ? ` -${s.discountPercent}%` : ""}
         </span>
       );
     }
     if (s.stockTotal <= 0) {
       badges.push(
-        <span key="oos" className="inline-block px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-700">
+        <span
+          key="oos"
+          className="inline-block px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-700"
+        >
           Hết hàng
+        </span>
+      );
+    }
+    if (s.isCombo) {
+      badges.push(
+        <span
+          key="combo"
+          className="inline-block px-2 py-0.5 text-xs rounded-full bg-emerald-600 text-white"
+        >
+          Combo
         </span>
       );
     }
@@ -312,7 +441,8 @@ export default function ProductList() {
       );
     }
     if (error) return <p className="text-center text-red-500">{error}</p>;
-    if (!sorted.length) return <p className="text-center text-gray-500">Không có sản phẩm.</p>;
+    if (!sorted.length)
+      return <p className="text-center text-gray-500">Không có sản phẩm.</p>;
 
     return (
       <div className="overflow-x-auto bg-white rounded-lg shadow">
@@ -349,7 +479,7 @@ export default function ProductList() {
                   HSD {getSortIcon("daysLeft")}
                 </button>
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-[180px]">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-[220px]">
                 Trạng thái
               </th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
@@ -361,17 +491,22 @@ export default function ProductList() {
             {sorted.map((p) => {
               const s = p.__normalized || {};
               const showOld = s.priceFinal < s.priceBase && s.priceBase > 0;
+
+              // 👉 mix items (chỉ tên & số lượng)
+              const isMix = isMixProduct(p);
+              const mixItems = isMix ? getMixItemsFromProduct(p) : [];
+
               return (
                 <tr key={p._id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
+                  <td className="px-4 py-3 align-top">
+                    <div className="flex items-start gap-3">
                       <img
                         src={imageURL(p.image)}
                         alt={p.name}
                         className="h-12 w-12 object-cover rounded border"
                       />
-                      <div>
-                        <div className="font-semibold">{p.name}</div>
+                      <div className="min-w-0">
+                        <div className="font-semibold truncate">{p.name}</div>
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <span>ID: {shortId(p._id)}</span>
                           <button
@@ -383,6 +518,29 @@ export default function ProductList() {
                             <ClipboardIcon className="h-4 w-4" /> Copy
                           </button>
                         </div>
+
+                        {/* ====== HIỂN THỊ CHI TIẾT GIỎ MIX (tên + số lượng) ====== */}
+                        {isMix && (
+                          <div className="mt-2 rounded bg-gray-50 p-2">
+                            {mixItems.length === 0 ? (
+                              <div className="text-xs text-gray-400">
+                                Không có sản phẩm trong giỏ
+                              </div>
+                            ) : (
+                              <div className="flex flex-col gap-1">
+                                {mixItems.map((m, idx) => (
+                                  <div
+                                    key={`${p._id}_mix_${idx}`}
+                                    className="text-xs text-gray-700 flex justify-between gap-2"
+                                  >
+                                    <span className="truncate">{getMixItemName(m)}</span>
+                                    <span className="whitespace-nowrap">× {getMixItemQty(m)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -410,11 +568,15 @@ export default function ProductList() {
                   <td className="px-4 py-3">{s.stockTotal ?? "—"}</td>
 
                   <td className="px-4 py-3">
-                    {p._expiry?.expireAt || p?.expiry?.expireDate || p?.expiry?.expiryDate ? (
+                    {s.expireAt ? (
                       <>
                         <div>HSD: {fmtDate(s.expireAt)}</div>
                         {typeof s.daysLeft === "number" && (
-                          <div className={`text-xs ${s.daysLeft < 0 ? "text-red-600" : "text-gray-500"}`}>
+                          <div
+                            className={`text-xs ${
+                              s.daysLeft < 0 ? "text-red-600" : "text-gray-500"
+                            }`}
+                          >
                             {s.daysLeft < 0
                               ? `Quá hạn ${Math.abs(s.daysLeft)} ngày`
                               : `Còn ${s.daysLeft} ngày`}
@@ -481,7 +643,11 @@ export default function ProductList() {
         <span className="text-sm text-gray-600 mr-2">Bộ lọc nhanh:</span>
 
         <label className="inline-flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={filterNear} onChange={(e) => setFilterNear(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={filterNear}
+            onChange={(e) => setFilterNear(e.target.checked)}
+          />
           Cận hạn
         </label>
 
@@ -503,14 +669,17 @@ export default function ProductList() {
           Quá hạn
         </label>
 
+        {/* ✅ Thêm lọc Combo */}
         <label className="inline-flex items-center gap-2 text-sm">
           <input
             type="checkbox"
-            checked={filterComing}
-            onChange={(e) => setFilterComing(e.target.checked)}
+            checked={filterCombo}
+            onChange={(e) => setFilterCombo(e.target.checked)}
           />
-          Coming Soon
+          Combo
         </label>
+
+        {/* 🔥 ĐÃ BỎ: Coming Soon filter (theo yêu cầu) */}
       </div>
 
       {renderContent()}

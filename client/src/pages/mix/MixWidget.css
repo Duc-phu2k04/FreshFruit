@@ -1,0 +1,243 @@
+/* =========================================================
+   MixWidget – Elegant / Premium Look
+   Scope tất cả trong .mix-widget để không ảnh hưởng phần khác
+   ========================================================= */
+
+.mix-widget {
+  --mw-bg: #ffffff;
+  --mw-text: #0f172a;           /* slate-900 */
+  --mw-subtle: #64748b;         /* slate-500 */
+  --mw-border: #e2e8f0;         /* slate-200 */
+  --mw-soft: #f8fafc;           /* slate-50 */
+  --mw-accent: #059669;         /* emerald-600 */
+  --mw-accent-700: #047857;     /* emerald-700 */
+  --mw-danger: #dc2626;         /* red-600 */
+  --mw-ring: rgba(5, 150, 105, 0.18);
+
+  --mw-radius-lg: 16px;
+  --mw-radius-md: 12px;
+  --mw-radius-sm: 10px;
+
+  --mw-shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --mw-shadow-md: 0 6px 20px rgba(2, 8, 23, 0.07);
+  --mw-shadow-lg: 0 14px 34px rgba(2, 8, 23, 0.12);
+
+  --mw-speed: 200ms;
+  --mw-font-size: 15px;
+}
+
+.mix-widget--panel {
+  background: var(--mw-bg);
+  border: 1px solid var(--mw-border);
+  border-radius: var(--mw-radius-lg);
+  box-shadow: var(--mw-shadow-md);
+  color: var(--mw-text);
+  font-size: var(--mw-font-size);
+  backdrop-filter: saturate(1.2) blur(3px);
+}
+
+/* Header */
+.mix-widget__header {
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--mw-border);
+}
+
+.mix-widget__header .font-semibold {
+  letter-spacing: 0.2px;
+}
+
+.mix-widget__header button {
+  color: var(--mw-danger);
+  transition: color var(--mw-speed) ease, opacity var(--mw-speed) ease;
+}
+
+.mix-widget__header button:hover {
+  opacity: 0.9;
+}
+
+/* List container – allow smooth scrolling for many items */
+.mix-widget__list {
+  max-height: 50vh;
+  overflow: auto;
+  padding-right: 2px; /* room for custom scrollbar */
+}
+
+/* Scrollbar – subtle */
+.mix-widget__list::-webkit-scrollbar {
+  width: 8px;
+}
+.mix-widget__list::-webkit-scrollbar-thumb {
+  background: #e6eef0;
+  border-radius: 999px;
+}
+.mix-widget__list:hover::-webkit-scrollbar-thumb {
+  background: #cdd7da;
+}
+
+/* Item */
+.mix-widget__item {
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--mw-border);
+}
+.mix-widget__item:last-child {
+  border-bottom: none;
+}
+
+/* Thumbnail */
+.mix-widget__thumb {
+  border-radius: var(--mw-radius-sm);
+  border: 1px solid var(--mw-border);
+  background: var(--mw-soft);
+  box-shadow: var(--mw-shadow-sm);
+}
+
+/* Info */
+.mix-widget__title {
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.mix-widget__note-line {
+  color: var(--mw-accent);
+  font-weight: 500;
+}
+
+.mix-widget__meta {
+  color: var(--mw-subtle);
+}
+
+/* Quantity controls */
+.mix-widget__qty button {
+  border: 1px solid var(--mw-border);
+  border-radius: 10px;
+  min-width: 32px;
+  height: 32px;
+  line-height: 30px;
+  text-align: center;
+  background: #fff;
+  transition: transform var(--mw-speed) ease, box-shadow var(--mw-speed) ease;
+  box-shadow: var(--mw-shadow-sm);
+}
+
+.mix-widget__qty button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--mw-shadow-md);
+}
+
+.mix-widget__qty .w-10 {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Gram controls for per-kg items */
+.mix-widget__grams input[type="number"] {
+  border: 1px solid var(--mw-border);
+  border-radius: 10px;
+  height: 34px;
+  transition: box-shadow var(--mw-speed) ease, border-color var(--mw-speed) ease;
+}
+
+.mix-widget__grams input[type="number"]:focus {
+  outline: none;
+  border-color: var(--mw-accent);
+  box-shadow: 0 0 0 4px var(--mw-ring);
+}
+
+/* Quick chips */
+.mix-widget__chips button {
+  border: 1px solid var(--mw-border);
+  border-radius: 999px;
+  height: 28px;
+  padding: 0 10px;
+  background: #fff;
+  transition: background var(--mw-speed) ease, color var(--mw-speed) ease, transform var(--mw-speed) ease;
+}
+
+.mix-widget__chips button:hover {
+  background: var(--mw-soft);
+  transform: translateY(-1px);
+}
+
+.mix-widget__chips button.bg-emerald-600 {
+  /* khi component gán class tailwind cho active */
+  border-color: var(--mw-accent);
+}
+
+/* Line total + Remove */
+.mix-widget__line {
+  letter-spacing: 0.2px;
+}
+
+.mix-widget__remove {
+  color: #9aa4b2;
+  transition: color var(--mw-speed) ease, transform var(--mw-speed) ease;
+}
+
+.mix-widget__remove:hover {
+  color: var(--mw-danger);
+  transform: translateY(-1px);
+}
+
+/* Note */
+.mix-widget__note textarea {
+  border: 1px solid var(--mw-border);
+  border-radius: var(--mw-radius-md);
+  background: #fff;
+  transition: border-color var(--mw-speed) ease, box-shadow var(--mw-speed) ease;
+}
+
+.mix-widget__note textarea:focus {
+  outline: none;
+  border-color: var(--mw-accent);
+  box-shadow: 0 0 0 4px var(--mw-ring);
+}
+
+/* Footer */
+.mix-widget__footer {
+  border-top: 1px dashed var(--mw-border);
+  padding-top: 12px;
+}
+
+.mix-widget__totals .font-semibold {
+  color: var(--mw-accent);
+}
+
+/* Primary CTA button (khi không dùng tailwind) – apply to last button in footer */
+.mix-widget__footer .px-4 {
+  border-radius: var(--mw-radius-md);
+  box-shadow: var(--mw-shadow-sm);
+  transition: transform var(--mw-speed) ease, box-shadow var(--mw-speed) ease, background var(--mw-speed) ease;
+}
+
+.mix-widget__footer .px-4:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--mw-shadow-lg);
+}
+
+/* Hover for enabled emerald button (nếu không có tailwind) */
+.mix-widget__footer .bg-emerald-600:hover {
+  background: var(--mw-accent-700);
+}
+
+/* Subtle helper text */
+.mix-widget .text-gray-500 {
+  color: var(--mw-subtle) !important;
+}
+
+/* Mini helper for empty state */
+.mix-widget .muted {
+  color: #94a3b8;
+}
+
+/* Responsive tweaks */
+@media (max-width: 420px) {
+  .mix-widget--panel {
+    border-radius: 14px;
+  }
+  .mix-widget__thumb {
+    width: 56px !important;
+    height: 56px !important;
+  }
+  .mix-widget__list {
+    max-height: 44vh;
+  }
+}

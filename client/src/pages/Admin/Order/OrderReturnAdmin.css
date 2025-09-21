@@ -1,0 +1,358 @@
+/* ============ OrderReturnAdmin.css (ora- prefix) ============ */
+/* Bản làm mới: sang trọng, tinh gọn, không phá vỡ class cũ */
+
+:root {
+  /* Màu & token chung */
+  --ora-bg: #f6f7fb;
+  --ora-card: #ffffff;
+  --ora-text: #121826;
+  --ora-muted: #6b7280;
+  --ora-border: #e6e8ee;
+
+  --ora-primary: #1f4fff;
+  --ora-primary-600: #1b43d9;
+  --ora-primary-50: #eef2ff;
+
+  --ora-danger: #e11d48;
+  --ora-danger-600: #be123c;
+  --ora-success: #059669;
+
+  --ora-chip-bg: #eef2ff;
+  --ora-chip-fg: #3730a3;
+
+  --ora-radius: 14px;
+  --ora-pad: 16px;
+  --ora-gap: 18px;
+  --ora-shadow: 0 10px 30px rgba(17, 24, 39, 0.08);
+
+  --ring: 0 0 0 4px rgba(31, 79, 255, 0.12);
+}
+
+/* ===== Layout ===== */
+.ora-wrap {
+  padding: 26px;
+  background: var(--ora-bg);
+  min-height: 100%;
+  color: var(--ora-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
+}
+
+/* Header */
+.ora-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.ora-title {
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 800;
+  margin: 6px 0 0;
+  letter-spacing: -0.01em;
+}
+
+.ora-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ora-muted);
+  font-size: 13.5px;
+}
+
+.ora-bc-link {
+  color: var(--ora-primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+.ora-bc-link:hover { text-decoration: underline; }
+.ora-bc-sep { opacity: .6; }
+.ora-bc-current { color: var(--ora-text); font-weight: 600; }
+
+/* Trạng thái tổng quan */
+.ora-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ora-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #334155;
+  font-size: 12.5px;
+  font-weight: 700;
+  border: 1px solid var(--ora-border);
+  box-shadow: 0 1px 0 rgba(16, 24, 40, 0.04);
+}
+.ora-chip svg {
+  width: 14px; height: 14px;
+}
+
+.ora-chip-open {
+  background: var(--ora-chip-bg);
+  color: var(--ora-chip-fg);
+  border-color: #c7d2fe;
+}
+
+/* ===== Grid ===== */
+.ora-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--ora-gap);
+}
+@media (min-width: 980px) {
+  .ora-grid { grid-template-columns: 1.2fr 1fr 1fr; }
+}
+
+/* ===== Card ===== */
+.ora-card {
+  background: var(--ora-card);
+  border: 1px solid var(--ora-border);
+  border-radius: var(--ora-radius);
+  box-shadow: var(--ora-shadow);
+  padding: 18px;
+}
+
+.ora-card-title {
+  font-weight: 800;
+  font-size: 16px;
+  margin-bottom: 14px;
+  letter-spacing: -.01em;
+}
+
+/* ===== Key/Value rows ===== */
+.ora-row {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--ora-border);
+}
+.ora-row:last-child { border-bottom: 0; }
+
+.ora-key {
+  width: 140px;
+  min-width: 140px;
+  color: var(--ora-muted);
+  font-size: 13.5px;
+}
+.ora-val { color: var(--ora-text); }
+
+/* Trong card yêu cầu đổi/trả: key dài hơn 1 chút */
+.ora-rf .ora-row .ora-key { width: 160px; min-width: 160px; }
+.ora-rf .ora-row .ora-val { word-break: break-word; }
+
+/* ===== Danh sách item ===== */
+.ora-items-list { list-style: none; margin: 0; padding: 0; }
+.ora-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--ora-border);
+}
+.ora-item:last-child { border-bottom: 0; }
+.ora-item-name { font-weight: 700; }
+.ora-item-variant { color: var(--ora-muted); font-size: 13px; }
+.ora-item-qty { margin-left: auto; font-weight: 700; }
+
+/* ===== Form ===== */
+.ora-field { margin-bottom: 14px; }
+.ora-label {
+  display: block;
+  font-size: 13px;
+  color: var(--ora-muted);
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.ora-input,
+.ora-textarea,
+select.ora-input {
+  width: 100%;
+  border: 1px solid var(--ora-border);
+  border-radius: 12px;
+  padding: 11px 12px;
+  font-size: 14px;
+  outline: 0;
+  background: #fff;
+  transition: border-color .15s ease, box-shadow .15s ease, transform .02s ease;
+}
+.ora-input:focus,
+.ora-textarea:focus {
+  border-color: var(--ora-primary);
+  box-shadow: var(--ring);
+}
+.ora-input:active,
+.ora-textarea:active { transform: translateY(1px); }
+
+/* ===== Actions (buttons) ===== */
+.ora-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.ora-btn {
+  appearance: none;
+  border: 1px solid var(--ora-border);
+  background: #fff;
+  color: var(--ora-text);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform .04s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+.ora-btn:hover { transform: translateY(-1px); }
+.ora-btn:active { transform: translateY(0); }
+.ora-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+.ora-btn-primary {
+  background: var(--ora-primary);
+  color: #fff;
+  border-color: var(--ora-primary);
+  box-shadow: 0 10px 22px rgba(31, 79, 255, .18);
+}
+.ora-btn-primary:hover {
+  background: var(--ora-primary-600);
+  border-color: var(--ora-primary-600);
+  box-shadow: 0 12px 26px rgba(27, 67, 217, .22);
+}
+
+.ora-btn-danger {
+  background: var(--ora-danger);
+  color: #fff;
+  border-color: var(--ora-danger);
+  box-shadow: 0 10px 22px rgba(225, 29, 72, .18);
+}
+.ora-btn-danger:hover {
+  background: var(--ora-danger-600);
+  border-color: var(--ora-danger-600);
+  box-shadow: 0 12px 26px rgba(190, 18, 60, .22);
+}
+
+.ora-btn-outline {
+  background: #fff;
+  color: var(--ora-primary);
+  border-color: var(--ora-primary);
+}
+.ora-btn-outline:hover { background: var(--ora-primary-50); }
+
+.ora-btn-light {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  color: #111827;
+}
+.ora-btn-light:hover { background: #e5e7eb; }
+
+/* ===== Divider / Alerts ===== */
+.ora-sep { height: 1px; background: var(--ora-border); margin: 16px 0; }
+
+.ora-error,
+.ora-empty {
+  padding: 14px;
+  background: #fff1f2;
+  color: #9f1239;
+  border: 1px solid #fecdd3;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ===== Image grid (evidence) ===== */
+.ora-img-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+.ora-img-cell {
+  display: block;
+  border: 1px solid var(--ora-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f8fafc;
+  position: relative;
+  transition: transform .08s ease, box-shadow .2s ease, border-color .15s ease;
+}
+.ora-img-cell:hover {
+  transform: translateY(-2px);
+  border-color: #cbd5e1;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12);
+}
+.ora-img-cell img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  display: block;
+}
+
+/* ===== Timeline ===== */
+.ora-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 2px 0 0 0;
+  display: grid;
+  gap: 10px;
+}
+.ora-timeline li {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px dashed var(--ora-border);
+  border-radius: 12px;
+}
+.ora-timeline li span {
+  font-weight: 800;
+  color: #0f172a;
+}
+.ora-timeline li time {
+  color: var(--ora-muted);
+  font-weight: 600;
+}
+
+/* ===== Helpers / States ===== */
+.ora-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.ora-note {
+  font-size: 13px;
+  color: var(--ora-muted);
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 640px) {
+  .ora-wrap { padding: 16px; }
+  .ora-title { font-size: 22px; }
+  .ora-grid { gap: 14px; }
+
+  .ora-row { flex-direction: column; gap: 6px; padding: 8px 0; }
+  .ora-key { width: auto; min-width: 0; }
+
+  .ora-item { flex-wrap: wrap; }
+  .ora-item-qty { margin-left: 0; }
+
+  .ora-timeline li {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
