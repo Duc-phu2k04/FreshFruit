@@ -1,3 +1,4 @@
+import React from 'react'; // Thêm dòng này
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import Layout from "./layouts/Main-layout";
 import Homepage from "./pages/Homepage/Homepage";
@@ -59,6 +60,8 @@ import ReturnRequestAdmin from "./pages/Admin/Preorder/ReturnRequestAdmin";
 
 //  Import Chatbot
 import ChatFruitBot from "./components/chatbot/ChatFruitBot";
+//
+import sessionManager from './utils/sessionManager';
 
 function AppWrapper() {
   const location = useLocation();
@@ -142,6 +145,11 @@ function AppWrapper() {
 }
 
 function App() {
+  // Thêm dòng này để kích hoạt sessionManager
+  React.useEffect(() => {
+    // sessionManager sẽ tự động hoạt động khi component mount
+    console.log('SessionManager activated');
+  }, []);
   return (
     <AuthProvider>
       <CartProvider>
