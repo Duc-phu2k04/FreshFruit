@@ -1,6 +1,6 @@
 // src/pages/ProfilePage.jsx
 import "./ProfilePage.css";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useAuth } from "../../context/useAuth";
 import ReviewButton from "./ReviewButton";
@@ -8,7 +8,6 @@ import { useNavigate } from "react-router-dom";
 
 const API_URL = "http://localhost:3000";
 
-// const log = (...args) => console.log("🏷️[Address]", ...args); // ← đã bỏ vì không dùng
 const logErr = (...args) => console.error("⛔[Address]", ...args);
 
 const PROVINCES_BASES = [
@@ -45,6 +44,7 @@ export default function ProfilePage() {
   const [addresses, setAddresses] = useState([]);
   const [orders, setOrders] = useState([]);
   const [preorders, setPreorders] = useState([]);
+  the: {};
   const [preordersLoading, setPreordersLoading] = useState(true);
 
   const [vouchers, setVouchers] = useState({
@@ -56,6 +56,62 @@ export default function ProfilePage() {
   const [payingId, setPayingId] = useState(null);
   const [payingKind, setPayingKind] = useState(null);
 
+  // ===== Helpers chung =====
+  const fmtMoney = (n) => Number(n || 0).toLocaleString("vi-VN") + "₫";
+
+  const imgSrcGeneric = (raw) => {
+    const s =
+      (typeof raw === "string" && raw) ||
+      raw?.url ||
+      raw?.src ||
+      "";
+    if (!s) return "";
+    if (/^https?:\/\//i.test(s)) return s;
+    return `http://localhost:3000${s}`;
+  };
+
+  // ===== Helpers format địa chỉ =====
+  const nameFromCode = (list, code) => {
+    if (!code) return "";
+    const s = String(code);
+    const hit = list.find((x) => String(x.code) === s);
+    return hit?.name || "";
+  };
+
+  const formatAddress = (addr) => {
+    if (!addr) return "";
+    const fullName = addr.fullName || addr.name || "";
+    const phone = addr.phone || addr.phoneNumber || "";
+    const detail = addr.detail || addr.address || addr.street || "";
+    const ward =
+      addr.ward ||
+      addr.wardName ||
+      nameFromCode(wards, addr.wardCode || addr.ward_code) ||
+      "";
+    const district =
+      addr.district ||
+      addr.districtName ||
+      nameFromCode(districts, addr.districtCode || addr.district_code) ||
+      "";
+    const province = addr.province || addr.provinceName || "Hà Nội";
+    return [fullName, phone, detail, ward, district, province].filter(Boolean).join(", ");
+  };
+
+  // ===== Default Address =====
+  const defaultAddress = useMemo(() => {
+    if (!addresses || addresses.length === 0) return null;
+    if (userInfo.defaultAddressId) {
+      const byId = addresses.find((a) => String(a._id) === String(userInfo.defaultAddressId));
+      if (byId) return byId;
+    }
+    const byFlag = addresses.find((a) => a.isDefault === true);
+    if (byFlag) return byFlag;
+    return addresses[0] || null;
+  }, [addresses, userInfo.defaultAddressId]);
+
+  const defaultAddressString = formatAddress(defaultAddress);
+
+  // ===== Payment helpers =====
   async function callMomo(url) {
     const res = await fetch(url, {
       method: "POST",
@@ -95,8 +151,6 @@ export default function ProfilePage() {
           tries += 1;
           await fetchPreorders(true);
           if (marker?.id) {
-            // Lưu ý: state preorders có thể không cập nhật ngay trong vòng lặp;
-            // đây là polling "best effort" sau khi thanh toán.
             const fresh = await axiosAuth.get(`/api/preorders/mine`).then(r => r.data).catch(() => null);
             const list = Array.isArray(fresh?.items) ? fresh.items : (Array.isArray(fresh) ? fresh : []);
             const p = list.find((x) => x._id === marker.id);
@@ -151,16 +205,6 @@ export default function ProfilePage() {
       setPayingKind(null);
     }
   }
-
-  const defaultAddress = (() => {
-    if (!userInfo.defaultAddressId) return null;
-    const addr = addresses.find((a) => a._id === userInfo.defaultAddressId);
-    return addr || null;
-  })();
-
-  const defaultAddressString = defaultAddress
-    ? `${defaultAddress.fullName}, ${defaultAddress.phone}, ${defaultAddress.detail}, ${defaultAddress.ward}, ${defaultAddress.district}, ${defaultAddress.province}`
-    : null;
 
   const getProductId = (item) => {
     if (!item) return "";
@@ -413,7 +457,7 @@ export default function ProfilePage() {
         ...userInfo,
         defaultAddressId: addressId,
       });
-      setUserInfo((prev) => ({ ...prev, defaultAddressId: addressId }));
+      setUserInfo((prev) => ({ ...prev, defaultAddressId: addressId })); 
       updateUser({ ...user, defaultAddressId: addressId });
       alert("Đã chọn địa chỉ mặc định thành công ✅");
     } catch (err) {
@@ -463,20 +507,6 @@ export default function ProfilePage() {
       logErr("Lỗi lấy đơn đặt trước:", err.response?.data || err.message);
     } finally {
       if (!quiet) setPreordersLoading(false);
-    }
-  };
-
-  const cancelPreorder = async (id) => {
-    if (!window.confirm("Bạn chắc chắn muốn hủy đơn đặt trước này?")) return;
-    try {
-      const res = await axiosAuth.patch(`/api/preorders/${id}/cancel`);
-      const data = res.data;
-      if (!res.status || (data && data.ok === false)) throw new Error(data?.message || "Hủy đơn đặt trước thất bại");
-      alert(data?.message || "Đã hủy đơn đặt trước");
-      fetchPreorders(true);
-    } catch (err) {
-      logErr("Lỗi hủy đơn đặt trước:", err.response?.data || err.message);
-      alert(err?.response?.data?.message || err?.message || "Không thể hủy đơn đặt trước");
     }
   };
 
@@ -551,7 +581,52 @@ export default function ProfilePage() {
     setShowAddForm(false);
   };
 
-  // ===== UI Renders =====
+  /* ---------- UI helpers for return status ---------- */
+  const RETURN_LABEL = {
+    return_requested: "Đã gửi yêu cầu",
+    return_approved: "Đã duyệt yêu cầu",
+    return_awaiting_pickup: "Chờ lấy hàng",
+    return_picked_up: "Đã lấy hàng",
+    return_in_transit: "Đang hoàn về",
+    return_received: "Đã nhận lại",
+    refund_issued: "Đã hoàn tiền",
+    return_rejected: "Bị từ chối",
+  };
+
+  // ====== Helpers để NHẬN DIỆN & HIỂN THỊ GIỎ MIX trong đơn hàng ======
+  const isMixOrderItem = (it) => {
+    return (
+      it?.type === "mix" ||
+      it?.isMix === true ||
+      Array.isArray(it?.mixItems) ||
+      Array.isArray(it?.mix?.items) ||
+      it?.snapshot?.type === "mix" ||
+      Array.isArray(it?.snapshot?.mixItems) ||
+      (Array.isArray(it?.snapshot?.items) && it?.snapshot?.title?.toLowerCase?.().includes("mix"))
+    );
+  };
+
+  const getMixDisplayName = (it) =>
+    it?.displayName ||
+    it?.name ||
+    it?.title ||
+    it?.snapshot?.title ||
+    it?.snapshot?.name ||
+    "Giỏ Mix";
+
+  const getMixItems = (it) => {
+    return (
+      it?.mixItems ||
+      it?.mix?.items ||
+      it?.snapshot?.mixItems ||
+      (it?.snapshot?.items && Array.isArray(it?.snapshot?.items) ? it.snapshot.items : []) ||
+      []
+    );
+  };
+
+  const getMixItemName = (m) => m?.name || m?.productName || "Sản phẩm";
+
+  // ====== Renders ======
   const renderProfile = () => (
     <div className="profile-section">
       <h2>Thông tin cá nhân</h2>
@@ -587,7 +662,7 @@ export default function ProfilePage() {
           <option value="">-- Chọn địa chỉ mặc định --</option>
           {addresses.map((addr) => (
             <option key={addr._id} value={addr._id}>
-              {`${addr.fullName}, ${addr.phone}, ${addr.detail}, ${addr.ward}, ${addr.district}, ${addr.province}`}
+              {formatAddress(addr)}
             </option>
           ))}
         </select>
@@ -718,7 +793,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="address-actions">
                   <div className="default-select-wrapper">
-                    {userInfo.defaultAddressId === addr._id ? (
+                    {String(userInfo.defaultAddressId) === String(addr._id) ? (
                       <span className="default-label">(Mặc định)</span>
                     ) : (
                       <button
@@ -843,6 +918,7 @@ export default function ProfilePage() {
             <th>Mã đơn</th>
             <th>Ngày đặt</th>
             <th>Sản phẩm</th>
+            <th>Phí ship</th>
             <th>Tổng tiền</th>
             <th>Trạng thái</th>
             <th>Thanh toán</th>
@@ -852,79 +928,167 @@ export default function ProfilePage() {
           </tr>
         </thead>
         <tbody>
-          {orders.map((o) => (
-            <tr key={o._id}>
-              <td className="order-id">{o.customId}</td>
-              <td>{new Date(o.createdAt).toLocaleDateString("vi-VN")}</td>
-              <td>
-                {o.items.map((it, idx) => (
-                  <div key={idx} className="product-item">
-                    {it.productName}{" "}
-                    <span className="product-meta">
-                      ({it.variant.weight}, {it.variant.ripeness}) × {it.quantity}
-                    </span>
-                  </div>
-                ))}
-              </td>
-              <td className="order-total">{o.total.toLocaleString("vi-VN")}₫</td>
-              <td>
-                <span className={`status-badge ${o.status}`}>{o.status}</span>
-              </td>
-              <td>
-                {o.paymentStatus === "paid"
-                  ? "Đã thanh toán"
-                  : o.paymentStatus === "unpaid"
-                  ? "Chưa thanh toán"
-                  : "Thanh toán thất bại"}
-              </td>
-              <td>{o.paymentMethod === "cod" ? "Thanh toán khi nhận hàng" : o.paymentMethod.toUpperCase()}</td>
-              <td>
-                {o.shippingAddress
-                  ? `${o.shippingAddress.fullName}, ${o.shippingAddress.phone}, ${o.shippingAddress.detail}, ${o.shippingAddress.ward}, ${o.shippingAddress.district}, ${o.shippingAddress.province}`
-                  : "Không có"}
-              </td>
-              <td>
-                {o.status === "pending" && (
-                  <button className="btn-cancel" onClick={() => cancelOrder(o._id)}>
-                    Hủy
-                  </button>
-                )}
-                {o.status === "delivered" && (
-                  <div className="order-actions">
-                    {o.items.map((item, index) => {
-                      const orderId = o.customId || "";
-                      const productId = getProductId(item);
-                      const itemKey =
-                        item?._id?.$oid || item?._id || `${orderId}-${productId || "noProductId"}-${index}`;
+          {orders.map((o) => {
+            const rf = o.returnFlow || o.return || o.returnRequest || null;
+            const returnRequested = !!(rf?.isOpen || rf?.status || rf?.timeline?.requestedAt);
+
+            const mainBadgeClass = returnRequested ? "returning" : o.status;
+            const mainBadgeText = returnRequested ? "Đổi/Trả" : o.status;
+
+            const addressString = formatAddress(o.shippingAddress || o.address) || "Không có";
+
+            return (
+              <tr key={o._id}>
+                <td className="order-id">{o.customId}</td>
+                <td>{new Date(o.createdAt).toLocaleDateString("vi-VN")}</td>
+                <td>
+                  {o.items.map((it, idx) => {
+                    // --- Hiển thị GIỎ MIX: chỉ tên + số lượng, KHÔNG icon, KHÔNG giá ---
+                    if (isMixOrderItem(it)) {
+                      const mixTitle = getMixDisplayName(it);
+                      const mixQty = Number(it.quantity || it.qty || 1);
+                      const mixList = getMixItems(it);
+
                       return (
-                        <div key={itemKey} className="review-wrapper">
-                          {orderId && productId ? (
-                            <ReviewButton orderId={orderId} productId={productId} itemData={item} />
-                          ) : null}
+                        <div key={`mix_${idx}`} className="product-item mix-block">
+                          <div className="mix-header">
+                            <strong>{mixTitle}</strong>{" "}
+                            <span className="product-meta">× {mixQty}</span>
+                          </div>
+
+                          <div className="mix-lines">
+                            {mixList.length === 0 ? (
+                              <div className="product-meta">Không có chi tiết sản phẩm</div>
+                            ) : (
+                              mixList.map((m, i) => (
+                                <div key={`mixline_${idx}_${i}`} className="mix-line">
+                                  <span className="mix-line-name">
+                                    {getMixItemName(m)}
+                                  </span>
+                                  {Number(m?.qty) ? (
+                                    <span className="mix-line-qty"> × {m.qty}</span>
+                                  ) : null}
+                                </div>
+                              ))
+                            )}
+                          </div>
                         </div>
                       );
-                    })}
-                    <button className="btn-delete-order" onClick={() => hideOrder(o._id)}>
-                      Xóa đơn
+                    }
+
+                    // --- Mặc định: combo/lẻ như cũ ---
+                    const isCombo = it?.isCombo === true || !!it?.combo || it?.product?.isCombo;
+                    const v = it?.variant || it?.variantInfo || {};
+                    const weight = v?.weight || v?.attributes?.weight || "";
+                    const ripeness = v?.ripeness || v?.attributes?.ripeness || "";
+                    const variantText = isCombo
+                      ? "Combo"
+                      : `(${weight || "—"}, ${ripeness || "—"})`;
+
+                    return (
+                      <div key={idx} className="product-item">
+                        {it.productName || it?.product?.name || "Sản phẩm"}{" "}
+                        <span className="product-meta">
+                          {variantText} × {Number(it.quantity || 0)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </td>
+
+                <td>{fmtMoney(o.shippingFee)}</td>
+
+                <td className="order-total">
+                  {fmtMoney(
+                    o.total ??
+                      (Number(o.subtotal || 0) - Number(o.discount || 0) + Number(o.shippingFee || 0))
+                  )}
+                </td>
+
+                <td>
+                  <span className={`status-badge ${mainBadgeClass}`}>{mainBadgeText}</span>
+                </td>
+                <td>
+                  {o.paymentStatus === "paid"
+                    ? "Đã thanh toán"
+                    : o.paymentStatus === "unpaid"
+                    ? "Chưa thanh toán"
+                    : "Thanh toán thất bại"}
+                </td>
+                <td>{o.paymentMethod === "cod" ? "Thanh toán khi nhận hàng" : String(o.paymentMethod || "").toUpperCase()}</td>
+                <td>{addressString}</td>
+                <td>
+                  {o.status === "pending" && (
+                    <button className="btn-cancel" onClick={() => cancelOrder(o._id)}>
+                      Hủy
                     </button>
-                  </div>
-                )}
-                {o.status === "cancelled" && (
-                  <div className="order-actions">
-                    <button className="btn-delete-order" onClick={() => hideOrder(o._id)}>
-                      Xóa đơn
-                    </button>
-                  </div>
-                )}
-              </td>
-            </tr>
-          ))}
+                  )}
+
+                  {o.status === "delivered" && (
+                    <div className="order-actions">
+                      {o.items.map((item, index) => {
+                        const orderId = o.customId || "";
+                        const productId = getProductId(item);
+                        const itemKey =
+                          item?._id?.$oid || item?._id || `${orderId}-${productId || "noProductId"}-${index}`;
+                        // Không bắt review cho mục MIX (thường không có productId), vẫn an toàn với mục thường
+                        return (
+                          <div key={itemKey} className="review-wrapper">
+                            {orderId && productId ? (
+                              <ReviewButton orderId={orderId} productId={productId} itemData={item} />
+                            ) : null}
+                          </div>
+                        );
+                      })}
+
+                      {!returnRequested ? (
+                        <button
+                          className="btn"
+                          onClick={() =>
+                            navigate(`/order-return/${o._id}`, {
+                              state: {
+                                orderId: o._id,
+                                customId: o.customId,
+                                items: o.items.map((it) => ({
+                                  productName: it.productName || it?.product?.name || getMixDisplayName(it),
+                                  variant: it.variant || null,
+                                  quantity: it.quantity,
+                                  productId: getProductId(it),
+                                  isMix: isMixOrderItem(it),
+                                  mixItems: isMixOrderItem(it) ? getMixItems(it) : undefined,
+                                })),
+                                defaultPhone: o?.shippingAddress?.phone || "",
+                              },
+                            })
+                          }
+                          title="Gửi yêu cầu đổi/trả cho đơn này"
+                        >
+                          Yêu cầu đổi/trả
+                        </button>
+                      ) : null}
+
+                      <button className="btn-delete-order" onClick={() => hideOrder(o._id)}>
+                        Xóa đơn
+                      </button>
+                    </div>
+                  )}
+
+                  {o.status === "cancelled" && (
+                    <div className="order-actions">
+                      <button className="btn-delete-order" onClick={() => hideOrder(o._id)}>
+                        Xóa
+                      </button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
 
-  // Status chip: chỉ hiển thị “Đổi/Trả” khi đã có yêu cầu hoàn trả
   const StatusChip = ({ s, isReturnRequested }) => {
     if (isReturnRequested) {
       const ui = { text: "Đổi/Trả", bg: "#EDE9FE", color: "#5B21B6" };
@@ -988,8 +1152,6 @@ export default function ProfilePage() {
                   ["confirmed", "shipping"].includes(p.status) &&
                   Number(p.remainingDue || 0) > 0;
 
-                const returnOpen = !!p?.returnFlow?.isOpen;
-                const returnStatus = p?.returnFlow?.status || null;
                 const returnRequested = !!(p?.returnFlow?.isOpen || p?.returnFlow?.status || p?.returnFlow?.createdAt);
 
                 return (
@@ -1004,16 +1166,12 @@ export default function ProfilePage() {
                         </span>
                       </div>
                     </td>
-                    <td>{Number(p.subtotal || 0).toLocaleString("vi-VN")}₫</td>
+                    <td>{fmtMoney(p.subtotal)}</td>
                     <td>
-                      {Number(p.depositPaid || 0).toLocaleString("vi-VN")}₫ /{" "}
-                      {Number(p.remainingDue || 0).toLocaleString("vi-VN")}₫
+                      {fmtMoney(p.depositPaid)} / {fmtMoney(p.remainingDue)}
                     </td>
                     <td>
                       <StatusChip s={p.status} isReturnRequested={returnRequested} />
-                      {returnOpen && returnStatus ? (
-                        <div style={{ fontSize: 12, opacity: 0.8 }}>{`(${returnStatus})`}</div>
-                      ) : null}
                     </td>
                     <td className="address-cell">{defaultAddressString || "Chưa chọn"}</td>
                     <td className="actions-cell">
@@ -1030,7 +1188,7 @@ export default function ProfilePage() {
                           {canUserCancel && (
                             <button
                               className="btn-cancel"
-                              onClick={() => cancelPreorder(p._id)}
+                              onClick={() => hidePreorder(p._id)}
                               disabled={payingId === p._id}
                             >
                               Hủy
@@ -1054,7 +1212,7 @@ export default function ProfilePage() {
                           {canUserCancel && (
                             <button
                               className="btn-cancel"
-                              onClick={() => cancelPreorder(p._id)}
+                              onClick={() => hidePreorder(p._id)}
                               disabled={payingId === p._id}
                             >
                               Hủy
@@ -1101,7 +1259,7 @@ export default function ProfilePage() {
                           <button
                             className="btn-delete-order"
                             onClick={() => hidePreorder(p._id)}
-                            disabled={returnOpen}
+                            disabled={returnRequested}
                           >
                             Xóa
                           </button>
