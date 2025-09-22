@@ -209,15 +209,19 @@ export const addToCart = async (req, res) => {
       return res.status(400).json({ message: "Số lượng không hợp lệ" });
     }
 
+    // Nhận diện combo theo nhiều cách để tương thích FE
     let wantCombo =
       toStr(type).toLowerCase() === "combo" ||
       !!comboProductId ||
       isComboMarker(variantId);
 
+    // Nếu truyền productId, kiểm tra xem sản phẩm có phải combo không
     let productDoc = null;
-    if (!wantCombo && productId) {
+    if (productId) {
       productDoc = await productService.getProductById(productId);
-      if (productDoc?.isCombo) wantCombo = true;
+      if (productDoc?.isCombo || String(productDoc?.type || "").toLowerCase() === "combo") {
+        wantCombo = true;
+      }
     }
 
     /* ---------- COMBO ---------- */
@@ -225,14 +229,19 @@ export const addToCart = async (req, res) => {
       let comboProduct = null;
       let breakdown = null;
 
+      // Ưu tiên comboProductId; nếu không có, dùng productId đã xác định là combo
       if (comboProductId) {
         comboProduct = await productService.getProductById(comboProductId);
         if (!comboProduct)
           return res.status(404).json({ message: "Không tìm thấy sản phẩm combo" });
-      } else if (productDoc?.isCombo) {
+      } else if (productDoc && (productDoc.isCombo || String(productDoc.type || "").toLowerCase() === "combo")) {
         comboProduct = productDoc;
       }
 
+      // 3 trường hợp tính/áp giá:
+      // A) Combo fixedPrice → dùng luôn
+      // B) Có comboProduct nhưng không fixed → quote theo comboItems trong product
+      // C) Không có comboProduct (hoặc FE override) → quote từ client items
       if (comboProduct) {
         const fx =
           Number(comboProduct?.comboPricing?.fixedPrice || 0) ||
@@ -253,6 +262,7 @@ export const addToCart = async (req, res) => {
           breakdown = await quoteFromComboProduct(comboProduct);
         }
       } else {
+        // Cho phép client gửi items để quote (không còn trả lỗi thiếu items nếu productId là combo)
         if (!Array.isArray(comboItems) || comboItems.length === 0) {
           return res.status(400).json({ message: "Thiếu danh sách items cho combo" });
         }
@@ -265,11 +275,11 @@ export const addToCart = async (req, res) => {
 
       cart.items.push({
         type: "combo",
-        product: comboProduct?._id || null,
+        product: comboProduct?._id || productDoc?._id || null,
         variantId: null,
         snapshot: buildComboSnapshot({
-          title: title || comboProduct?.name,
-          image: comboProduct?.image,
+          title: title || comboProduct?.name || productDoc?.name || "Combo",
+          image: comboProduct?.image || productDoc?.image || "",
           breakdown,
           discountPercent,
         }),
@@ -280,7 +290,11 @@ export const addToCart = async (req, res) => {
 
       const populated = await Cart.findOne({ user: userId }).populate("items.product");
       const enriched = enrichItems(populated.items);
-      return res.status(200).json({ message: "Đã thêm combo vào giỏ hàng", items: enriched });
+
+      // ✅ Trả về cả 2 dạng để tương thích FE cũ/mới
+      return res
+        .status(200)
+        .json({ message: "Đã thêm combo vào giỏ hàng", items: enriched, cart: { items: enriched } });
     }
 
     /* ---------- VARIANT ---------- */
@@ -333,7 +347,9 @@ export const addToCart = async (req, res) => {
 
     const populated = await Cart.findOne({ user: userId }).populate("items.product");
     const enriched = enrichItems(populated.items);
-    return res.status(200).json({ message: "Đã thêm vào giỏ hàng", items: enriched });
+    return res
+      .status(200)
+      .json({ message: "Đã thêm vào giỏ hàng", items: enriched, cart: { items: enriched } });
   } catch (error) {
     console.error("addToCart failed:", error);
     return res
@@ -380,7 +396,7 @@ export const updateCartItem = async (req, res) => {
       await cart.save();
       const populatedDel = await Cart.findOne({ user: userId }).populate("items.product");
       const enrichedDel = enrichItems(populatedDel.items);
-      return res.status(200).json({ message: "Đã xoá sản phẩm", items: enrichedDel });
+      return res.status(200).json({ message: "Đã xoá sản phẩm", items: enrichedDel, cart: { items: enrichedDel } });
     }
 
     const item = cart.items[idx];
@@ -411,7 +427,7 @@ export const updateCartItem = async (req, res) => {
 
     const populated = await Cart.findOne({ user: userId }).populate("items.product");
     const enriched = enrichItems(populated.items);
-    return res.status(200).json({ message: "Cập nhật thành công", items: enriched });
+    return res.status(200).json({ message: "Cập nhật thành công", items: enriched, cart: { items: enriched } });
   } catch (error) {
     console.error("updateCartItem failed:", error);
     return res.status(500).json({ message: "Lỗi server khi cập nhật giỏ", error: error?.message });
@@ -426,11 +442,11 @@ export const getCartByUser = async (req, res) => {
 
     const cart = await Cart.findOne({ user: userId }).populate("items.product");
     if (!cart || !cart.items || cart.items.length === 0) {
-      return res.status(200).json({ message: "Giỏ hàng trống", items: [] });
+      return res.status(200).json({ message: "Giỏ hàng trống", items: [], cart: { items: [] } });
     }
 
     const items = enrichItems(cart.items);
-    return res.status(200).json({ items });
+    return res.status(200).json({ items, cart: { items } });
   } catch (error) {
     console.error("getCartByUser failed:", error);
     return res.status(500).json({ message: "Lỗi server khi lấy giỏ", error: error?.message });
@@ -439,21 +455,19 @@ export const getCartByUser = async (req, res) => {
 
 /**
  * DELETE:
- *  - /api/cart/item/:id                  (xoá theo itemId)
+ *  - /api/cart/item/:id
  *  - /api/cart/variant/:productId/:variantId     (legacy)
  *  - /api/cart/:productId/:variantId             (legacy rất cũ)
- *  - hoặc truyền productId/variantId qua query/body
+ *  - hoặc query/body
  */
 export const removeCartItem = async (req, res) => {
   try {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    // Ưu tiên id (itemId)
     const id =
       req.params?.id || req.query?.itemId || req.body?.itemId || null;
 
-    // Nhận productId/variantId từ params | query | body
     const productId =
       req.params?.productId ??
       req.query?.productId ??
@@ -477,7 +491,7 @@ export const removeCartItem = async (req, res) => {
     } else if (productId) {
       const isCombo = isComboMarker(variantId);
       const match = isCombo
-        ? { type: "combo", product: productId } // không lọc variantId để tương thích dữ liệu cũ
+        ? { type: "combo", product: productId }
         : { type: "variant", product: productId, variantId: variantId };
 
       updated = await Cart.findOneAndUpdate(
@@ -494,7 +508,7 @@ export const removeCartItem = async (req, res) => {
     if (!updated) return res.status(404).json({ message: "Giỏ hàng không tồn tại" });
 
     const enriched = enrichItems(updated.items);
-    return res.status(200).json({ message: "Đã xoá sản phẩm", items: enriched });
+    return res.status(200).json({ message: "Đã xoá sản phẩm", items: enriched, cart: { items: enriched } });
   } catch (error) {
     console.error("removeCartItem failed:", error);
     return res.status(500).json({ message: "Lỗi server khi xoá item", error: error?.message });
@@ -508,7 +522,7 @@ export const clearCart = async (req, res) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     await Cart.updateOne({ user: userId }, { $set: { items: [] } });
-    return res.status(200).json({ message: "Đã xoá toàn bộ giỏ hàng" });
+    return res.status(200).json({ message: "Đã xoá toàn bộ giỏ hàng", items: [], cart: { items: [] } });
   } catch (error) {
     console.error("clearCart failed:", error);
     return res

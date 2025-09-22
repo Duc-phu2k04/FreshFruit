@@ -71,7 +71,6 @@ const isComboProduct = (p) => {
   if (p.isCombo === true) return true;
   const type = (p.type || "").toString().toLowerCase();
   if (type === "combo") return true;
-  // có trường comboPricing/combo kèm số cũng xem như combo
   const anyComboPrice = [
     p?.comboPricing?.fixedPrice,
     p?.combo?.finalPrice,
@@ -84,7 +83,6 @@ const isComboProduct = (p) => {
   return anyComboPrice;
 };
 const getRelatedDisplayPrice = (p) => {
-  // Ưu tiên combo nếu là combo
   if (isComboProduct(p)) {
     return (
       toNum(p?.comboPricing?.fixedPrice) ||
@@ -95,7 +93,6 @@ const getRelatedDisplayPrice = (p) => {
       0
     );
   }
-  // Hàng thường
   return (
     toNum(p?.priceView?.base?.finalPrice) ||
     toNum(p?.price) ||
@@ -103,6 +100,18 @@ const getRelatedDisplayPrice = (p) => {
     toNum(p?.variants?.[0]?.price) ||
     0
   );
+};
+
+/* ===== NEW: Helper build danh sách items combo để gửi lên BE khi cần ===== */
+const buildComboItemsFromProduct = (p) => {
+  const arr = Array.isArray(p?.comboItems) ? p.comboItems : Array.isArray(p?.combo?.items) ? p.combo.items : [];
+  return arr
+    .map((it) => ({
+      productId: it?.product?._id || it?.product || it?.item?._id || it?.item || null,
+      variantId: it?.variant?._id || it?.variant || null,
+      qty: Number(it?.qty || 1),
+    }))
+    .filter((x) => x.productId && x.qty > 0);
 };
 
 export default function ProductDetail() {
@@ -146,7 +155,14 @@ export default function ProductDetail() {
       try {
         const { data } = await axiosInstance.get(`/product/${id}`);
         if (!data) throw new Error("Không tìm thấy sản phẩm");
-        setProduct(data);
+
+        // chuẩn hoá isCombo nếu BE dùng type
+        const normalized = {
+          ...data,
+          isCombo: data?.isCombo === true || String(data?.type || "").toLowerCase() === "combo",
+        };
+
+        setProduct(normalized);
 
         // Sản phẩm liên quan (cùng category, không preorder)
         try {
@@ -166,22 +182,22 @@ export default function ProductDetail() {
         }
 
         // Defaults (không áp dụng cho combo)
-        if (!data?.isCombo) {
-          const variants = Array.isArray(data.variants) ? data.variants : [];
+        if (!(normalized?.isCombo)) {
+          const variants = Array.isArray(normalized.variants) ? normalized.variants : [];
           let defWeight = "";
           let defRipeness = "";
 
           if (
-            data?.baseVariant?.attributes?.weight &&
-            data?.baseVariant?.attributes?.ripeness &&
+            normalized?.baseVariant?.attributes?.weight &&
+            normalized?.baseVariant?.attributes?.ripeness &&
             variants.some(
               (v) =>
-                v?.attributes?.weight === data.baseVariant.attributes.weight &&
-                v?.attributes?.ripeness === data.baseVariant.attributes.ripeness
+                v?.attributes?.weight === normalized.baseVariant.attributes.weight &&
+                v?.attributes?.ripeness === normalized.baseVariant.attributes.ripeness
             )
           ) {
-            defWeight = data.baseVariant.attributes.weight;
-            defRipeness = data.baseVariant.attributes.ripeness;
+            defWeight = normalized.baseVariant.attributes.weight;
+            defRipeness = normalized.baseVariant.attributes.ripeness;
           } else if (variants.length) {
             defWeight = variants[0]?.attributes?.weight || "";
             defRipeness = variants[0]?.attributes?.ripeness || "";
@@ -193,18 +209,17 @@ export default function ProductDetail() {
         } else {
           // Combo
           setQuantity(1);
-          if (!(Number(data?.comboPrice) > 0)) {
-            fetchComboQuote(data._id);
+          if (!(Number(normalized?.comboPrice) > 0)) {
+            fetchComboQuote(normalized._id);
           } else {
             setComboQuote({
-              subtotal: Number(data.comboPrice),
+              subtotal: Number(normalized.comboPrice),
               discountPercent: 0,
-              total: Number(data.comboPrice),
+              total: Number(normalized.comboPrice),
             });
           }
         }
       } catch (err) {
-        // eslint-disable-next-line no-console
         console.error("Lỗi khi lấy sản phẩm:", err?.response?.data || err?.message);
       }
     };
@@ -214,7 +229,6 @@ export default function ProductDetail() {
         const { data } = await axiosInstance.get(`/review/products/${id}`);
         setComments(Array.isArray(data?.data) ? data.data : []);
       } catch (err) {
-        // eslint-disable-next-line no-console
         console.error("Lỗi khi lấy đánh giá:", err?.response?.data || err?.message);
         setComments([]);
       }
@@ -327,7 +341,6 @@ export default function ProductDetail() {
    * Price block
    * ========================= */
   const priceBlock = (() => {
-    // Combo
     if (product?.isCombo) {
       if (comboLoading) return <p className="muted">Đang tính giá combo…</p>;
       const total = Number(comboQuote?.total || product?.comboPrice || 0) || 0;
@@ -348,7 +361,6 @@ export default function ProductDetail() {
       return <p className="price-single">{total.toLocaleString()}đ</p>;
     }
 
-    // Normal variant (bao gồm THÙNG)
     if (!currentVariant) return <p className="muted">Vui lòng chọn biến thể</p>;
     const basePrice = Number(currentVariant.price || 0);
     const final = getFinalVariantPrice(currentVariant);
@@ -384,14 +396,14 @@ export default function ProductDetail() {
     try {
       // Token check nhanh để báo sớm
       const token =
-        (typeof localStorage !== "undefined" && (localStorage.getItem("accessToken") || localStorage.getItem("token"))) ||
+        (typeof localStorage !== "undefined" &&
+          (localStorage.getItem("accessToken") || localStorage.getItem("token"))) ||
         "";
       if (!token) {
         alert("Bạn cần đăng nhập để thêm vào giỏ hàng.");
         return;
       }
 
-      // Helper thử lần lượt các payload/endpoint để tránh vỡ luồng do BE khác nhau
       const tryPost = async (tries) => {
         let lastErr;
         for (const t of tries) {
@@ -400,9 +412,8 @@ export default function ProductDetail() {
             if (res && res.status < 400) return res;
           } catch (e) {
             lastErr = e;
-            // nếu 404 thì thử endpoint khác, nếu 400/422 thì break (sai dữ liệu)
             const st = e?.response?.status;
-            if (st && st !== 404) break;
+            if (st && st !== 404) break; // 400/401/422 thì dừng
           }
         }
         throw lastErr || new Error("Không thể thêm vào giỏ");
@@ -414,15 +425,18 @@ export default function ProductDetail() {
         const qty = Math.max(1, Math.min(Number(quantity || 1), comboStock));
         if (qty !== quantity) setQuantity(qty);
 
+        // ✅ Build items để hỗ trợ BE đang yêu cầu danh sách items
+        const comboItems = buildComboItemsFromProduct(product);
+
         const res = await tryPost([
-          // BE mới (khuyến nghị)
+          // 1) BE yêu cầu items (sửa lỗi “Thiếu danh sách items cho combo”)
+          { url: "/cart/add", body: { type: "combo", productId: String(product._id), quantity: qty, items: comboItems } },
+          // 2) BE mới, không cần items
           { url: "/cart/add", body: { type: "combo", productId: String(product._id), quantity: qty } },
-          // BE cũ: endpoint riêng cho combo
-          { url: "/cart/add-combo", body: { productId: String(product._id), quantity: qty } },
-          // BE rất cũ: dùng variantId="combo"
+          // 3) BE cũ: endpoint riêng
+          { url: "/cart/add-combo", body: { productId: String(product._id), quantity: qty, items: comboItems } },
+          // 4) BE rất cũ: dùng variantId="combo"
           { url: "/cart/add", body: { productId: String(product._id), variantId: "combo", quantity: qty } },
-          // BE chấp nhận variantId = null
-          { url: "/cart/add", body: { productId: String(product._id), variantId: null, quantity: qty } },
         ]);
 
         if (!res || res.status >= 400) {
@@ -452,7 +466,6 @@ export default function ProductDetail() {
 
       const res = await tryPost([
         { url: "/cart/add", body: payloadMain },
-        // Một số BE cũ nhận "variant" thay vì "variantId"
         { url: "/cart/add", body: { ...payloadMain, variant: payloadMain.variantId } },
       ]);
 
@@ -485,10 +498,7 @@ export default function ProductDetail() {
           selectedItems: [
             {
               product: { _id: product._id, name: product.name, isCombo: true },
-              variant: {
-                price: comboTotal,
-                attributes: {},
-              },
+              variant: { price: comboTotal, attributes: {} },
               quantity: qty,
             },
           ],
@@ -553,22 +563,19 @@ export default function ProductDetail() {
 
     const finalUnitPrice = getFinalVariantPrice(currentVariant);
 
-    // Ghi chú dòng mix: mô tả biến thể
     const noteLine = [currentVariant?.attributes?.weight, currentVariant?.attributes?.ripeness]
       .filter(Boolean)
       .join(" / ");
 
-    // Push vào mixDraft (client-only)
     mixDraftAddItem(
       {
         _id: String(product._id),
         name: product.name,
-        price: finalUnitPrice, // dùng giá đã tính sau giảm cận hạn (nếu có)
+        price: finalUnitPrice,
         thumbnail: imgSrc(product.image),
       },
       {
         qty,
-        // Nếu có cơ chế bán theo kg riêng -> có thể truyền weightGram ở đây
         noteLine,
       }
     );
