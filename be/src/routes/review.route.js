@@ -8,7 +8,7 @@ import {
   getUserPurchasedProducts,
   checkCanReviewProduct
 } from '../controllers/review.controller.js';
-import { verifyToken, isAdmin } from '../middlewares/auth.middleware.js';
+import { verifyToken, isAdmin,isAdminOrManager } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
 
@@ -29,9 +29,9 @@ router.get('/can-review/:orderId/:productId', verifyToken, checkCanReviewProduct
 // ================= ADMIN ==================
 
 // Xem tất cả đánh giá
-router.get('/admin/all', verifyToken, isAdmin, getAllReviews);
+router.get('/admin/all', verifyToken, isAdminOrManager, getAllReviews);
 
 // Xoá đánh giá
-router.delete('/:id', verifyToken, isAdmin, deleteReview);
+router.delete('/:id', verifyToken, isAdminOrManager, deleteReview);
 
 export default router;

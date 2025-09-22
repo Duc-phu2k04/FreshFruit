@@ -1,19 +1,18 @@
 // src/pages/admin/PreordersAdmin.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import "./PreordersAdmin.css";
 
 const API_URL = "http://localhost:3000";
 
-/** ===============================
- *  Trạng thái sử dụng ở FE (VN)
- *  Map sang code gửi/nhận với BE
- *  =============================== */
 const STATUS_LABELS = {
   pending_payment: "Chờ thanh toán",
   confirmed: "Đã xác nhận đơn hàng",
   shipping: "Đang giao hàng",
   delivered: "Đã giao hàng",
   cancelled: "Đã hủy",
+  // NEW: khi có returnFlow đang mở
+  return_open: "Đổi/Trả (đang xử lý)",
 };
 
 const ALL_STATUS_CODES = [
@@ -25,24 +24,47 @@ const ALL_STATUS_CODES = [
   "cancelled",
 ];
 
-// Các trạng thái Admin được phép set thủ công
-const ADMIN_SETTABLE = [
-  "pending_payment",
-  "confirmed",
-  "shipping",
-  "delivered",
-  "cancelled",
-];
+const STATUS_FLOW = ["pending_payment", "confirmed", "shipping", "delivered"];
+const RANK = STATUS_FLOW.reduce((m, s, i) => ((m[s] = i), m), {});
+function nextStatusOf(s) {
+  const i = RANK[s];
+  return Number.isInteger(i) && i < STATUS_FLOW.length - 1 ? STATUS_FLOW[i + 1] : null;
+}
+function canForwardOnly(prev, next) {
+  if (next === "cancelled") return prev !== "delivered";
+  if (!(prev in RANK) || !(next in RANK)) return false;
+  return RANK[next] > RANK[prev];
+}
 
-// Status pill
+function useAdminToken() {
+  return localStorage.getItem("token");
+}
+
+const toVND = (n) => Number(n || 0).toLocaleString("vi-VN") + "₫";
+const isDepositSatisfied = (po) => Number(po?.depositPaid || 0) >= Number(po?.depositDue || 0);
+const isPaidInFull = (po) => Number(po?.remainingDue || 0) === 0;
+
+// helper: phát hiện có yêu cầu đổi/trả bất kể BE đặt key gì
+function hasReturnFlow(po) {
+  const rf = po?.returnFlow || po?.return || po?.returnRequest || po?.returnInfo || null;
+  const isOpen = !!rf?.isOpen;
+  const status = rf?.status;
+  return !!rf && (isOpen || (typeof status === "string" && status.trim() !== ""));
+}
+
+// Hằng dùng để kiểm tra trạng thái cho phép admin hủy
+const ADMIN_CANCELLABLE_STATUSES = new Set(["pending_payment", "confirmed", "shipping"]);
+
 const StatusChip = ({ s }) => {
   const label = STATUS_LABELS[s] || s;
   const styleMap = {
-    pending_payment: { bg: "#FEF3C7", color: "#92400E" }, // vàng nhạt
-    confirmed: { bg: "#DCFCE7", color: "#065F46" },       // xanh lá nhạt
-    shipping: { bg: "#E0F2FE", color: "#075985" },        // xanh dương nhạt
-    delivered: { bg: "#EDE9FE", color: "#5B21B6" },       // tím nhạt
-    cancelled: { bg: "#FEE2E2", color: "#991B1B" },       // đỏ nhạt
+    pending_payment: { bg: "#FEF3C7", color: "#92400E" },
+    confirmed: { bg: "#DCFCE7", color: "#065F46" },
+    shipping: { bg: "#E0F2FE", color: "#075985" },
+    delivered: { bg: "#EDE9FE", color: "#5B21B6" },
+    cancelled: { bg: "#FEE2E2", color: "#991B1B" },
+    // NEW: màu chip cho Đổi/Trả
+    return_open: { bg: "#FFE4E6", color: "#BE123C" }, // hồng nhạt/đỏ mận
   };
   const ui = styleMap[s] || { bg: "#EEE", color: "#333" };
   return (
@@ -52,33 +74,18 @@ const StatusChip = ({ s }) => {
   );
 };
 
-function useAdminToken() {
-  return localStorage.getItem("token");
-}
-
-// FE chặn 1 số chuyển đổi đơn giản; BE vẫn là nguồn quyết định cuối
-function canTransitionFE(current, next) {
-  if (current === next) return false;
-  // Đã giao/đã hủy thì không cho chuyển tiếp ở FE
-  if (["delivered", "cancelled"].includes(current)) return false;
-  return true;
-}
-
 export default function PreordersAdmin() {
   const token = useAdminToken();
 
-  // Query state
   const [status, setStatus] = useState("all");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
 
-  // Data state
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
 
-  // Edit inline
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({
     depositPercent: "",
@@ -87,21 +94,10 @@ export default function PreordersAdmin() {
     customerNote: "",
   });
 
-  // Form đổi status (lưu theo từng id)
-  const [statusForms, setStatusForms] = useState({});
-  const getStatusForm = (id, currentStatus) =>
-    statusForms[id] || { status: currentStatus, reason: "", refundAmount: "" };
-  const setStatusFormVal = (id, patch) =>
-    setStatusForms((prev) => ({ ...prev, [id]: { ...getStatusForm(id, ""), ...patch } }));
+  const [statusNotes, setStatusNotes] = useState({});
+  const getStatusNote = (id) => statusNotes[id] || "";
+  const setStatusNote = (id, val) => setStatusNotes((prev) => ({ ...prev, [id]: val }));
 
-  // ====== FORM THANH TOÁN (mỗi dòng) ======
-  const [payForms, setPayForms] = useState({});
-  const getPayForm = (id) =>
-    payForms[id] || { kind: "deposit", amount: "", provider: "", note: "" };
-  const setPayFormVal = (id, patch) =>
-    setPayForms((prev) => ({ ...prev, [id]: { ...getPayForm(id), ...patch } }));
-
-  // Fetch admin list
   async function fetchAdminPreorders() {
     setLoading(true);
     try {
@@ -117,32 +113,18 @@ export default function PreordersAdmin() {
 
       const text = await res.text();
       let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = { ok: false, message: text };
-      }
-
-      if (!res.ok || data.ok === false) {
-        throw new Error(data?.message || "Tải danh sách thất bại");
-      }
+      try { data = JSON.parse(text); } catch { data = { ok: false, message: text }; }
+      if (!res.ok || data.ok === false) throw new Error(data?.message || "Tải danh sách thất bại");
 
       const list = Array.isArray(data.items) ? data.items : [];
       setItems(list);
       const totalFromBE = data?.pagination?.total ?? list.length;
       setTotal(Number(totalFromBE) || list.length);
 
-      // reset form theo dữ liệu mới
-      const nextStatusForms = {};
-      const nextPayForms = {};
-      list.forEach((p) => {
-        nextStatusForms[p._id] = { status: p.status, reason: "", refundAmount: "" };
-        nextPayForms[p._id] = { kind: "deposit", amount: "", provider: "", note: "" };
-      });
-      setStatusForms(nextStatusForms);
-      setPayForms(nextPayForms);
+      const nextNotes = {};
+      list.forEach((p) => (nextNotes[p._id] = ""));
+      setStatusNotes(nextNotes);
     } catch (err) {
-      console.error("[PreordersAdmin] fetch error:", err);
       alert(err?.message || "Không tải được danh sách");
       setItems([]);
       setTotal(0);
@@ -159,7 +141,6 @@ export default function PreordersAdmin() {
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit]);
 
-  // ===== Actions =====
   const recalcOne = async (id) => {
     if (!window.confirm("Đồng bộ lại số liệu & trạng thái đơn này?")) return;
     try {
@@ -176,22 +157,14 @@ export default function PreordersAdmin() {
     }
   };
 
-  // Hủy đơn (Admin)
-  const adminCancellableStatuses = useMemo(
-    () => ["pending_payment", "confirmed", "shipping"],
-    []
-  );
-
   const adminCancel = async (id) => {
-    const reason = window.prompt(
-      "Lý do hủy (tùy chọn):\nVí dụ: KH yêu cầu hủy, hết hàng, phát hiện trùng đơn..."
-    );
+    const reason = window.prompt("Lý do hủy (tuỳ chọn):") || "";
     if (!window.confirm("Xác nhận hủy đơn này?")) return;
     try {
       const res = await fetch(`${API_URL}/api/preorders/${id}/admin-cancel`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: reason || "" }),
+        body: JSON.stringify({ reason }),
       });
       const data = await res.json();
       if (!res.ok || data.ok === false) throw new Error(data?.message || "Hủy đơn thất bại");
@@ -202,7 +175,6 @@ export default function PreordersAdmin() {
     }
   };
 
-  // Xoá đơn (chỉ hiển thị khi đã hủy)
   const adminDelete = async (id) => {
     if (!window.confirm("Bạn có chắc muốn xoá vĩnh viễn đơn đã hủy này?")) return;
     try {
@@ -211,9 +183,7 @@ export default function PreordersAdmin() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.ok === false) {
-        throw new Error(data?.message || "Xoá đơn thất bại");
-      }
+      if (!res.ok || data.ok === false) throw new Error(data?.message || "Xoá đơn thất bại");
       setItems((prev) => prev.filter((it) => it._id !== id));
       setTotal((t) => Math.max(0, t - 1));
       alert("Đã xoá đơn.");
@@ -248,13 +218,10 @@ export default function PreordersAdmin() {
         depositPercent:
           editForm.depositPercent !== "" ? Number(editForm.depositPercent) : undefined,
         fees: {
-          adjust:
-            editForm.feesAdjust !== "" ? Number(editForm.feesAdjust) : undefined,
+          adjust: editForm.feesAdjust !== "" ? Number(editForm.feesAdjust) : undefined,
         },
-        internalNote:
-          editForm.internalNote !== "" ? editForm.internalNote : undefined,
-        customerNote:
-          editForm.customerNote !== "" ? editForm.customerNote : undefined,
+        internalNote: editForm.internalNote !== "" ? editForm.internalNote : undefined,
+        customerNote: editForm.customerNote !== "" ? editForm.customerNote : undefined,
       };
 
       const res = await fetch(`${API_URL}/api/preorders/${id}/admin-edit`, {
@@ -276,107 +243,70 @@ export default function PreordersAdmin() {
     }
   };
 
-  // ======== THANH TOÁN (Admin) ========
-  // 1) Ghi đã thanh toán cọc
   const markDepositPaid = async (id) => {
     if (!window.confirm("Ghi nhận: đơn này đã thanh toán CỌC?")) return;
     try {
-      const res = await fetch(`${API_URL}/api/preorders/${id}/admin-mark-deposit-paid`, {
+      const res = await fetch(`${API_URL}/api/preorders/${id}/admin-mark-deposit`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({}), // có thể mở rộng amount, provider... nếu controller hỗ trợ
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (!res.ok || data.ok === false) throw new Error(data?.message || "Cập nhật cọc thất bại");
-      setItems((prev) => prev.map((it) => (it._id === id ? data.preorder || data.data || it : it)));
+      setItems((prev) => prev.map((it) => (it._id === id ? data.data || data.preorder || it : it)));
       alert("Đã ghi nhận thanh toán cọc.");
     } catch (err) {
       alert(err?.message || "Lỗi ghi nhận cọc");
     }
   };
 
-  // 2) Ghi đã thanh toán toàn bộ
   const markPaidInFull = async (id) => {
     if (!window.confirm("Ghi nhận: đơn này đã thanh toán TOÀN BỘ?")) return;
     try {
-      const res = await fetch(`${API_URL}/api/preorders/${id}/admin-mark-paid-in-full`, {
+      const res = await fetch(`${API_URL}/api/preorders/${id}/admin-mark-paid`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({}), // có thể mở rộng amount, provider... nếu controller hỗ trợ
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (!res.ok || data.ok === false) throw new Error(data?.message || "Cập nhật thanh toán thất bại");
-      setItems((prev) => prev.map((it) => (it._id === id ? data.preorder || data.data || it : it)));
+      setItems((prev) => prev.map((it) => (it._id === id ? data.data || data.preorder || it : it)));
       alert("Đã ghi nhận thanh toán toàn bộ.");
     } catch (err) {
       alert(err?.message || "Lỗi ghi nhận thanh toán");
     }
   };
 
-  // 3) Thêm bản ghi thanh toán thủ công
-  const addPaymentManual = async (id) => {
-    const f = getPayForm(id);
-    const payload = {
-      kind: f.kind, // deposit | remaining | refund | adjustment
-      amount: f.amount !== "" ? Number(f.amount) : undefined,
-      provider: f.provider || undefined,
-      note: f.note || undefined,
-    };
-    if (!payload.kind || !payload.amount || payload.amount <= 0) {
-      alert("Vui lòng nhập loại và số tiền hợp lệ.");
-      return;
-    }
-    try {
-      const res = await fetch(`${API_URL}/api/preorders/${id}/admin-add-payment`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok || data.ok === false) throw new Error(data?.message || "Thêm bản ghi thanh toán thất bại");
-      setItems((prev) => prev.map((it) => (it._id === id ? data.preorder || data.data || it : it)));
-      // reset form dòng đó
-      setPayFormVal(id, { kind: "deposit", amount: "", provider: "", note: "" });
-      alert("Đã thêm bản ghi thanh toán.");
-    } catch (err) {
-      alert(err?.message || "Lỗi thêm bản ghi thanh toán");
-    }
-  };
+  const adminSetStatusForward = async (id, currentStatus, po) => {
+    const to = nextStatusOf(currentStatus);
+    if (!to) return;
 
-  // Đổi trạng thái thủ công
-  const adminSetStatus = async (id, currentStatus) => {
-    const form = getStatusForm(id, currentStatus);
-    const { status: nextStatus, reason, refundAmount } = form;
+    if (currentStatus === "pending_payment" && to === "confirmed" && !isDepositSatisfied(po)) {
+      alert("Chưa đủ tiền cọc — không thể chuyển sang 'Đã xác nhận đơn hàng'.");
+      return;
+    }
+    if (currentStatus === "shipping" && to === "delivered" && !isPaidInFull(po)) {
+      alert("Chưa thanh toán toàn bộ — không thể chuyển sang 'Đã giao hàng'.");
+      return;
+    }
 
-    if (!ADMIN_SETTABLE.includes(nextStatus)) {
-      alert("Trạng thái không hợp lệ.");
+    if (!canForwardOnly(currentStatus, to)) {
+      alert("Chỉ được chuyển tiếp theo thứ tự trạng thái.");
       return;
     }
-    if (!canTransitionFE(currentStatus, nextStatus)) {
-      alert("Không thể chuyển trạng thái này (quy tắc FE).");
-      return;
-    }
-    if (!window.confirm(`Xác nhận đổi trạng thái sang: ${STATUS_LABELS[nextStatus] || nextStatus}?`)) return;
+    if (!window.confirm(`Xác nhận chuyển trạng thái sang: ${STATUS_LABELS[to]}?`)) return;
 
     try {
-      const payload = {
-        status: nextStatus,
-        reason: reason || "",
-      };
-      if (nextStatus === "cancelled" && refundAmount !== "") {
-        payload.refundAmount = Number(refundAmount);
-      }
-
+      const reason = getStatusNote(id);
       const res = await fetch(`${API_URL}/api/preorders/${id}/admin-set-status`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ status: to, reason: reason || "" }),
       });
       const data = await res.json();
       if (!res.ok || data.ok === false) throw new Error(data?.message || "Cập nhật trạng thái thất bại");
-
       setItems((prev) => prev.map((it) => (it._id === id ? data.data || it : it)));
-      setStatusFormVal(id, { status: data?.data?.status || nextStatus, reason: "", refundAmount: "" });
+      setStatusNote(id, "");
       alert("Đã cập nhật trạng thái.");
     } catch (err) {
       alert(err?.message || "Lỗi cập nhật trạng thái");
@@ -413,7 +343,7 @@ export default function PreordersAdmin() {
             >
               {ALL_STATUS_CODES.map((code) => (
                 <option key={code} value={code}>
-                  {code === "all" ? "Tất cả" : (STATUS_LABELS[code] || code)}
+                  {code === "all" ? "Tất cả" : STATUS_LABELS[code]}
                 </option>
               ))}
             </select>
@@ -427,7 +357,7 @@ export default function PreordersAdmin() {
                 setQ(e.target.value);
                 setPage(1);
               }}
-              placeholder="Mã PO, tên sản phẩm, email người dùng..."
+              placeholder="Mã PO, tên SP, email..."
             />
           </div>
 
@@ -450,9 +380,7 @@ export default function PreordersAdmin() {
 
           <div className="pa-filter">
             <label>&nbsp;</label>
-            <button className="pa-clear" onClick={clearFilters}>
-              Xoá lọc
-            </button>
+            <button className="pa-clear" onClick={clearFilters}>Xoá lọc</button>
           </div>
         </div>
       </section>
@@ -467,7 +395,7 @@ export default function PreordersAdmin() {
               <th className="ta-right">Tạm tính</th>
               <th className="ta-right">Cọc / Còn lại</th>
               <th>Trạng thái</th>
-              <th style={{ width: 520 }}>Hành động</th>
+              <th style={{ width: 620 }}>Hành động</th>
             </tr>
           </thead>
           <tbody>
@@ -486,15 +414,26 @@ export default function PreordersAdmin() {
                     .join(" · ");
 
                 const isEditing = editingId === p._id;
-                const canAdminCancel = adminCancellableStatuses.includes(p.status);
+                const canAdminCancel = ADMIN_CANCELLABLE_STATUSES.has(p.status);
                 const canAdminDelete = p.status === "cancelled";
 
-                // form đổi trạng thái
-                const sf = getStatusForm(p._id, p.status);
-                const canSet = sf.status && canTransitionFE(p.status, sf.status);
+                const next = nextStatusOf(p.status);
+                const depositOK = isDepositSatisfied(p);
+                const fullPaid = isPaidInFull(p);
 
-                // form thanh toán
-                const pf = getPayForm(p._id);
+                let forwardDisabled = !next || !canForwardOnly(p.status, next);
+                let forwardTitle = "";
+                if (p.status === "pending_payment" && next === "confirmed" && !depositOK) {
+                  forwardDisabled = true;
+                  forwardTitle = "Cần đủ tiền cọc để chuyển sang 'Đã xác nhận đơn hàng'.";
+                }
+                if (p.status === "shipping" && next === "delivered" && !fullPaid) {
+                  forwardDisabled = true;
+                  forwardTitle = "Cần thanh toán toàn bộ để chuyển sang 'Đã giao hàng'.";
+                }
+
+                const showReturnLink = hasReturnFlow(p);
+                const displayStatus = showReturnLink ? "return_open" : p.status;
 
                 return (
                   <tr key={p._id}>
@@ -520,22 +459,22 @@ export default function PreordersAdmin() {
                     </td>
 
                     <td className="ta-right">
-                      {Number(p.subtotal || 0).toLocaleString("vi-VN")}₫
+                      {toVND(p.subtotal)}
                       {Number(p?.fees?.adjust || 0) !== 0 && (
-                        <div className="po-adjust">
-                          Điều chỉnh: {Number(p.fees.adjust).toLocaleString("vi-VN")}₫
-                        </div>
+                        <div className="po-adjust">Điều chỉnh: {toVND(p.fees.adjust)}</div>
                       )}
                     </td>
 
                     <td className="ta-right">
-                      <div>Cọc đã trả: {Number(p.depositPaid || 0).toLocaleString("vi-VN")}₫</div>
-                      <div>Còn lại: {Number(p.remainingDue || 0).toLocaleString("vi-VN")}₫</div>
+                      <div>Cọc đã trả: {toVND(p.depositPaid)}</div>
+                      <div>Cọc cần: {toVND(p.depositDue)}</div>
+                      <div>Còn lại: {toVND(p.remainingDue)}</div>
+                      <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>
+                        {depositOK ? "✅ Đủ cọc" : "⏳ Chưa đủ cọc"} · {fullPaid ? "✅ Đã thanh toán đủ" : "⏳ Chưa thanh toán đủ"}
+                      </div>
                     </td>
 
-                    <td>
-                      <StatusChip s={p.status} />
-                    </td>
+                    <td><StatusChip s={displayStatus} /></td>
 
                     <td>
                       {!isEditing ? (
@@ -556,45 +495,40 @@ export default function PreordersAdmin() {
                             )}
 
                             <button className="btn-secondary" onClick={() => startEdit(p)}>Sửa</button>
+
+                            {showReturnLink && (
+                              <Link
+                                className="btn-light"
+                                to={`/admin/preorders/${p._id}/return`}
+                                title="Quản lý yêu cầu đổi/trả của đơn này"
+                              >
+                                Quản lý đổi/trả
+                              </Link>
+                            )}
                           </div>
 
-                          {/* Khối ĐỔI TRẠNG THÁI THỦ CÔNG */}
                           <div className="po-status-edit">
                             <div className="po-status-row">
-                              <label>Đổi trạng thái</label>
-                              <select
-                                value={sf.status}
-                                onChange={(e) => setStatusFormVal(p._id, { status: e.target.value })}
-                              >
-                                {ADMIN_SETTABLE.map((code) => (
-                                  <option key={code} value={code}>
-                                    {STATUS_LABELS[code] || code}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-
-                            <div className="po-status-row">
-                              <label>Lý do (tuỳ chọn)</label>
+                              <label>Ghi chú (tuỳ chọn)</label>
                               <input
-                                placeholder="Ghi chú cho admin log"
-                                value={sf.reason}
-                                onChange={(e) => setStatusFormVal(p._id, { reason: e.target.value })}
+                                placeholder="Ví dụ: đã đóng gói, đã bàn giao cho đơn vị vận chuyển..."
+                                value={getStatusNote(p._id)}
+                                onChange={(e) => setStatusNote(p._id, e.target.value)}
                               />
                             </div>
 
-                            <div className="po-status-actions">
+                            <div className="po-status-actions" style={{ display: "flex", gap: 8 }}>
                               <button
                                 className="btn"
-                                disabled={!canSet}
-                                onClick={() => adminSetStatus(p._id, p.status)}
+                                disabled={forwardDisabled}
+                                title={forwardTitle || ""}
+                                onClick={() => adminSetStatusForward(p._id, p.status, p)}
                               >
-                                Cập nhật trạng thái
+                                {next ? `Chuyển sang: ${STATUS_LABELS[next]}` : "Đã ở trạng thái cuối"}
                               </button>
                             </div>
                           </div>
 
-                          {/* ====== KHỐI THANH TOÁN (ADMIN) ====== */}
                           <div className="po-status-edit" style={{ marginTop: 8 }}>
                             <div className="po-status-row" style={{ gap: 8 }}>
                               <button className="btn" onClick={() => markDepositPaid(p._id)}>
@@ -603,53 +537,6 @@ export default function PreordersAdmin() {
                               <button className="btn-secondary" onClick={() => markPaidInFull(p._id)}>
                                 Ghi đã thanh toán toàn bộ
                               </button>
-                            </div>
-
-                            <div style={{ marginTop: 8, fontWeight: 600 }}>Thêm bản ghi thanh toán</div>
-                            <div className="po-edit" style={{ gridTemplateColumns: "repeat(4, minmax(0,1fr))" }}>
-                              <div className="po-edit-row">
-                                <label>Loại</label>
-                                <select
-                                  value={pf.kind}
-                                  onChange={(e) => setPayFormVal(p._id, { kind: e.target.value })}
-                                >
-                                  {["deposit", "remaining", "refund", "adjustment"].map((k) => (
-                                    <option key={k} value={k}>{k}</option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div className="po-edit-row">
-                                <label>Số tiền (₫)</label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={pf.amount}
-                                  onChange={(e) => setPayFormVal(p._id, { amount: e.target.value })}
-                                  placeholder="VD: 150000"
-                                />
-                              </div>
-                              <div className="po-edit-row">
-                                <label>Provider</label>
-                                <input
-                                  value={pf.provider}
-                                  onChange={(e) => setPayFormVal(p._id, { provider: e.target.value })}
-                                  placeholder="VD: momo, vnpay, tiền mặt..."
-                                />
-                              </div>
-                              <div className="po-edit-row">
-                                <label>Ghi chú</label>
-                                <input
-                                  value={pf.note}
-                                  onChange={(e) => setPayFormVal(p._id, { note: e.target.value })}
-                                  placeholder="Ghi chú nội bộ"
-                                />
-                              </div>
-
-                              <div className="po-edit-actions" style={{ gridColumn: "1 / -1" }}>
-                                <button className="btn" onClick={() => addPaymentManual(p._id)}>
-                                  Thêm thanh toán
-                                </button>
-                              </div>
                             </div>
                           </div>
                         </>
@@ -662,7 +549,9 @@ export default function PreordersAdmin() {
                               min="0"
                               max="100"
                               value={editForm.depositPercent}
-                              onChange={(e) => setEditForm((f) => ({ ...f, depositPercent: e.target.value }))}
+                              onChange={(e) =>
+                                setEditForm((f) => ({ ...f, depositPercent: e.target.value }))
+                              }
                               placeholder="VD: 30"
                             />
                           </div>
@@ -672,7 +561,9 @@ export default function PreordersAdmin() {
                             <input
                               type="number"
                               value={editForm.feesAdjust}
-                              onChange={(e) => setEditForm((f) => ({ ...f, feesAdjust: e.target.value }))}
+                              onChange={(e) =>
+                                setEditForm((f) => ({ ...f, feesAdjust: e.target.value }))
+                              }
                               placeholder="VD: 50000 hoặc -30000"
                             />
                           </div>
@@ -681,7 +572,9 @@ export default function PreordersAdmin() {
                             <label>Ghi chú nội bộ</label>
                             <input
                               value={editForm.internalNote}
-                              onChange={(e) => setEditForm((f) => ({ ...f, internalNote: e.target.value }))}
+                              onChange={(e) =>
+                                setEditForm((f) => ({ ...f, internalNote: e.target.value }))
+                              }
                               placeholder="Ghi chú nội bộ"
                             />
                           </div>
@@ -690,7 +583,9 @@ export default function PreordersAdmin() {
                             <label>Ghi chú hiển thị cho khách</label>
                             <input
                               value={editForm.customerNote}
-                              onChange={(e) => setEditForm((f) => ({ ...f, customerNote: e.target.value }))}
+                              onChange={(e) =>
+                                setEditForm((f) => ({ ...f, customerNote: e.target.value }))
+                              }
                               placeholder="Ghi chú hiển thị cho khách"
                             />
                           </div>
@@ -709,7 +604,6 @@ export default function PreordersAdmin() {
           </tbody>
         </table>
 
-        {/* Pagination */}
         <div className="pa-pagination">
           <button
             className="btn-secondary"

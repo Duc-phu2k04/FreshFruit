@@ -1,4 +1,4 @@
-// be/src/services/order.service.js
+// src/services/order.service.js
 import mongoose from "mongoose";
 import Order from "../models/order.model.js";
 import Voucher from "../models/voucher.model.js";
@@ -6,27 +6,201 @@ import Product from "../models/product.model.js";
 import Cart from "../models/cart.model.js";
 import Address from "../models/address.model.js";
 import { quoteShipping } from "./shipping.service.js";
-import voucherService from "./voucher.service.js"; // <-- để auto-assign voucher sau khi thanh toán
+import voucherService from "./voucher.service.js";
 
-// So sánh biến thể
-const isSameVariant = (a = {}, b = {}) =>
+// So sánh biến thể theo attributes
+const isSameVariantAttr = (a = {}, b = {}) =>
   String(a.weight || "") === String(b.weight || "") &&
   String(a.ripeness || "") === String(b.ripeness || "");
 
-// Chuẩn hoá số tiền
+// Tiện ích số tiền
 const toMoney = (v) => Math.max(0, Math.round(Number(v || 0)));
 
+/* ===== Helper quy đổi trọng lượng -> kg (để dùng chung kho 1kg) ===== */
+const kgFromWeight = (w) => {
+  if (!w) return null;
+  const s = String(w).toLowerCase().trim();
+  const mKg = s.match(/(\d+(?:[.,]\d+)?)\s*kg/);
+  if (mKg) return parseFloat(mKg[1].replace(",", "."));
+  const mG = s.match(/(\d+(?:[.,]\d+)?)\s*g/);
+  if (mG) return parseFloat(mG[1].replace(",", ".")) / 1000;
+  return null;
+};
+
+// Lấy biến thể 1kg (nếu có)
+const findBase1kgVariant = (p) =>
+  (p?.variants || []).find((v) => (kgFromWeight(v?.attributes?.weight) || 0) === 1) || null;
+
+/* ===== “Giá ưu tiên” legacy cho combo dựa trên product con ===== */
+function pickUnitPriceForProduct(p) {
+  if (!p) return 0;
+  const dv = Number(p?.displayVariant?.price || 0);
+  if (dv > 0) return dv;
+
+  const pack = Array.isArray(p?.packagingOptions)
+    ? p.packagingOptions.find((x) => Number(x?.price) > 0)
+    : null;
+  if (pack) return Number(pack.price || 0);
+
+  const v0 = Number(p?.variants?.[0]?.price || 0);
+  if (v0 > 0) return v0;
+
+  const base = Number(p?.baseVariant?.price || 0);
+  if (base > 0) return base;
+
+  return 0;
+}
+
 /**
- * Tạo đơn hàng
+ * Legacy: tính giá combo từ product type combo/mix nếu DB có cấu trúc comboItems/discount.
+ * (Luồng mới FE gửi snapshot nên có thể không cần hàm này, nhưng giữ để tương thích.)
  */
+async function computeComboPrice(comboProductDoc) {
+  const combo = comboProductDoc?.toObject ? comboProductDoc.toObject() : comboProductDoc;
+  if (!combo) return 0;
+
+  // fixed (có thể là comboPrice cũ)
+  const fixed = Number(combo.comboPrice || combo?.comboPricing?.fixedPrice || 0);
+  if (fixed > 0) return fixed;
+
+  let subtotal = 0;
+  const items = Array.isArray(combo.comboItems) ? combo.comboItems : [];
+  for (const it of items) {
+    const pid = it?.product?._id || it?.product;
+    if (!pid) continue;
+    const p =
+      it?.product && typeof it.product === "object"
+        ? it.product
+        : await Product.findById(pid).lean();
+    if (!p) continue;
+    subtotal += pickUnitPriceForProduct(p) * (Number(it?.qty || 1));
+  }
+
+  const percent =
+    Number(combo?.comboPricing?.discountPercent || 0) ||
+    Number(combo.comboDiscountPercent || 0);
+  const total = toMoney(subtotal * (1 - Math.max(0, Math.min(percent, 100)) / 100));
+  return total;
+}
+
+/* ===========================================================
+ * Atomic stock helpers (non-transaction) + rollback
+ * - Ưu tiên trừ kho theo biến thể 1kg (nếu có)
+ * - decUnits = ROUND(qty * weightKg)
+ * - ĐỐI VỚI COMBO: KHÔNG trừ kho thành phần
+ * =========================================================*/
+async function decOneStockNonTx(item) {
+  // Combo: không trừ kho
+  if (item?.isCombo) return { ok: true, mode: "combo-no-stock-change" };
+
+  const qty = Math.max(1, Number(item.quantity || 1));
+
+  // Cần doc để biết weight & tìm base 1kg
+  const pDoc = await Product.findById(item.product).lean();
+  if (!pDoc) return { ok: false, reason: "product-not-found" };
+
+  // Xác định biến thể đã chọn
+  let chosen =
+    (pDoc.variants || []).find((v) => String(v._id) === String(item.variantId)) || null;
+
+  if (!chosen) {
+    const w = item?.variant?.weight ?? "";
+    const r = item?.variant?.ripeness ?? "";
+    if (w || r) {
+      chosen = (pDoc.variants || []).find((v) =>
+        isSameVariantAttr(v?.attributes || {}, { weight: w, ripeness: r })
+      ) || null;
+    }
+  }
+
+  // Nếu không tìm được → thử trừ trực tiếp theo id (giữ hành vi cũ)
+  if (!chosen) {
+    const resFallback = await Product.updateOne(
+      { _id: item.product, "variants._id": item.variantId, "variants.stock": { $gte: qty } },
+      { $inc: { "variants.$.stock": -qty } }
+    );
+    if (resFallback.modifiedCount > 0) return { ok: true, mode: "variantsById-fallback" };
+    return { ok: false, reason: "variant-not-found" };
+  }
+
+  // Tính số đơn vị 1kg cần trừ
+  const weightKg = kgFromWeight(chosen?.attributes?.weight) || 1;
+  const decUnits = Math.round(qty * weightKg);
+
+  // Tìm biến thể 1kg để trừ
+  const base1kg = findBase1kgVariant(pDoc);
+  if (base1kg?._id) {
+    const resBase = await Product.updateOne(
+      { _id: item.product, "variants._id": base1kg._id, "variants.stock": { $gte: decUnits } },
+      { $inc: { "variants.$.stock": -decUnits } }
+    );
+    if (resBase.modifiedCount > 0)
+      return { ok: true, mode: "base1kg", baseId: base1kg._id, decUnits };
+  }
+
+  // Không có 1kg → trừ trực tiếp biến thể chọn
+  const resChosen = await Product.updateOne(
+    { _id: item.product, "variants._id": chosen._id, "variants.stock": { $gte: qty } },
+    { $inc: { "variants.$.stock": -qty } }
+  );
+  if (resChosen.modifiedCount > 0) return { ok: true, mode: "variantsById", chosenId: chosen._id };
+
+  return { ok: false, reason: "insufficient-stock" };
+}
+
+async function rollbackOneStock(item, info) {
+  if (!info?.ok) return;
+  if (info.mode === "combo-no-stock-change") return;
+
+  const qty = Math.max(1, Number(item.quantity || 1));
+
+  if (info.mode === "base1kg") {
+    const incUnits = Math.max(0, Number(info.decUnits || 0)) || Math.round(qty);
+    await Product.updateOne(
+      { _id: item.product, "variants._id": info.baseId },
+      { $inc: { "variants.$.stock": incUnits } }
+    );
+    return;
+  }
+
+  if (info.mode === "variantsById" || info.mode === "variantsById-fallback") {
+    await Product.updateOne(
+      { _id: item.product, "variants._id": item.variantId },
+      { $inc: { "variants.$.stock": qty } }
+    );
+    return;
+  }
+
+  if (info.mode === "variantsByAttr") {
+    const w = info.selector?.w ?? item?.variant?.weight ?? "";
+    const r = info.selector?.r ?? item?.variant?.ripeness ?? "";
+    await Product.updateOne(
+      {
+        _id: item.product,
+        "variants.attributes.weight": w,
+        "variants.attributes.ripeness": r,
+      },
+      { $inc: { "variants.$.stock": qty } }
+    );
+  }
+}
+
+/* ===========================================================
+ * Tạo Order (non-transaction)
+ * - Nhận cartItems kiểu MỚI:
+ *   + type="combo" với snapshot {title,image,unitPrice,items:[{productId,qty}],discountPercent?}
+ *   + type null/"variant" với { productId, quantity, variantId? | variant{weight,ripeness} }
+ * - “Thùng” vẫn là 1 variant như thường
+ * - TỒN KHO: ưu tiên trừ trên biến thể 1kg
+ * =========================================================*/
 export const createOrder = async ({
   userId,
   cartItems = [],
-  voucher,             // code (string) hoặc ObjectId
-  address,             // {_id} hoặc object đầy đủ
+  voucher,                 // code hoặc ObjectId
+  address,                 // {_id} hoặc object đầy đủ
   paymentMethod = "cod",
 }) => {
-  // 1) Địa chỉ
+  // 1) Địa chỉ giao hàng
   let addr = null;
   if (address?._id) {
     addr = await Address.findById(address._id).lean();
@@ -37,66 +211,185 @@ export const createOrder = async ({
     throw new Error("Thiếu thông tin địa chỉ giao hàng");
   }
 
-  // 2) Sản phẩm/biến thể
+  // 2) Duyệt cart items
   if (!Array.isArray(cartItems) || cartItems.length === 0) {
     throw new Error("Giỏ hàng trống");
   }
 
-  const items = [];
-  for (const item of cartItems) {
-    const product = await Product.findById(item.productId);
-    if (!product) throw new Error(`Sản phẩm không tồn tại: ${item.productId}`);
+  const items = [];  // để lưu vào Order
+  let subtotal = 0;
 
-    const variantInfo = item.variant || {};
-    if (!variantInfo.weight || !variantInfo.ripeness) {
-      throw new Error(`Thiếu thông tin biến thể cho sản phẩm ${product.name}`);
+  for (const ci of cartItems) {
+    const type = String(ci?.type || "variant").toLowerCase();
+
+    /* ===== COMBO/MIX kiểu MỚI (snapshot price lock) ===== */
+    if (type === "combo") {
+      const qty = Math.max(1, Number(ci.quantity || 0));
+
+      const snap = ci?.snapshot || {};
+      const unitPrice = toMoney(snap.unitPrice || ci?.unitPrice || 0);
+      const line = unitPrice * qty;
+
+      const comboInfo = {
+        title: snap.title || ci?.title || "Combo",
+        image: snap.image || ci?.image || null,
+        discountPercent: Number(snap.discountPercent || 0),
+        items: Array.isArray(snap.items)
+          ? snap.items.map((x) => ({ productId: x.productId, qty: Number(x.qty || 1) }))
+          : [],
+      };
+
+      items.push({
+        product: ci?.productId || null,
+        productName: comboInfo.title,
+        isCombo: true,
+        quantity: qty,
+        price: unitPrice,       // đơn giá combo
+        unitPriceFinal: unitPrice,
+        lineTotal: line,
+        combo: comboInfo,
+        variantId: null,
+        variant: null,
+      });
+
+      subtotal += line;
+      continue;
     }
 
-    const matchedVariant = (product.variants || []).find((v) =>
-      isSameVariant(v.attributes, variantInfo)
-    );
-    if (!matchedVariant) {
+    /* ===== LEGACY COMBO (product.isCombo) – vẫn hỗ trợ nếu còn dùng ===== */
+    const product = await Product.findById(ci.productId).lean();
+    if (!product) throw new Error(`Sản phẩm không tồn tại: ${ci.productId}`);
+
+    const qty = Math.max(1, Number(ci.quantity || 0));
+
+    if (product.isCombo === true || product?.type === "combo") {
+      const unitPrice = await computeComboPrice(product);
+      const line = unitPrice * qty;
+
+      items.push({
+        product: product._id,
+        productName: product.name,
+        isCombo: true,
+        quantity: qty,
+        price: unitPrice,
+        unitPriceFinal: unitPrice,
+        lineTotal: line,
+        combo: {
+          title: product.name,
+          image: product.image || null,
+          discountPercent:
+            Number(product?.comboPricing?.discountPercent || 0) ||
+            Number(product?.comboDiscountPercent || 0),
+          items: Array.isArray(product?.comboItems)
+            ? product.comboItems.map((x) => ({
+                productId: x?.product?._id || x?.product,
+                qty: Number(x?.qty || 1),
+              }))
+            : [],
+        },
+        variantId: null,
+        variant: null,
+      });
+
+      subtotal += line;
+      continue;
+    }
+
+    /* ===== SẢN PHẨM THƯỜNG (bao gồm “thùng”) ===== */
+    let chosenVariant = null;
+
+    if (ci.variantId) {
+      chosenVariant =
+        (product.variants || []).find((v) => String(v._id) === String(ci.variantId)) || null;
+    }
+    if (!chosenVariant && ci.variant) {
+      const { weight = "", ripeness = "" } = ci.variant || {};
+      chosenVariant = (product.variants || []).find((v) =>
+        isSameVariantAttr(v?.attributes || {}, { weight, ripeness })
+      ) || null;
+    }
+    if (!chosenVariant && product.baseVariant && product.baseVariant.price != null) {
+      chosenVariant = {
+        ...product.baseVariant,
+        _id: product.baseVariant?._id || new mongoose.Types.ObjectId(),
+      };
+    }
+    if (!chosenVariant) {
       throw new Error(`Không tìm thấy biến thể phù hợp cho sản phẩm ${product.name}`);
     }
-    if (Number(matchedVariant.stock) < Number(item.quantity)) {
-      throw new Error(`Không đủ tồn kho cho sản phẩm ${product.name}`);
+
+    // Kiểm tra tồn kho (ưu tiên 1kg)
+    const base1kg = findBase1kgVariant(product);
+    const weightKg = kgFromWeight(chosenVariant?.attributes?.weight) || 1;
+    const needBaseUnits = Math.round(qty * weightKg);
+
+    if (base1kg) {
+      const baseRemain = Number(base1kg.stock || 0);
+      if (baseRemain < needBaseUnits) {
+        throw new Error(`Không đủ tồn kho (cần ${needBaseUnits}kg) cho sản phẩm ${product.name}`);
+      }
+    } else {
+      const remain = Number(chosenVariant.stock || 0);
+      if (remain < qty) {
+        throw new Error(`Không đủ tồn kho cho sản phẩm ${product.name}`);
+      }
     }
+
+    const unitPrice = Number(chosenVariant.price || 0);
+    const line = unitPrice * qty;
 
     items.push({
       product: product._id,
       productName: product.name,
-      quantity: Number(item.quantity || 0),
-      price: Number(matchedVariant.price || 0),
-      variant: variantInfo,
-      variantId: matchedVariant._id,
+      isCombo: false,
+      quantity: qty,
+      price: unitPrice,
+      unitPriceFinal: unitPrice,
+      lineTotal: line,
+      variant: {
+        grade: "",
+        weight: chosenVariant?.attributes?.weight || "",
+        ripeness: chosenVariant?.attributes?.ripeness || "",
+      },
+      variantId: chosenVariant._id,
     });
+
+    subtotal += line;
   }
 
-  const subtotal = items.reduce((s, it) => s + it.quantity * it.price, 0);
+  // 3) Phí ship
+  let shippingFee = 0;
+  let ruleName;
+  try {
+    const quoted = await quoteShipping({
+      provinceCode: 1, // ví dụ
+      districtCode: String(addr.districtCode || addr.district_code || ""),
+      wardCode: String(addr.wardCode || addr.ward_code || ""),
+      cartSubtotal: subtotal,
+    });
+    shippingFee = Number(quoted?.amount || 0);
+    ruleName = quoted?.ruleName;
+  } catch (e) {
+    console.warn("[order.service] quoteShipping lỗi, dùng 0đ:", e?.message || e);
+  }
 
-  // 3) Phí ship theo khu vực
-  const { amount: shippingFee, ruleName, matchedBy } = await quoteShipping({
-    provinceCode: 1, // Hà Nội
-    districtCode: String(addr.districtCode || addr.district_code || ""),
-    wardCode: String(addr.wardCode || addr.ward_code || ""),
-    cartSubtotal: subtotal,
-  });
-
-  // 4) Áp voucher
+  // 4) Voucher
   let appliedVoucher = null;
   let discountAmount = 0;
+  let vDoc = null;
 
   if (voucher) {
-    let vDoc = null;
     if (typeof voucher === "string") {
       vDoc = await Voucher.findOne({ code: voucher.trim().toUpperCase() });
     } else if (mongoose.isValidObjectId(voucher)) {
       vDoc = await Voucher.findById(voucher);
     }
+
     if (!vDoc) throw new Error("Mã giảm giá không hợp lệ");
 
+    // kiểm tra voucher gán cho user (nếu có)
     if (Array.isArray(vDoc.assignedUsers) && vDoc.assignedUsers.length > 0) {
-      const assigned = vDoc.assignedUsers.map((x) => String(x));
+      const assigned = vDoc.assignedUsers.map(String);
       if (!assigned.includes(String(userId))) {
         throw new Error("Mã giảm giá không thuộc về bạn");
       }
@@ -114,71 +407,105 @@ export const createOrder = async ({
 
     discountAmount = toMoney(discountAmount);
     appliedVoucher = vDoc._id;
-
-    if (vDoc.quantity !== null && vDoc.quantity > 0) {
-      vDoc.quantity -= 1;
-      await vDoc.save();
-    }
   }
 
   // 5) Tổng tiền
-  const total = toMoney(subtotal + shippingFee - discountAmount);
+  const subtotalMoney = toMoney(subtotal);
+  const shippingMoney = toMoney(shippingFee);
+  const total = toMoney(subtotalMoney + shippingMoney - discountAmount);
 
-  // 6) Lưu Order
-  const order = new Order({
-    user: userId,
-    items,
-    total,
-    voucher: appliedVoucher || null,
-    shippingAddress: {
-      fullName: addr.fullName,
-      phone: addr.phone,
-      province: addr.province,
-      district: addr.district,
-      ward: addr.ward,
-      detail: addr.detail,
-    },
-    // Thêm 3 field này nếu Order schema đã khai báo
-    shippingFee: toMoney(shippingFee),
-    shippingRuleName: ruleName || null,
-    shippingMatchedBy: matchedBy || null,
-
-    status: "pending",
-    paymentStatus: "unpaid",
-    paymentMethod,
-  });
-
-  await order.save();
-
-  // 7) Trừ tồn
-  for (const it of items) {
-    await Product.updateOne(
-      { _id: it.product, "variants._id": it.variantId },
-      { $inc: { "variants.$.stock": -it.quantity } }
-    );
+  // 6) Trừ kho (non-transaction) + rollback
+  const decLogs = [];
+  try {
+    for (const it of items) {
+      const info = await decOneStockNonTx(it);
+      if (!info.ok) {
+        throw new Error(
+          `Hết hàng hoặc không đủ tồn kho cho biến thể ${it?.variant?.weight || ""} ${it?.variant?.ripeness || ""}`
+        );
+      }
+      decLogs.push({ it, info });
+    }
+  } catch (stockErr) {
+    for (const d of decLogs.reverse()) {
+      try { await rollbackOneStock(d.it, d.info); } catch {}
+    }
+    throw stockErr;
   }
 
-  // 8) Xoá khỏi giỏ
-  await Cart.findOneAndUpdate(
-    { user: userId },
-    {
-      $pull: {
-        items: {
-          $or: items.map((i) => ({
-            product: i.product,
-            variantId: i.variantId,
-          })),
-        },
+  // 7) Lưu Order (rollback kho nếu lỗi)
+  let createdOrder = null;
+  try {
+    const order = new Order({
+      user: userId,
+      items, // chứa cả isCombo/combo
+      total,
+      subtotal: subtotalMoney,
+      shippingFee: shippingMoney,
+      shippingRuleName: ruleName || null,
+      voucher: appliedVoucher || null,
+      status: "pending",
+      paymentStatus: paymentMethod === "momo" ? "paid" : "unpaid",
+      paymentMethod,
+      shippingAddress: {
+        fullName: addr.fullName,
+        phone: addr.phone,
+        province: addr.province,
+        district: addr.district,
+        ward: addr.ward,
+        detail: addr.detail,
+        districtCode: addr.districtCode || addr.district_code || "",
+        wardCode: addr.wardCode || addr.ward_code || "",
       },
-    }
-  );
+    });
 
-  return order;
+    createdOrder = await order.save();
+  } catch (saveErr) {
+    for (const d of decLogs.reverse()) {
+      try { await rollbackOneStock(d.it, d.info); } catch {}
+    }
+    throw saveErr;
+  }
+
+  // 8) Hậu xử lý
+  // 8a) Giảm số lượng voucher (nếu có quản lý số lượng)
+  try {
+    if (vDoc && vDoc.quantity != null && vDoc.quantity > 0) {
+      vDoc.quantity -= 1;
+      await vDoc.save();
+    }
+  } catch (e) {
+    console.warn("[order.service] giảm số lượng voucher lỗi:", e?.message || e);
+  }
+
+  // 8b) Xoá các item variant khỏi giỏ (combo để nguyên) – soft fail
+  try {
+    const pullConds = items
+      .filter((i) => i.variantId) // chỉ xoá dòng variant
+      .map((i) => ({ product: i.product, variantId: i.variantId }));
+    if (pullConds.length) {
+      await Cart.findOneAndUpdate(
+        { user: userId },
+        { $pull: { items: { $or: pullConds } } }
+      );
+    }
+  } catch (e) {
+    console.warn("[order.service] remove-from-cart lỗi (bỏ qua):", e?.message || e);
+  }
+
+  // 8c) Gán voucher theo chi tiêu nếu đã thanh toán
+  try {
+    if (createdOrder?.paymentStatus === "paid") {
+      await voucherService.assignVoucherBasedOnSpending(userId);
+    }
+  } catch (e) {
+    console.warn("[order.service] assignVoucherBasedOnSpending error:", e?.message || e);
+  }
+
+  return createdOrder;
 };
 
-/**
- * Lấy tất cả đơn hàng (admin)
- */
+/* ======================== Admin utils ======================== */
 export const getAllOrders = async () => {
   const orders = await Order.find()
     .populate("user", "username email")
@@ -190,8 +517,8 @@ export const getAllOrders = async () => {
 
 /**
  * Cập nhật trạng thái đơn hàng
- * - Giữ logic: nếu delivered & COD => paymentStatus = 'paid'
- * - Nếu paymentStatus = 'paid' => auto gán voucher theo ngưỡng chi tiêu
+ * - Nếu delivered & COD => coi như đã thanh toán
+ * - Khi chuyển sang paid => auto-assign voucher theo ngưỡng chi tiêu
  */
 export const updateOrderStatus = async (orderId, updates = {}) => {
   const { status, paymentStatus } = updates;
@@ -211,7 +538,6 @@ export const updateOrderStatus = async (orderId, updates = {}) => {
     changed = true;
   }
 
-  // Nếu giao thành công & COD -> coi như đã thanh toán
   if (status === "delivered" && order.paymentMethod === "cod") {
     if (order.paymentStatus !== "paid") {
       order.paymentStatus = "paid";
@@ -222,17 +548,11 @@ export const updateOrderStatus = async (orderId, updates = {}) => {
   if (changed) {
     await order.save();
 
-    // Nếu đã paid -> xét cấp voucher tự động
     if (order.paymentStatus === "paid") {
       try {
-        const result = await voucherService.assignVoucherBasedOnSpending(order.user);
-        if (result?.assigned?.length) {
-          console.log(" Auto-assigned vouchers:", result.assigned);
-        } else {
-          console.log("ℹ User chưa đủ điều kiện nhận voucher mới.");
-        }
+        await voucherService.assignVoucherBasedOnSpending(order.user);
       } catch (err) {
-        console.error(" Auto-assign voucher error:", err.message);
+        console.error("Auto-assign voucher error:", err.message);
       }
     }
   }

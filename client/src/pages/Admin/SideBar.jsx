@@ -19,12 +19,12 @@ import {
 const Sidebar = () => {
   const location = useLocation();
 
-  // Helper function để kiểm tra link có active không (giữ nguyên)
+  // Helper function để kiểm tra link có active không
   const isLinkActive = (path) => {
     return location.pathname === path;
   };
 
-  // Các lớp CSS của Tailwind (giữ nguyên)
+  // Các lớp CSS của Tailwind
   const linkClasses =
     "flex items-center px-4 py-3 text-gray-300 rounded-lg transition-colors duration-200";
   const activeLinkClasses = "bg-gray-700 text-white";
@@ -126,6 +126,19 @@ const Sidebar = () => {
               >
                 <ClipboardDocumentListIcon className={iconClasses} />
                 Quản lý đơn đặt trước
+              </Link>
+            </li>
+
+            {/* --- 🆕 MỤC: QUẢN LÝ COMING SOON --- */}
+            <li>
+              <Link
+                to="/admin/coming-soon"
+                className={`${linkClasses} ${
+                  isLinkActive('/admin/coming-soon') ? activeLinkClasses : hoverClasses
+                }`}
+              >
+                <CubeIcon className={iconClasses} />
+                Quản lý Coming Soon
               </Link>
             </li>
 

@@ -1,56 +1,174 @@
 // src/routes/order.route.js
 import express from "express";
+import path from "path";
+import fs from "fs";
+import multer from "multer";
+import mongoose from "mongoose";
+
 import {
+  // ORDER core
   checkout,
   getUserOrders,
   getAllOrders,
+  getOrderById,
   updateStatus,
   deleteOrder,
-  hideOrderFromHistory, // giữ controller hiện có
-} from "../controllers/order.controller.js";
-import { verifyToken, isAdmin } from "../middlewares/auth.middleware.js";
+  hideOrderFromHistory,
 
-// ✅ import đúng service & model
+  // Return/Refund flow
+  orderReturnRequest,        // USER
+  orderReturnApprove,        // ADMIN
+  orderReturnReject,         // ADMIN
+  orderReturnShippingUpdate, // ADMIN
+  orderReturnRefund,         // ADMIN
+} from "../controllers/order.controller.js";
+
+import { verifyToken, isAdminOrManager } from "../middlewares/auth.middleware.js";
 import { quoteShipping } from "../services/shipping.service.js";
 import Address from "../models/address.model.js";
 
 const router = express.Router();
 
-// ========= Helpers: chuẩn hoá/validate mã =========
+/* ================================
+ *        Multer (ảnh đổi/trả)
+ * ============================== */
+const RETURNS_DIR = path.resolve(process.cwd(), "uploads", "returns");
+if (!fs.existsSync(RETURNS_DIR)) fs.mkdirSync(RETURNS_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, RETURNS_DIR),
+  filename: (_req, file, cb) => {
+    const ts = Date.now();
+    const safe = (file.originalname || "evidence")
+      .replace(/\s+/g, "_")
+      .replace(/[^a-zA-Z0-9._-]/g, "");
+    cb(null, `${ts}-${safe}`);
+  },
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024, files: 10 }, // 10MB/file, tối đa 10 ảnh
+});
+
+/* ================================
+ *   Helpers cho shipping code
+ * ============================== */
 const isDistrictCode = (v) => /^\d{3}$/.test(String(v ?? "").trim());
 const isWardCode = (v) => /^\d{5}$/.test(String(v ?? "").trim());
-const padDistrict = (v) => {
-  const s = String(v ?? "").trim();
-  return /^\d+$/.test(s) ? s.padStart(3, "0") : "";
-};
-const padWard = (v) => {
-  const s = String(v ?? "").trim();
-  return /^\d+$/.test(s) ? s.padStart(5, "0") : "";
-};
+const padDistrict = (v) =>
+  /^\d+$/.test(String(v ?? "")) ? String(v).padStart(3, "0") : "";
+const padWard = (v) =>
+  /^\d+$/.test(String(v ?? "")) ? String(v).padStart(5, "0") : "";
 
-// Tạo đơn hàng
-router.post("/add", verifyToken, checkout); // POST /api/orders/add
+/** Chuẩn hoá code: pad trước rồi validate */
+function normalizeDistrictCode(raw) {
+  const padded = padDistrict(raw);
+  return isDistrictCode(padded) ? padded : "";
+}
+function normalizeWardCode(raw) {
+  const padded = padWard(raw);
+  return isWardCode(padded) ? padded : "";
+}
 
-// Lấy lịch sử đơn hàng của người dùng
-router.get("/user", verifyToken, getUserOrders); // GET /api/orders/user
+/* ================================
+ *    Chuẩn hoá body giỏ hàng
+ * ============================== */
+/**
+ * Một số FE (hoặc gateway) có thể gửi cartItems/mixPackages ở dạng chuỗi JSON
+ * hoặc không gửi các field đó. Middleware này ép về mảng hợp lệ trước khi vào controller.
+ */
+function normalizeCartBody(req, res, next) {
+  try {
+    const b = req.body || {};
+    const parseMaybe = (v) => (typeof v === "string" ? JSON.parse(v) : v);
+    const toArray = (v) => (Array.isArray(v) ? v : []);
 
-// Lấy toàn bộ đơn hàng (admin)
-router.get("/all", verifyToken, isAdmin, getAllOrders); // GET /api/orders/all
+    // Chuẩn hoá hai mảng quan trọng
+    req.body.cartItems = toArray(parseMaybe(b.cartItems));
+    req.body.mixPackages = toArray(parseMaybe(b.mixPackages));
 
-// Cập nhật trạng thái đơn (admin)
-router.put("/:id/status", verifyToken, isAdmin, updateStatus); // PUT /api/orders/:id/status
+    // Optionally: ép quantity về số >=1 (không bắt buộc, controller vẫn tự xử lý)
+    // req.body.cartItems = req.body.cartItems.map((it) => ({
+    //   ...it,
+    //   quantity: Math.max(1, Number(it?.quantity || 1)),
+    // }));
 
-// Huỷ đơn hàng (user hoặc admin)
-router.delete("/:id", verifyToken, deleteOrder); // DELETE /api/orders/:id
+    next();
+  } catch (e) {
+    return res
+      .status(400)
+      .json({ message: "Payload không hợp lệ (cartItems/mixPackages)" });
+  }
+}
 
-//  Ẩn đơn hàng khỏi lịch sử (soft delete)
-router.patch("/:id/hide", verifyToken, hideOrderFromHistory); // PATCH /api/orders/:id/hide
+/* ================================
+ *            ORDER
+ * ============================== */
+// Giữ endpoint cũ để không vỡ luồng
+router.post("/add", verifyToken, normalizeCartBody, checkout);
+// Endpoint mới rõ nghĩa
+router.post("/checkout", verifyToken, normalizeCartBody, checkout);
 
-// ================================
-// SHIPPING QUOTE (dành cho Checkout)
-// ================================
+// Đơn của user
+router.get("/user", verifyToken, getUserOrders);
 
-// GET /api/orders/shipping/quote?addressId=...&subtotal=...
+// Tất cả đơn cho admin/manager
+router.get("/all", verifyToken, isAdminOrManager, getAllOrders);
+
+// Cập nhật trạng thái đơn (admin/manager)
+router.put("/:id/status", verifyToken, isAdminOrManager, updateStatus);
+
+/* ================================
+ *         RETURN FLOW
+ * ============================== */
+/**
+ * USER gửi yêu cầu đổi/trả.
+ * Hỗ trợ JSON hoặc multipart/form-data (field "images").
+ * Ảnh sẽ được controller chuẩn hoá thành absolute URL.
+ */
+router.post(
+  "/:id/return-request",
+  verifyToken,
+  upload.array("images", 10),
+  orderReturnRequest
+);
+
+// ADMIN thao tác duyệt / từ chối / cập nhật vận chuyển / hoàn tiền
+router.patch(
+  "/:id/return/approve",
+  verifyToken,
+  isAdminOrManager,
+  orderReturnApprove
+);
+router.patch(
+  "/:id/return/reject",
+  verifyToken,
+  isAdminOrManager,
+  orderReturnReject
+);
+router.patch(
+  "/:id/return/shipping-update",
+  verifyToken,
+  isAdminOrManager,
+  orderReturnShippingUpdate
+);
+router.patch(
+  "/:id/return/refund",
+  verifyToken,
+  isAdminOrManager,
+  orderReturnRefund
+);
+
+/* ================================
+ *   Ẩn / Huỷ (giữ luồng cũ)
+ * ============================== */
+router.patch("/:id/hide", verifyToken, hideOrderFromHistory);
+router.delete("/:id", verifyToken, deleteOrder);
+
+/* ================================
+ *   SHIPPING QUOTE (cho Checkout)
+ * ============================== */
+/** GET bằng addressId (ưu tiên bảo mật: chỉ cho dùng address của chính user) */
 router.get("/shipping/quote", verifyToken, async (req, res) => {
   try {
     const { addressId, subtotal = 0 } = req.query;
@@ -58,62 +176,48 @@ router.get("/shipping/quote", verifyToken, async (req, res) => {
       return res.status(400).json({ ok: false, message: "addressId required" });
     }
 
-    const address = await Address.findById(addressId).lean();
+    // chỉ lấy address thuộc user đang đăng nhập
+    const address = await Address.findOne({
+      _id: addressId,
+      user: req.user._id,
+    }).lean();
     if (!address) {
       return res.status(404).json({ ok: false, message: "Address not found" });
     }
 
-    // Lấy raw code từ DB (hỗ trợ cả field cũ: district_code/ward_code)
-    const dRaw = address.districtCode ?? address.district_code;
-    const wRaw = address.wardCode ?? address.ward_code;
-
-    // CHỈ chấp nhận wardCode đúng 5 chữ số; districtCode đúng 3 chữ số
-    const districtCode = isDistrictCode(dRaw) ? padDistrict(dRaw) : "";
-    const wardCode = isWardCode(wRaw) ? padWard(wRaw) : "";
-
-    // Log gỡ lỗi (có thể tắt sau khi test xong)
-    console.debug("[QUOTE] addressId:", addressId, {
-      districtCode_raw: dRaw,
-      districtCode_normalized: districtCode,
-      wardCode_raw: wRaw,
-      wardCode_normalized: wardCode,
-      subtotal: Number(subtotal || 0),
-    });
+    const districtCode = normalizeDistrictCode(
+      address.districtCode ?? address.district_code
+    );
+    const wardCode = normalizeWardCode(address.wardCode ?? address.ward_code);
 
     const result = await quoteShipping({
-      provinceCode: 1, // Hà Nội
-      districtCode: districtCode || undefined, // nếu rỗng thì không gửi để tránh match sai
+      provinceCode: 1, // Hà Nội (ví dụ)
+      districtCode: districtCode || undefined,
       wardCode: wardCode || undefined,
       cartSubtotal: Number(subtotal || 0),
     });
 
-    return res.json({ ok: true, data: result });
+    res.json({ ok: true, data: result });
   } catch (e) {
     console.error("[GET /orders/shipping/quote] error:", e);
     res.status(500).json({ ok: false, message: "Quote error" });
   }
 });
 
-// (Tuỳ chọn) POST /api/orders/shipping/quote
+/** POST bằng districtCode/wardCode trực tiếp (chấp nhận số ngắn, sẽ pad) */
 router.post("/shipping/quote", verifyToken, async (req, res) => {
   try {
     const { districtCode: dBody, wardCode: wBody, subtotal = 0 } = req.body || {};
-    // Chuẩn hoá input từ FE
-    const districtCode = isDistrictCode(dBody) ? padDistrict(dBody) : "";
-    const wardCode = isWardCode(wBody) ? padWard(wBody) : "";
+    const districtCode = normalizeDistrictCode(dBody);
+    const wardCode = normalizeWardCode(wBody);
 
     if (!districtCode && !wardCode) {
       return res.status(400).json({
         ok: false,
-        message: "districtCode or wardCode is required (must be numeric: DDD or WWWWW)",
+        message:
+          "districtCode hoặc wardCode là bắt buộc (chấp nhận số, sẽ chuẩn hoá thành DDD/WWWWW).",
       });
     }
-
-    console.debug("[QUOTE-POST] normalized:", {
-      districtCode,
-      wardCode,
-      subtotal: Number(subtotal || 0),
-    });
 
     const result = await quoteShipping({
       provinceCode: 1,
@@ -122,11 +226,27 @@ router.post("/shipping/quote", verifyToken, async (req, res) => {
       cartSubtotal: Number(subtotal || 0),
     });
 
-    return res.json({ ok: true, data: result });
+    res.json({ ok: true, data: result });
   } catch (e) {
     console.error("[POST /orders/shipping/quote] error:", e);
     res.status(500).json({ ok: false, message: "Quote error" });
   }
+});
+
+/* ===========================================================
+ *  CUỐI FILE: GET /api/orders/:id  (ADMIN) — chi tiết đơn
+ *  (đặt cuối để tránh nuốt các route tĩnh bên trên)
+ * ==========================================================*/
+router.get("/:id", verifyToken, isAdminOrManager, getOrderById);
+
+/* ================================
+ *     PARAM VALIDATION :id
+ * ============================== */
+router.param("id", (req, res, next, val) => {
+  if (!mongoose.Types.ObjectId.isValid(val)) {
+    return res.status(400).json({ message: "Invalid order id" });
+  }
+  next();
 });
 
 export default router;

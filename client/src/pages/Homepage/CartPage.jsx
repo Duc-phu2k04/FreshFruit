@@ -1,136 +1,57 @@
-// src/pages/cart.jsx
-import React, { useEffect, useState } from "react";
+// src/pages/Homepage/CartPage.jsx
+import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { computeExpiryInfo, fmtDate } from "../../utils/expiryHelpers";
+import axiosInstance from "../../utils/axiosConfig"; // ✅ dùng axiosInstance để tự động gắn token/cookie
+import styles from "./CartPage.module.css"; // ✅ CSS module
 
 export default function CartPage() {
+  // ====== Server-cart items ======
   const [items, setItems] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
+  const [comboQuotes, setComboQuotes] = useState({}); // { [productId]: {subtotal, total, discountPercent} }
   const navigate = useNavigate();
 
-  const fetchCart = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await fetch("http://localhost:3000/api/cart", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      const arr = Array.isArray(data?.items) ? data.items : [];
-      setItems(arr);
+  /* ---------------- Helpers ---------------- */
+  // Ảnh cho product từ server
+  const imgSrc = (p) => {
+    const raw = p?.images?.[0]?.url || p?.images?.[0] || p?.image || "";
+    if (typeof raw === "string" && /^https?:\/\//i.test(raw)) return raw;
+    return `http://localhost:3000${raw || ""}`;
+  };
 
-      setSelectedItems((prev) =>
-        arr
-          .filter((item) =>
-            prev.find(
-              (sel) =>
-                sel.productId === item.product._id &&
-                sel.variantId === item.variantId
-            )
-          )
-          .map((item) => ({
-            productId: item.product._id,
-            variantId: item.variantId,
-          }))
-      );
-    } catch (err) {
-      console.error("Lỗi khi tải giỏ hàng:", err);
+  const variantLabel = (v) => {
+    const w = v?.attributes?.weight || v?.weight || "";
+    const r = v?.attributes?.ripeness || v?.ripeness || "";
+    if (w && /thùng|crate|box/i.test(w)) return w; // “Thùng 10kg”
+    if (w && r) return `${w} / ${r}`;
+    if (w) return w;
+    if (r) return r;
+    return "Biến thể";
+  };
+
+  // Chuẩn hoá variantId rỗng cho combo để không vỡ API REST hiện tại
+  const normVId = (vId) => (vId == null || vId === "" ? "combo" : vId);
+
+  /** Giá cho 1 item thường (ưu tiên _expiry từ server đã tính theo biến thể) */
+  const getPricingForRegularItem = (item) => {
+    if (!item?.product) {
+      return { basePrice: 0, finalPrice: 0, discountPercent: 0, expireAt: null, daysLeft: null };
     }
-  };
-
-  useEffect(() => {
-    fetchCart();
-  }, []);
-
-  const updateQuantity = async (productId, variantId, quantity) => {
-    try {
-      const token = localStorage.getItem("token");
-      await fetch("http://localhost:3000/api/cart/update", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ productId, variantId, quantity }),
-      });
-      fetchCart();
-    } catch (err) {
-      console.error("Lỗi khi cập nhật số lượng:", err);
+    if (item?._expiry) {
+      const basePrice =
+        Number(item._expiry.basePrice ?? item.variant?.price ?? item.product?.baseVariant?.price ?? 0) || 0;
+      const finalPrice =
+        Number(item._expiry.finalPrice ?? item.variant?.price ?? basePrice) || 0;
+      return {
+        basePrice,
+        finalPrice,
+        discountPercent: Number(item._expiry.discountPercent || 0),
+        expireAt: item._expiry.expireAt || null,
+        daysLeft: typeof item._expiry.daysLeft === "number" ? item._expiry.daysLeft : null,
+      };
     }
-  };
-
-  const removeItem = async (productId, variantId) => {
-    try {
-      const token = localStorage.getItem("token");
-      await fetch(`http://localhost:3000/api/cart/${productId}/${variantId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      fetchCart();
-    } catch (err) {
-      console.error("Lỗi khi xoá sản phẩm:", err);
-    }
-  };
-
-  const changeVariant = async (productId, oldVariantId, newVariantId, quantity) => {
-    try {
-      const token = localStorage.getItem("token");
-
-      await fetch(`http://localhost:3000/api/cart/${productId}/${oldVariantId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      await fetch("http://localhost:3000/api/cart/add", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ productId, variantId: newVariantId, quantity }),
-      });
-
-      fetchCart();
-    } catch (err) {
-      console.error("Lỗi khi đổi biến thể:", err);
-    }
-  };
-
-  const isSelected = (productId, variantId) =>
-    selectedItems.some(
-      (item) => item.productId === productId && item.variantId === variantId
-    );
-
-  const handleSelectItem = (productId, variantId) => {
-    const exists = isSelected(productId, variantId);
-    setSelectedItems((prev) =>
-      exists
-        ? prev.filter(
-            (item) =>
-              item.productId !== productId || item.variantId !== variantId
-          )
-        : [...prev, { productId, variantId }]
-    );
-  };
-
-  const handleSelectAll = () => {
-    if (selectedItems.length === items.length) {
-      setSelectedItems([]);
-    } else {
-      const all = items.map((item) => ({
-        productId: item.product._id,
-        variantId: item.variantId,
-      }));
-      setSelectedItems(all);
-    }
-  };
-
-  const handleRemoveSelected = () => {
-    selectedItems.forEach((item) => removeItem(item.productId, item.variantId));
-    setSelectedItems([]);
-  };
-
-  // Helper: tính pricing theo biến thể đang chọn bằng cách "project" giá biến thể vào variants[0]
-  const getPricingForItem = (item) => {
+    // Fallback an toàn FE
     const vPrice = Number(item?.variant?.price ?? 0);
     const projectedProduct = {
       ...item.product,
@@ -142,199 +63,499 @@ export default function CartPage() {
       basePrice: Number(info.basePrice ?? vPrice),
       finalPrice: Number(info.finalPrice ?? vPrice),
       discountPercent: Number(info.discountPercent ?? 0),
-      expireAt: info.expireAt,
-      daysLeft: info.daysLeft,
+      expireAt: info.expireAt || null,
+      daysLeft: typeof info.daysLeft === "number" ? info.daysLeft : null,
     };
   };
 
-  const handleCheckout = () => {
-    const selectedData = items.filter((item) =>
-      isSelected(item.product._id, item.variantId)
+  /** Giá cho 1 item combo (ưu tiên comboQuotes từ API, fallback fields trong product) */
+  const getPricingForComboItem = (item) => {
+    const pid = item?.product?._id;
+    const q = (pid && comboQuotes[pid]) || {};
+    const subtotal = Number(q.subtotal ?? item?.product?.comboPrice ?? 0) || 0;
+    const total = Number(q.total ?? subtotal) || 0;
+    const dcFromQuote = Number(q.discountPercent || 0);
+    const dcFromProduct = Number(item?.product?.comboDiscountPercent || 0);
+    const dc = total < subtotal ? (dcFromQuote || dcFromProduct) : 0;
+
+    return {
+      basePrice: subtotal,
+      finalPrice: total,
+      discountPercent: dc,
+      expireAt: null,
+      daysLeft: null,
+    };
+  };
+
+  /** Dispatcher giá cho mọi loại item server-cart */
+  const getPricingForItem = (item) => {
+    if (item?.product?.isCombo) return getPricingForComboItem(item);
+    return getPricingForRegularItem(item);
+  };
+
+  /* === TỒN KHO ĐỒNG BỘ BOX/LOOSE – helper FE === */
+  const parseKgFromLabel = (label = "") => {
+    const s = String(label || "").toLowerCase().replace(",", ".").replace(/\s+/g, "");
+    const m = s.match(/([\d.]+)kg/);
+    if (m && Number.isFinite(Number(m[1]))) return Number(m[1]);
+    const m2 = s.match(/([\d.]+)/);
+    if (m2 && Number.isFinite(Number(m2[1]))) return Number(m2[1]);
+    return NaN;
+  };
+
+  const isBoxVariant = (variant) => {
+    if (!variant) return false;
+    if (variant?.kind === "box") return true;
+    if (Number(variant?.attributes?.boxWeightKg || 0) > 0) return true;
+    const w = String(variant?.attributes?.weight || "").toLowerCase();
+    if (/thùng|crate|box/.test(w)) return true;
+    return false;
+  };
+
+  const computeTotalLooseKg = (product) => {
+    const variants = Array.isArray(product?.variants) ? product.variants : [];
+    let totalKg = 0;
+    for (const v of variants) {
+      if (isBoxVariant(v)) continue; // chỉ cộng hàng lẻ
+      const wKg = parseKgFromLabel(v?.attributes?.weight || "");
+      const unitKg = Number.isFinite(wKg) && wKg > 0 ? wKg : 1;
+      const stock = Number(v?.stock || 0);
+      totalKg += unitKg * Math.max(0, stock);
+    }
+    // tránh số lẻ dài
+    return Math.max(0, Math.floor(totalKg * 1000) / 1000);
+  };
+
+  const kgPerBox = (variant) => {
+    const metaKg = Number(variant?.attributes?.boxWeightKg || 0);
+    if (metaKg > 0) return metaKg;
+    const fromLabel = parseKgFromLabel(variant?.attributes?.weight || "");
+    if (Number.isFinite(fromLabel) && fromLabel > 0) return fromLabel;
+    return 1;
+  };
+
+  const effectiveStockForVariant = (product, variant) => {
+    if (!variant) return 0;
+    // Hàng lẻ: dùng tồn kho sẵn của biến thể
+    if (!isBoxVariant(variant)) {
+      return Math.max(0, Number(variant?.stock || 0));
+    }
+    // Thùng: tính dựa trên tổng kg lẻ
+    const totalLooseKg = computeTotalLooseKg(product);
+    const perBox = kgPerBox(variant);
+    const derivedBoxes = Math.floor(Math.max(0, totalLooseKg) / Math.max(1e-9, perBox));
+    const stored = Number(variant?.stock || 0);
+    return stored > 0 ? Math.min(derivedBoxes, stored) : derivedBoxes;
+  };
+
+  const getEffectiveStockForItem = (item) => {
+    try {
+      if (!item?.product) return 0;
+      if (item.product.isCombo) {
+        const s =
+          Number(item?.product?.comboInventory?.stock) ||
+          Number(item?.product?.comboStock) ||
+          0;
+        return Math.max(0, s);
+      }
+      return effectiveStockForVariant(item.product, item.variant);
+    } catch {
+      return Number(item?.variant?.stock || 0);
+    }
+  };
+
+  /* ---------------- Data ---------------- */
+  const fetchCart = async () => {
+    try {
+      const { data } = await axiosInstance.get("/cart");
+      const arr = Array.isArray(data?.items) ? data.items : [];
+      // 🔒 lọc bẩn: bỏ item thiếu product/_id để tránh crash
+      const clean = arr.filter((it) => it && it.product && it.product._id);
+      setItems(clean);
+
+      // Giữ các item đã tick nếu vẫn còn (chuẩn hoá variantId cho combo)
+      setSelectedItems((prev) => {
+        const prevSafe = Array.isArray(prev) ? prev : [];
+        const next = clean
+          .filter((it) =>
+            prevSafe.find(
+              (sel) =>
+                sel.productId === it.product._id &&
+                normVId(sel.variantId) === normVId(it.variantId)
+            )
+          )
+          .map((it) => ({ productId: it.product._id, variantId: normVId(it.variantId) }));
+        return next;
+      });
+    } catch (err) {
+      console.error("Lỗi khi tải giỏ hàng:", err?.response?.data || err.message);
+      setItems([]);
+      setSelectedItems([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchCart();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Lấy combo quote cho tất cả item combo trong giỏ
+  useEffect(() => {
+    const combos = items.filter((it) => it?.product?.isCombo);
+    if (!combos.length) return;
+
+    let isCancelled = false;
+
+    (async () => {
+      const results = await Promise.all(
+        combos.map(async (it) => {
+          try {
+            const { data: json } = await axiosInstance.post("/product/combo-quote", {
+              comboProductId: it.product._id,
+            });
+            const q = json?.data || json || {};
+            return [
+              it.product._id,
+              {
+                subtotal: Number(q.subtotal || 0),
+                total: Number(q.total || 0),
+                discountPercent: Number(q.discountPercent || 0),
+              },
+            ];
+          } catch {
+            // Fallback — không có quote
+            return [
+              it.product._id,
+              {
+                subtotal: Number(it?.product?.comboPrice || 0),
+                total: Number(it?.product?.comboPrice || 0),
+                discountPercent: Number(it?.product?.comboDiscountPercent || 0),
+              },
+            ];
+          }
+        })
+      );
+
+      if (!isCancelled) {
+        setComboQuotes((prev) => {
+          const next = { ...prev };
+          for (const [pid, q] of results) next[pid] = q;
+          return next;
+        });
+      }
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [items]);
+
+  /* ---------------- Actions (server items) ---------------- */
+  const updateQuantity = async (productId, variantId, quantity) => {
+    try {
+      const it = items.find(
+        (x) =>
+          x?.product &&
+          String(x.product._id) === String(productId) &&
+          String(normVId(x.variantId)) === String(normVId(variantId))
+      );
+      if (!it) return;
+      const eff = getEffectiveStockForItem(it);
+      if (eff <= 0) {
+        alert("Sản phẩm đã hết hàng.");
+        return;
+      }
+      const q = Math.max(1, Math.min(Number(quantity || 1), eff));
+
+      // Thử PUT trước (giữ nguyên hành vi cũ), nếu không hỗ trợ thì fallback POST
+      try {
+        await axiosInstance.put("/cart/update", {
+          productId,
+          variantId: normVId(variantId),
+          quantity: q,
+        });
+      } catch (e) {
+        const code = e?.response?.status;
+        if (code === 404 || code === 405) {
+          await axiosInstance.post("/cart/update", {
+            productId,
+            variantId: normVId(variantId),
+            quantity: q,
+          });
+        } else {
+          throw e;
+        }
+      }
+
+      fetchCart();
+    } catch (err) {
+      console.error("Lỗi khi cập nhật số lượng:", err?.response?.data || err.message);
+    }
+  };
+
+  const removeItem = async (productId, variantId) => {
+    try {
+      await axiosInstance.delete(
+        `/cart/${productId}/${encodeURIComponent(normVId(variantId))}`
+      );
+      fetchCart();
+    } catch (err) {
+      console.error("Lỗi khi xoá sản phẩm:", err?.response?.data || err.message);
+    }
+  };
+
+  // Giữ function (có thể dùng nơi khác), nhưng KHÔNG render UI đổi biến thể trong giỏ
+
+  /* ---------------- Select helpers (server items) ---------------- */
+  const serverItems = useMemo(
+    () => (Array.isArray(items) ? items.filter((it) => it?.product?._id) : []),
+    [items]
+  );
+
+  const isSelected = (productId, variantId) =>
+    selectedItems.some(
+      (s) => s.productId === productId && normVId(s.variantId) === normVId(variantId)
     );
-    // Đưa thêm giá final vào state để checkout dùng đúng giá cận hạn (nếu có)
+
+  const toggleSelectItem = (productId, variantId) => {
+    setSelectedItems((prev) => {
+      const exists = prev.some(
+        (s) => s.productId === productId && normVId(s.variantId) === normVId(variantId)
+      );
+      return exists
+        ? prev.filter(
+            (s) => !(s.productId === productId && normVId(s.variantId) === normVId(variantId))
+          )
+        : [...prev, { productId, variantId: normVId(variantId) }];
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const all = serverItems.map((it) => ({
+      productId: it.product._id,
+      variantId: normVId(it.variantId),
+    }));
+    setSelectedItems((prev) => (prev.length === serverItems.length ? [] : all));
+  };
+
+  const removeSelected = async () => {
+    for (const it of selectedItems) {
+      // eslint-disable-next-line no-await-in-loop
+      await removeItem(it.productId, it.variantId);
+    }
+    setSelectedItems([]);
+  };
+
+  /* ---------------- Totals & Checkout ---------------- */
+  const total = useMemo(() => {
+    // Chỉ tính server items đã chọn
+    return serverItems.reduce((sum, it) => {
+      if (!it?.product || !isSelected(it.product._id, it.variantId)) return sum;
+      const { finalPrice } = getPricingForItem(it);
+      return sum + finalPrice * Number(it.quantity || 0);
+    }, 0);
+  }, [serverItems, selectedItems, comboQuotes]);
+
+  const handleCheckout = () => {
+    const selectedData = serverItems.filter((it) => isSelected(it.product._id, it.variantId));
     navigate("/checkout", {
       state: {
-        selectedItems: selectedData.map((item) => {
-          const { basePrice, finalPrice, discountPercent, expireAt, daysLeft } =
-            getPricingForItem(item);
+        selectedItems: selectedData.map((it) => {
+          const pricing = getPricingForItem(it);
+          const eff = getEffectiveStockForItem(it);
+          const clampedQty = Math.min(it.quantity, eff || it.quantity);
+
           return {
-            ...item,
-            pricing: { basePrice, finalPrice, discountPercent, expireAt, daysLeft },
-            variantInfo: {
-              weight: item.variant?.attributes?.weight,
-              ripeness: item.variant?.attributes?.ripeness,
+            productId: it.product._id,
+            variantId: it.product.isCombo ? null : it.variantId,
+            quantity: clampedQty,
+            product: {
+              _id: it.product._id,
+              name: it.product.name,
+              image: imgSrc(it.product),
+              isCombo: !!it.product.isCombo,
             },
+            variant: it.product.isCombo ? undefined : it.variant,
+            pricing,
           };
         }),
       },
     });
   };
 
-  const total = items.reduce((sum, item) => {
-    if (!isSelected(item.product._id, item.variantId)) return sum;
-    const { finalPrice } = getPricingForItem(item);
-    return sum + finalPrice * item.quantity;
-  }, 0);
-
-  const imageUrl = (p) => {
-    const raw =
-      p?.images?.[0]?.url || p?.images?.[0] || p?.image || "";
-    if (typeof raw === "string" && (raw.startsWith("http://") || raw.startsWith("https://"))) {
-      return raw;
-    }
-    return `http://localhost:3000${raw}`;
-  };
-
+  /* ---------------- Render ---------------- */
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Giỏ hàng của bạn</h1>
+    <div className={styles.container}>
+      {/* Header */}
+      <div className={styles.header}>
+        <h1 className={styles.title}>Giỏ hàng của bạn</h1>
+        
+      </div>
 
-      {items.length === 0 ? (
-        <p>Giỏ hàng trống.</p>
+      {/* ===== SERVER CART ITEMS ===== */}
+      {serverItems.length === 0 ? (
+        <p className={styles.subtle}>Không có sản phẩm từ kho hiện tại.</p>
       ) : (
         <>
-          <div className="flex items-center mb-4 gap-4">
+          {/* Toolbar chọn tất cả */}
+          <div className={styles.toolbar}>
             <input
               type="checkbox"
-              checked={selectedItems.length === items.length}
-              onChange={handleSelectAll}
+              checked={selectedItems.length === serverItems.length && serverItems.length > 0}
+              onChange={toggleSelectAll}
+              className={styles.checkbox}
             />
-            <span className="text-sm font-medium">
-              Chọn tất cả ({selectedItems.length}/{items.length})
+            <span className={styles.subtle}>
+              Chọn tất cả ({selectedItems.length}/{serverItems.length})
             </span>
-            <button
-              onClick={handleRemoveSelected}
-              className="text-red-600 text-sm hover:underline"
-            >
+            <button onClick={removeSelected} className={styles.remove}>
               Xoá sản phẩm đã chọn
             </button>
           </div>
 
-          <div className="space-y-6">
-            {items.map((item) => {
+          {/* List */}
+          <div className={styles.list}>
+            {serverItems.map((it) => {
+              const key = `${it.product._id}-${normVId(it.variantId)}`;
               const { basePrice, finalPrice, discountPercent, expireAt, daysLeft } =
-                getPricingForItem(item);
+                getPricingForItem(it);
+
+              const effectiveStock = getEffectiveStockForItem(it);
+              const outOfStock = effectiveStock <= 0;
 
               return (
                 <div
-                  key={`${item.product._id}-${item.variantId}`}
-                  className="grid grid-cols-[40px_80px_1fr_160px_150px_80px] items-center gap-4 border-b pb-4"
+                  key={key}
+                  className={`${styles.row} ${outOfStock ? styles.rowOOS : ""}`}
                 >
+                  {/* Select */}
                   <input
                     type="checkbox"
-                    checked={isSelected(item.product._id, item.variantId)}
-                    onChange={() =>
-                      handleSelectItem(item.product._id, item.variantId)
-                    }
+                    checked={isSelected(it.product._id, it.variantId)}
+                    onChange={() => toggleSelectItem(it.product._id, it.variantId)}
+                    className={styles.checkbox}
+                    disabled={outOfStock}
                   />
 
+                  {/* Image */}
                   <img
-                    src={imageUrl(item.product)}
-                    alt={item.product.name}
-                    className="w-20 h-20 object-cover rounded"
+                    src={imgSrc(it.product)}
+                    alt={it.product.name}
+                    className={styles.thumb}
                   />
 
-                  <div>
+                  {/* Info */}
+                  <div className={styles.info}>
                     <h3
-                      className="font-semibold cursor-pointer hover:underline"
-                      onClick={() => navigate(`/san-pham/${item.product._id}`)}
+                      className={styles.name}
+                      onClick={() => navigate(`/san-pham/${it.product._id}`)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => e.key === "Enter" && navigate(`/san-pham/${it.product._id}`)}
                     >
-                      {item.product.name}
+                      {it.product.name}
                     </h3>
 
-                    {/* HSD + badge cận hạn */}
-                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
-                      {expireAt && <span>HSD: {fmtDate(expireAt)}</span>}
-                      {Number.isFinite(daysLeft) && daysLeft >= 0 && (
-                        <span className="bg-yellow-500 text-white px-1.5 py-0.5 rounded">
-                          Còn {daysLeft} ngày
+                    {/* Badge & HSD */}
+                    <div className={styles.meta}>
+                      {it.product.isCombo && (
+                        <span className={`${styles.badge} ${styles.badgeSuccess}`}>Combo</span>
+                      )}
+                      {!it.product.isCombo && expireAt && (
+                        <span className={`${styles.badge} ${styles.badgeMuted}`}>
+                          HSD: {fmtDate(expireAt)}
                         </span>
                       )}
+                      {!it.product.isCombo &&
+                        Number.isFinite(daysLeft) &&
+                        daysLeft >= 0 && (
+                          <span className={`${styles.badge} ${styles.badgeWarning}`}>
+                            Còn {daysLeft} ngày
+                          </span>
+                        )}
                     </div>
 
-                    <select
-                      value={item.variantId}
-                      onChange={(e) =>
-                        changeVariant(
-                          item.product._id,
-                          item.variantId,
-                          e.target.value,
-                          item.quantity
-                        )
-                      }
-                      className="mt-1 border rounded px-2 py-1 text-sm"
-                    >
-                      {item.product.variants.map((v) => (
-                        <option key={v._id} value={v._id}>
-                          {v?.attributes?.weight} / {v?.attributes?.ripeness}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                    {/* Biến thể — CHỈ HIỂN THỊ, KHÔNG CHO CHỌN */}
+                    {!it.product.isCombo && (
+                      <div className={styles.variantRow}>
+                        <span className={styles.subtle} style={{ minWidth: 72 }}>Biến thể:</span>
+                        <span className={`${styles.badge} ${styles.badgeMuted}`}>
+                          {variantLabel(it.variant)}
+                        </span>
+                        
+                      </div>
+                    )}
 
-                  {/* Giá theo helper (có giảm cận hạn) */}
-                  <div className="flex flex-col">
-                    <div className="text-red-600 font-semibold">
-                      {finalPrice.toLocaleString()}đ
+                    {/* Tồn kho hiệu dụng */}
+                    <div className={outOfStock ? styles.stockDanger : styles.stockLine}>
+                      Còn lại: <b>{effectiveStock}</b>
+                      {it.product.isCombo ? " combo" : ""} {outOfStock && "— Hết hàng"}
                     </div>
-                    {discountPercent > 0 && finalPrice < basePrice && (
-                      <div className="text-gray-500 line-through text-sm">
-                        {basePrice.toLocaleString()}đ
+
+                    {/* Xem thành phần combo */}
+                    {it.product.isCombo && (
+                      <div style={{ marginTop: 4 }}>
+                        <button
+                          onClick={() => navigate(`/san-pham/${it.product._id}`)}
+                          className={styles.helperLink}
+                        >
+                          Xem thành phần combo
+                        </button>
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  {/* Price (áp dụng cận hạn; combo dùng quote) */}
+                  <div className={styles.priceBlock}>
+                    <div className={styles.priceFinal}>
+                      {finalPrice.toLocaleString("vi-VN")}đ
+                    </div>
+                    {discountPercent > 0 && finalPrice < basePrice && (
+                      <div className={styles.priceBase}>
+                        {basePrice.toLocaleString("vi-VN")}đ
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quantity */}
+                  <div className={styles.qty}>
                     <button
                       onClick={() =>
-                        updateQuantity(
-                          item.product._id,
-                          item.variantId,
-                          item.quantity - 1
-                        )
+                        updateQuantity(it.product._id, it.variantId, it.quantity - 1)
                       }
-                      disabled={item.quantity <= 1}
-                      className="px-2 border rounded"
+                      disabled={it.quantity <= 1 || outOfStock}
+                      className={styles.qtyBtn}
                     >
-                      -
+                      −
                     </button>
                     <input
                       type="number"
-                      value={item.quantity}
+                      value={Math.min(it.quantity, Math.max(1, effectiveStock) || 1)}
                       min={1}
-                      max={item.variant?.stock}
-                      onChange={(e) =>
-                        updateQuantity(
-                          item.product._id,
-                          item.variantId,
-                          Number(e.target.value)
-                        )
-                      }
-                      className="w-12 border rounded text-center"
+                      max={Math.max(1, effectiveStock)}
+                      onChange={(e) => {
+                        const val = Number(e.target.value || 1);
+                        const clamped = Math.max(1, Math.min(val, Math.max(1, effectiveStock)));
+                        updateQuantity(it.product._id, it.variantId, clamped);
+                      }}
+                      className={styles.qtyInput}
+                      disabled={outOfStock}
                     />
                     <button
                       onClick={() =>
-                        updateQuantity(
-                          item.product._id,
-                          item.variantId,
-                          item.quantity + 1
-                        )
+                        updateQuantity(it.product._id, it.variantId, it.quantity + 1)
                       }
-                      disabled={
-                        typeof item.variant?.stock === "number" &&
-                        item.quantity >= item.variant.stock
-                      }
-                      className="px-2 border rounded"
+                      disabled={outOfStock || it.quantity >= effectiveStock}
+                      className={styles.qtyBtn}
                     >
                       +
                     </button>
                   </div>
 
+                  {/* Remove */}
                   <button
-                    onClick={() =>
-                      removeItem(item.product._id, item.variantId)
-                    }
-                    className="text-red-500 hover:underline text-sm"
+                    onClick={() => removeItem(it.product._id, it.variantId)}
+                    className={styles.remove}
                   >
                     Xoá
                   </button>
@@ -342,21 +563,29 @@ export default function CartPage() {
               );
             })}
           </div>
-
-          <div className="mt-8 flex justify-between items-center">
-            <div className="text-xl font-bold">
-              Tổng: <span className="text-red-600">{total.toLocaleString()}đ</span>
-            </div>
-            <button
-              className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 disabled:opacity-50"
-              disabled={selectedItems.length === 0}
-              onClick={handleCheckout}
-            >
-              Đặt hàng
-            </button>
-          </div>
         </>
       )}
+
+      {/* ===== Footer (tổng & checkout) ===== */}
+      <div className={styles.footer}>
+        <div className={styles.total}>
+          Tổng: <span>{total.toLocaleString("vi-VN")}đ</span>
+        </div>
+        <button
+          className={styles.orderBtn}
+          disabled={
+            selectedItems.length === 0 ||
+            serverItems.some(
+              (it) =>
+                isSelected(it.product._id, it.variantId) &&
+                getEffectiveStockForItem(it) < 1
+            )
+          }
+          onClick={handleCheckout}
+        >
+          Đặt hàng
+        </button>
+      </div>
     </div>
   );
 }

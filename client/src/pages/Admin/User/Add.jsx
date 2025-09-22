@@ -52,7 +52,7 @@ export default function UserAdd() {
             value={formData.username}
             onChange={handleChange}
             required
-            className="border rounded w-full px-3 py-2"
+            className="border rounded w-full px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
@@ -64,7 +64,7 @@ export default function UserAdd() {
             value={formData.email}
             onChange={handleChange}
             required
-            className="border rounded w-full px-3 py-2"
+            className="border rounded w-full px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
@@ -76,7 +76,7 @@ export default function UserAdd() {
             value={formData.password}
             onChange={handleChange}
             required
-            className="border rounded w-full px-3 py-2"
+            className="border rounded w-full px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
@@ -86,20 +86,30 @@ export default function UserAdd() {
             name="role"
             value={formData.role}
             onChange={handleChange}
-            className="border rounded w-full px-3 py-2"
+            className="border rounded w-full px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="user">User</option>
-            <option value="admin">Admin</option>
+            <option value="user">Người dùng</option>
+            <option value="manager">Quản lý</option>
+            <option value="admin">Quản trị viên</option>
           </select>
         </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
-          {loading ? 'Đang tạo...' : 'Tạo tài khoản'}
-        </button>
+        <div className="flex justify-end space-x-4">
+          <button
+            type="button"
+            onClick={() => navigate('/admin/users')}
+            className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+          >
+            Hủy
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? 'Đang tạo...' : 'Tạo tài khoản'}
+          </button>
+        </div>
       </form>
     </div>
   );

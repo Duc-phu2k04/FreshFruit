@@ -17,8 +17,9 @@ export default function ProductListPage() {
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedLocations, setSelectedLocations] = useState([]);
 
-  //  Bộ lọc “chỉ sản phẩm giảm giá (cận hạn)”
+  // Bộ lọc client-side
   const [discountOnly, setDiscountOnly] = useState(false);
+  const [comboFilter, setComboFilter] = useState("all"); // all | only | exclude
 
   const [currentPage, setCurrentPage] = useState(1);
   const productsPerPage = 12;
@@ -82,14 +83,64 @@ export default function ProductListPage() {
     navigate(`/san-pham/${product._id}`, { state: product });
   };
 
-  //  Áp bộ lọc “giảm giá” ở client (trước khi phân trang)
+  // ----- Utils an toàn để đọc dữ liệu không đồng nhất -----
+  const asNumber = (v, def = 0) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : def;
+  };
+
+  const isComboProduct = (p) => {
+    const t = typeof p?.type === "string" ? p.type.toLowerCase() : p?.type;
+    return Boolean(p?.isCombo || t === "combo");
+  };
+
+  // Lấy tồn kho hiển thị cho combo: ưu tiên comboInventory.stock, fallback các key khác
+  const getComboStock = (p) => {
+    // Các khả năng tên field có thể có từ BE
+    const candidates = [
+      p?.comboInventory?.stock,          // chuẩn mới
+      p?.comboStock,                     // fallback
+      p?.stock,                          // một số BE trộn vào stock chung
+      p?.inventory?.stock,               // fallback khác
+      p?.inventory,                      // đôi khi inventory là số
+      p?.available,                      // fallback
+    ];
+    for (const c of candidates) {
+      const n = asNumber(c, NaN);
+      if (Number.isFinite(n)) return Math.max(0, n);
+    }
+    return 0;
+  };
+
+  // Lấy giá hiển thị cho combo
+  const getComboPrice = (p, fallback) => {
+    const fixed = p?.comboPricing?.fixedPrice;
+    const discountMode = p?.comboPricing?.mode === "discount";
+    const base = asNumber(fallback, 0);
+    if (Number.isFinite(asNumber(fixed, NaN))) return asNumber(fixed, base);
+    // nếu mode discount, không có fixed => cứ trả fallback (FE không triển khai discount tổng)
+    return base;
+  };
+
+  // Lọc client-side: combo + cận hạn
   const filteredProducts = useMemo(() => {
-    if (!discountOnly) return products;
-    return (products || []).filter((p) => {
-      const exp = computeExpiryInfo(p);
-      return Boolean(exp?.isNearExpiry) && Number(exp?.discountPercent || 0) > 0;
-    });
-  }, [products, discountOnly]);
+    let list = Array.isArray(products) ? products.slice() : [];
+
+    if (comboFilter === "only") {
+      list = list.filter((p) => isComboProduct(p));
+    } else if (comboFilter === "exclude") {
+      list = list.filter((p) => !isComboProduct(p));
+    }
+
+    if (discountOnly) {
+      list = list.filter((p) => {
+        const exp = computeExpiryInfo(p);
+        return Boolean(exp?.isNearExpiry) && Number(exp?.discountPercent || 0) > 0;
+      });
+    }
+
+    return list;
+  }, [products, discountOnly, comboFilter]);
 
   // Phân trang dựa trên danh sách đã lọc
   const indexOfLastProduct = currentPage * productsPerPage;
@@ -99,31 +150,45 @@ export default function ProductListPage() {
     : [];
 
   return (
-    <div className="product-page-wrapper bg-gray-50 pb-10 relative">
+    <div className="product-page product-page-wrapper bg-gray-50 pb-10 relative">
       <div className="product-banner">
         <img
           src="https://fujifruit.com.vn/wp-content/uploads/2023/10/1712.png"
           alt="Sản phẩm FreshFruit"
-          className="product-banner-img"
+          className="product-banner__img product-banner-img"
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6 mt-6 px-4 sm:px-8">
-        <aside className="bg-white border rounded-xl p-5 h-fit sticky top-4 shadow-md">
-          <CategoryFilter
-            categories={categories}
-            selected={selectedCategories}
-            onChange={setSelectedCategories}
-          />
+      <div className="product-layout grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6 mt-6 px-4 sm:px-8">
+        <aside className="filter-panel bg-white border rounded-xl p-5 h-fit sticky top-4 shadow-md">
+          <div className="filter-group filter-group--category">
+            <CategoryFilter
+              categories={categories}
+              selected={selectedCategories}
+              onChange={(vals) => {
+                setSelectedCategories(vals);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
+
           <hr className="my-5 border-gray-300" />
-          <LocationFilter
-            locations={locations}
-            selected={selectedLocations}
-            onChange={setSelectedLocations}
-          />
+
+          <div className="filter-group filter-group--location">
+            <LocationFilter
+              locations={locations}
+              selected={selectedLocations}
+              onChange={(vals) => {
+                setSelectedLocations(vals);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
+
           <hr className="my-5 border-gray-300" />
-          {/*  Bộ lọc: chỉ hiển thị sản phẩm đang giảm giá (cận hạn) */}
-          <label className="flex items-center gap-2 text-sm">
+
+          {/* Bộ lọc: chỉ hiển thị sản phẩm đang giảm giá (cận hạn) */}
+          <label className="filter-group filter-group--discount flex items-center gap-2 text-sm">
             <input
               type="checkbox"
               checked={discountOnly}
@@ -132,118 +197,169 @@ export default function ProductListPage() {
                 setCurrentPage(1);
               }}
             />
-            <b className="font-semibold"> Sản phẩm giảm giá (cận hạn)</b>
+            <b className="font-semibold">Sản phẩm giảm giá (cận hạn)</b>
           </label>
+
+          <hr className="my-5 border-gray-300" />
+
+          {/* Bộ lọc Combo */}
+          <div className="filter-group filter-group--combo">
+            <label className="block text-sm font-semibold mb-2">Loại sản phẩm</label>
+            <select
+              className="filter-combo-select w-full border rounded-lg px-3 py-2 text-sm"
+              value={comboFilter}
+              onChange={(e) => {
+                setComboFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+            >
+              <option value="all">Tất cả</option>
+              <option value="only">Chỉ Combo</option>
+              <option value="exclude">Ẩn Combo</option>
+            </select>
+          </div>
         </aside>
 
-        <main>
-          <h1 className="text-2xl font-bold mb-4">
+        <main className="product-main">
+          <h1 className="product-title text-2xl font-bold mb-4">
             Sản Phẩm <span className="text-green-700">FreshFruit</span>
           </h1>
 
           <div className="product-grid-container">
             {currentProducts.length === 0 ? (
-              <p className="text-center text-gray-500 mt-10">
+              <p className="product-grid product-grid--empty text-center text-gray-500 mt-10">
                 {discountOnly
                   ? "Không có sản phẩm đang giảm giá."
+                  : comboFilter === "only"
+                  ? "Không có Combo phù hợp."
+                  : comboFilter === "exclude"
+                  ? "Không có sản phẩm thường phù hợp."
                   : "Không tìm thấy sản phẩm phù hợp."}
               </p>
             ) : (
               <motion.div
                 key={currentPage}
-                className="product-grid product-grid-4-cols"
+                className="product-grid product-grid--4-cols product-grid-4-cols"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
               >
                 {currentProducts.map((product) => {
-                  // Fallback giá/stock từ biến thể đầu
-                  const variantData = product.variants?.[0] || {};
-                  const fallbackPrice =
-                    variantData.price ??
-                    product?.displayVariant?.price ??
-                    product?.baseVariant?.price ??
-                    0;
-                  const stock = variantData.stock ?? 0;
-
-                  // Tính HSD & giảm cận hạn từ helper
-                  const exp = computeExpiryInfo(product);
-                  const isNearExpiry = Boolean(exp?.isNearExpiry);
-                  const discountPercent = Number(exp?.discountPercent || 0);
-                  const hasDiscount = isNearExpiry && discountPercent > 0;
+                  const isCombo = isComboProduct(product);
 
                   // Giá hiển thị
-                  const finalPrice = hasDiscount
-                    ? Number(exp.finalPrice ?? fallbackPrice)
-                    : Number(fallbackPrice);
+                  const variantData = product?.variants?.[0] || {};
+                  const basePrice =
+                    variantData?.price ??
+                    product?.displayVariant?.price ??
+                    product?.baseVariant?.price ??
+                    product?.price ??
+                    0;
 
-                  // Expiry strings (chỉ dùng khi hasDiscount)
-                  const daysLeft = hasDiscount ? exp.daysLeft ?? null : null;
-                  const expiryStr = hasDiscount ? fmtDate(exp.expireAt) : null;
+                  const comboPrice = isCombo ? getComboPrice(product, basePrice) : null;
 
-                  const cardClass = `product-card ${hasDiscount ? "is-discounted" : ""}`;
+                  // Tồn kho hiển thị
+                  const normalStock = asNumber(variantData?.stock ?? 0, 0);
+                  const comboStock = isCombo ? getComboStock(product) : null;
+
+                  // Cận hạn
+                  const exp = computeExpiryInfo(product);
+                  const isNearExpiry = Boolean(exp?.isNearExpiry);
+                  const discountPercent = asNumber(exp?.discountPercent || 0, 0);
+                  const hasDiscount = isNearExpiry && discountPercent > 0;
+
+                  const rawPrice = isCombo ? comboPrice : basePrice;
+                  const finalPrice = asNumber(
+                    hasDiscount ? (exp?.finalPrice ?? rawPrice) : rawPrice,
+                    0
+                  );
+
+                  const daysLeft = hasDiscount ? exp?.daysLeft ?? null : null;
+                  const expiryStr = hasDiscount ? fmtDate(exp?.expireAt) : null;
+
+                  const cardClass = [
+                    "product-card",
+                    isCombo ? "product-card--combo is-combo" : "product-card--normal",
+                    hasDiscount ? "is-discounted" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
 
                   return (
                     <motion.div
                       key={product._id}
                       className={cardClass}
+                      data-is-combo={isCombo ? "1" : "0"}
+                      data-stock={isCombo ? comboStock : normalStock}
                       whileHover={{ scale: 1.05 }}
                       transition={{ duration: 0.3 }}
                     >
-                      <div className="relative">
+                      <div className="product-card__media relative">
                         {hasDiscount && (
-                          <span className="absolute left-2 top-2 bg-amber-500 text-white text-xs font-semibold px-2 py-1 rounded">
+                          <span className="product-card__badge product-card__badge--discount absolute left-2 top-2 bg-amber-500 text-white text-xs font-semibold px-2 py-1 rounded">
                             Cận hạn -{discountPercent}%
+                          </span>
+                        )}
+                        {isCombo && (
+                          <span className="product-card__badge product-card__badge--combo absolute right-2 top-2 bg-emerald-600 text-white text-[10px] font-semibold px-2 py-1 rounded">
+                            COMBO
                           </span>
                         )}
                         <img
                           src={`http://localhost:3000${product.image}`}
                           alt={product.name}
-                          className="product-image cursor-pointer"
+                          className="product-card__image product-image cursor-pointer"
                           onClick={() => handleViewDetail(product)}
                         />
                       </div>
 
-                      <div className="product-info">
-                        {/*  Mục để CSS: “sản phẩm giảm giá” */}
+                      <div className="product-card__info product-info">
                         {hasDiscount && (
-                          <div className="product-sale">Sản phẩm giảm giá</div>
+                          <div className="product-card__sale product-sale">Sản phẩm giảm giá</div>
                         )}
 
-                        <h2 className="product-name">{product.name}</h2>
+                        <h2 className="product-card__name product-name">{product.name}</h2>
 
                         {hasDiscount ? (
-                          <div className="flex items-baseline gap-2">
-                            <span className="line-through text-gray-400">
-                              {Number(fallbackPrice).toLocaleString("vi-VN")}đ
+                          <div className="product-card__price-row flex items-baseline gap-2">
+                            <span className="product-card__price--strike line-through text-gray-400">
+                              {asNumber(rawPrice, 0).toLocaleString("vi-VN")}đ
                             </span>
-                            <span className="product-price font-semibold text-red-600">
-                              {Number(finalPrice).toLocaleString("vi-VN")}đ
+                            <span className="product-card__price product-price font-semibold text-red-600">
+                              {asNumber(finalPrice, 0).toLocaleString("vi-VN")}đ
                             </span>
                           </div>
                         ) : (
-                          <p className="product-price">
-                            {Number(finalPrice).toLocaleString("vi-VN")}đ
+                          <p className="product-card__price product-price">
+                            {asNumber(finalPrice, 0).toLocaleString("vi-VN")}đ
                           </p>
                         )}
 
-                        <p className="text-sm text-gray-500">
-                          Tồn kho: {stock > 0 ? stock : "Hết hàng"}
+                        <p className="product-card__stock text-sm text-gray-500">
+                          {isCombo ? (
+                            <>
+                              Tồn kho combo:{" "}
+                              {comboStock > 0 ? comboStock : <span className="text-red-600">Hết hàng</span>}
+                            </>
+                          ) : (
+                            <>
+                              Tồn kho:{" "}
+                              {normalStock > 0 ? normalStock : <span className="text-red-600">Hết hàng</span>}
+                            </>
+                          )}
                         </p>
 
                         {/* Hạn sử dụng — chỉ hiển thị khi cận hạn có giảm giá */}
                         {hasDiscount && expiryStr && (
-                          <p className="text-xs text-gray-600 mt-1">
+                          <p className="product-card__expiry text-xs text-gray-600 mt-1">
                             Ngày hết hạn: {expiryStr}
                             {Number.isFinite(daysLeft) && daysLeft >= 0 && (
-                              <span className="ml-2 italic">
-                                (còn {daysLeft} ngày)
-                              </span>
+                              <span className="ml-2 italic">(còn {daysLeft} ngày)</span>
                             )}
                           </p>
                         )}
 
-                        <p className="product-description line-clamp-2 text-sm text-gray-600 mt-1">
+                        <p className="product-card__desc product-description line-clamp-2 text-sm text-gray-600 mt-1">
                           {product.description || "Trái cây sạch chất lượng cao."}
                         </p>
                       </div>

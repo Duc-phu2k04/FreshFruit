@@ -10,6 +10,42 @@ import { motion } from "framer-motion";
 //  Dùng helper chung
 import { computeExpiryInfo, fmtDate } from "../../utils/expiryHelpers";
 
+/* =========================================================
+ * Helper: Chuẩn hoá giá hiển thị phía FE (combo/mix/đơn lẻ)
+ * - Ưu tiên các nhánh combo/mix nếu có
+ * - Fallback sang sale/base/price chung
+ * - Trả về số (>=0). Nếu không xác định -> 0
+ * ======================================================= */
+function getPreferredPriceFront(p) {
+  if (!p || typeof p !== "object") return 0;
+
+  // Một số schema khả dĩ cho combo
+  // - p.combo?.finalPrice / p.combo?.price / p.combo?.fixedPrice
+  // - p.mix?.price / p.mix?.unitPrice
+  // - p.pricing?.salePrice / p.pricing?.price
+  // - p.salePrice / p.price / p.prices?.base
+
+  const candidates = [
+    p?.combo?.finalPrice,
+    p?.combo?.price,
+    p?.combo?.fixedPrice,
+    p?.mix?.finalPrice,
+    p?.mix?.price,
+    p?.mix?.unitPrice,
+    p?.pricing?.salePrice,
+    p?.pricing?.price,
+    p?.salePrice,
+    p?.price,
+    p?.prices?.base,
+  ]
+    .map((v) => (v == null ? NaN : Number(v)))
+    .filter((v) => Number.isFinite(v) && v >= 0);
+
+  if (candidates.length) return candidates[0];
+
+  return 0;
+}
+
 function Homepage() {
   // Chữ nhấp nháy theo danh mục
   const [currentCategoryIndex, setCurrentCategoryIndex] = useState(0);
@@ -46,12 +82,16 @@ function Homepage() {
           : [];
 
         const computed = arr
-          .map((p) => ({ ...p, _expiry: computeExpiryInfo(p) }))
+          .map((p) => {
+            // ✅ Lấy giá ưu tiên cho mọi loại (đặc biệt là combo)
+            const preferred = getPreferredPriceFront(p);
+            return { ...p, _expiry: computeExpiryInfo(p, preferred) };
+          })
           .filter((p) => p._expiry?.isNearExpiry)
           .sort((a, b) => {
             // Ưu tiên sắp hết hạn trước
-            const da = a._expiry.daysLeft ?? 9999;
-            const db = b._expiry.daysLeft ?? 9999;
+            const da = a._expiry?.daysLeft ?? 9999;
+            const db = b._expiry?.daysLeft ?? 9999;
             return da - db;
           })
           .slice(0, 8); // show tối đa 8
@@ -107,7 +147,20 @@ function Homepage() {
                 p.image?.startsWith("http")
                   ? p.image
                   : `http://localhost:3000${p.image || ""}`;
-              const { basePrice, finalPrice, discountPercent, daysLeft, expireAt } = p._expiry;
+
+              const {
+                basePrice = 0,
+                finalPrice = 0,
+                discountPercent = 0,
+                daysLeft,
+                expireAt,
+              } = p._expiry || {};
+
+              // ✅ Fallback hiển thị giá (trong trường hợp _expiry không trả final)
+              const fallbackPrice = getPreferredPriceFront(p);
+              const showFinal = Number.isFinite(finalPrice) && finalPrice > 0 ? finalPrice : fallbackPrice;
+              const showBase =
+                Number.isFinite(basePrice) && basePrice > 0 ? basePrice : (showFinal || 0);
 
               return (
                 <motion.div
@@ -120,6 +173,7 @@ function Homepage() {
                       src={img}
                       alt={p.name}
                       className="w-full h-44 object-cover"
+                      loading="lazy"
                     />
                     {discountPercent > 0 && (
                       <div className="absolute top-2 left-2 bg-red-600 text-white text-xs font-semibold px-2 py-1 rounded">
@@ -134,19 +188,26 @@ function Homepage() {
                   </div>
                   <div className="p-3">
                     <div className="font-semibold line-clamp-2 mb-1">{p.name}</div>
-                    <div className="text-sm text-gray-500 mb-2">
-                      HSD: {fmtDate(expireAt)}
-                    </div>
+                    {expireAt && (
+                      <div className="text-sm text-gray-500 mb-2">HSD: {fmtDate(expireAt)}</div>
+                    )}
                     <div className="flex items-baseline gap-2">
                       <div className="text-green-700 font-bold text-lg">
-                        {finalPrice.toLocaleString()}đ
+                        {Number(showFinal).toLocaleString()}đ
                       </div>
-                      {finalPrice !== basePrice && (
+                      {Number(showBase) > Number(showFinal) && (
                         <div className="text-gray-400 line-through">
-                          {basePrice.toLocaleString()}đ
+                          {Number(showBase).toLocaleString()}đ
                         </div>
                       )}
                     </div>
+
+                    {/* ✅ Hiển thị nhãn combo nếu có */}
+                    {(p?.combo || p?.type === "combo") && (
+                      <div className="mt-2 inline-flex items-center text-[11px] font-semibold px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        COMBO ƯU ĐÃI
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               );
