@@ -837,29 +837,29 @@ export default function Checkout() {
                   className="border rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <input
-  type="text"
-  placeholder="Số điện thoại"
-  value={newAddressForm.phone}
-  onChange={(e) => {
-    let value = e.target.value;
+                type="text"
+                placeholder="Số điện thoại"
+                value={newAddressForm.phone}
+                onChange={(e) => {
+                let value = e.target.value;
 
-    // Chỉ cho nhập số
-    value = value.replace(/\D/g, "");
+                // Chỉ cho nhập số
+                value = value.replace(/\D/g, "");
 
-    // Giới hạn tối đa 10 số
-    if (value.length > 10) {
-      value = value.slice(0, 10);
-    }
+                // Giới hạn tối đa 10 số
+                if (value.length > 10) {
+                value = value.slice(0, 10);
+                }
 
-    // Nếu ký tự đầu tiên không phải là 0 thì bỏ
-    if (value && value[0] !== "0") {
-      value = "0" + value.slice(1, 10);
-    }
+                // Nếu ký tự đầu tiên không phải là 0 thì bỏ
+                if (value && value[0] !== "0") {
+                value = "0" + value.slice(1, 10);
+                }
 
-    setNewAddressForm({ ...newAddressForm, phone: value });
-  }}
-  className="border rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-/>
+                setNewAddressForm({ ...newAddressForm, phone: value });
+                }}
+                className="border rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
 
                 <input
                   type="text"
@@ -921,11 +921,17 @@ export default function Checkout() {
                 />
                 <div className="flex gap-2">
                   <button
-                    onClick={addAddress}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
-                  >
-                    Lưu địa chỉ
-                  </button>
+  onClick={() => {
+    if (newAddressForm.phone.length !== 10) {
+      alert("Số điện thoại phải đủ 10 chữ số!");
+      return;
+    }
+    addAddress();
+  }}
+  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
+>
+  Lưu địa chỉ
+</button>
                   <button
                     onClick={() => setShowAddForm(false)}
                     className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
