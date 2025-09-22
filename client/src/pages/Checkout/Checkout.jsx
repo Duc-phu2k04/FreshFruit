@@ -218,7 +218,8 @@ export default function Checkout() {
         try {
           const url = `${base}/d/${variant}?depth=2`;
           const res = await fetch(url);
-          if (!res.ok) continue;
+          const ok = res && res.ok ? res.ok : false;
+          if (!ok) continue;
           const data = await res.json();
           setWards(data.wards || []);
           return;
@@ -517,7 +518,7 @@ export default function Checkout() {
 
   const total = Math.max(0, subtotal + (shippingFee || 0) - (discountAmount || 0));
 
-  // Có sản phẩm vượt tồn? (hàng thường/box/combo; mix check ở BE)
+  // Có sản phẩm vượt tồn?
   const hasStockIssue = useMemo(() => {
     if (!dataCart?.products?.length) return false;
     return dataCart.products.some((it) => it.stockIssue === true);
@@ -641,8 +642,7 @@ export default function Checkout() {
 
     return [...foldCartLines(regularLines), ...comboLines, ...mixLinesPayload];
   };
-
-  /* ================== Submit ================== */
+  // ===== COD =====
   const handlePayment = async () => {
     if (submitting) return;
     if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
@@ -675,11 +675,8 @@ export default function Checkout() {
     }
   };
 
+  // ===== MoMo (ĐÃ HỖ TRỢ MIX) =====
   const handlePaymentMomo = async () => {
-    if (mixLines.length > 0) {
-      alert("Giỏ hàng có Giỏ Mix. Vui lòng chọn thanh toán COD (MoMo sẽ sớm hỗ trợ Mix).");
-      return;
-    }
     if (submitting) return;
     if (!checkBox) return alert("Vui lòng chấp nhận điều khoản");
     if (!selectedAddressId) return alert("Chưa chọn địa chỉ giao hàng.");
@@ -689,30 +686,28 @@ export default function Checkout() {
       setSubmitting(true);
       const headers = tokenHeaders();
 
-      const addressPayload = buildAddressPayload(selectedAddress);
-      const cartItemsPayload = buildCartItemsPayload().filter((it) => it.type !== "mix");
+      // BẮT BUỘC: truyền shippingAddress theo shape BE cần
+      const shippingAddress = {
+        fullName: selectedAddress?.fullName,
+        phone: selectedAddress?.phone,
+        addressLine: selectedAddress?.detail,
+        wardName: selectedAddress?.ward,
+        districtName: selectedAddress?.district,
+        provinceName: selectedAddress?.province,
+        districtCode: selectedAddress?.districtCode || "",
+        wardCode: selectedAddress?.wardCode || "",
+        provinceCode: 1, // Hà Nội mặc định theo BE
+      };
+
+      const cartItemsPayload = buildCartItemsPayload();
 
       const payload = {
         cartItems: cartItemsPayload,
         voucher: appliedVoucher?.code || null,
-        address: addressPayload?._id ? { _id: addressPayload._id } : addressPayload,
-        paymentMethod: "momo",
-        shippingAddress: {
-          fullName: selectedAddress?.fullName,
-          phone: selectedAddress?.phone,
-          addressLine: selectedAddress?.detail,
-          wardName: selectedAddress?.ward,
-          districtName: selectedAddress?.district,
-          provinceName: selectedAddress?.province,
-          districtCode: selectedAddress?.districtCode || "",
-          wardCode: selectedAddress?.wardCode || "",
-        },
-        shippingFee,
+        shippingAddress, // ƯU TIÊN dùng shippingAddress (controller sẽ chuẩn hoá)
       };
 
-      const response = await axios.post(`${API_URL}/api/momo/create-payment`, payload, {
-        headers,
-      });
+      const response = await axios.post(`${API_URL}/api/momo/create-payment`, payload, { headers });
 
       if (response.data?.paymentUrl) {
         window.location.href = response.data.paymentUrl;
@@ -726,12 +721,11 @@ export default function Checkout() {
       setSubmitting(false);
     }
   };
-
   /* ================== UI ================== */
   return (
-    <div className="w-[85%] mx-auto my-5">
+    <div className="w-[85%] mx-auto my-5 ff-checkout-page">
       {/* Back to cart */}
-      <div className="mb-4 text-left">
+      <div className="mb-4 text-left ff-back-to-cart">
         <Link to="/gio-hang" className="text-blue-600 hover:underline flex items-center gap-1">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -740,10 +734,10 @@ export default function Checkout() {
         </Link>
       </div>
 
-      <main className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <main className="grid grid-cols-1 md:grid-cols-2 gap-5 ff-main-grid">
         {/* ========== ĐỊA CHỈ ========== */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
+        <div className="ff-address-col">
+          <div className="flex items-center justify-between mb-4 ff-address-header">
             <h1 className="text-lg font-bold">Địa Chỉ Nhận Hàng</h1>
             <button
               onClick={() => setShowAddressForm(!showAddressForm)}
@@ -755,7 +749,7 @@ export default function Checkout() {
 
           {/* Danh sách địa chỉ */}
           {showAddressForm && (
-            <div className="bg-white border rounded-lg p-4 mb-4 max-h-80 overflow-y-auto">
+            <div className="bg-white border rounded-lg p-4 mb-4 max-h-80 overflow-y-auto ff-address-list">
               <h3 className="font-medium mb-3 text-gray-700">Chọn địa chỉ giao hàng:</h3>
               {addresses.length === 0 ? (
                 <p className="text-gray-500 text-center py-4">
@@ -766,7 +760,7 @@ export default function Checkout() {
                   {addresses.map((address) => (
                     <label
                       key={address._id}
-                      className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
+                      className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-all ff-address-card ${
                         selectedAddressId === address._id
                           ? "border-blue-500 bg-blue-50"
                           : "border-gray-200 hover:border-gray-300"
@@ -804,7 +798,7 @@ export default function Checkout() {
 
           {/* Hiển thị địa chỉ đã chọn */}
           {selectedAddress && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4 ff-address-selected">
               <div className="flex items-center gap-2 mb-2">
                 <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -824,7 +818,7 @@ export default function Checkout() {
 
           {/* Thêm địa chỉ */}
           {showAddForm ? (
-            <div className="bg-gray-50 border rounded-lg p-4">
+            <div className="bg-gray-50 border rounded-lg p-4 ff-address-add-form">
               <h3 className="font-medium mb-3">Thêm địa chỉ mới</h3>
               <div className="space-y-3">
                 <input
@@ -922,7 +916,7 @@ export default function Checkout() {
           ) : (
             <button
               onClick={() => setShowAddForm(true)}
-              className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center justify-center gap-2 ff-btn-add-address"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -933,16 +927,16 @@ export default function Checkout() {
         </div>
 
         {/* ========== SẢN PHẨM + THANH TOÁN ========== */}
-        <div className="bg-gray-100 rounded-xl p-5">
+        <div className="bg-gray-100 rounded-xl p-5 ff-summary-box">
           <h1 className="text-lg font-bold mb-4">Sản Phẩm Thanh Toán</h1>
 
           {hasStockIssue && (
-            <div className="mb-3 p-3 rounded bg-red-50 text-red-700 text-sm">
+            <div className="mb-3 p-3 rounded bg-red-50 text-red-700 text-sm ff-stock-warning">
               Một số sản phẩm vượt quá tồn kho. Vui lòng giảm số lượng trước khi thanh toán.
             </div>
           )}
 
-          <table className="w-full text-left mb-4">
+          <table className="w-full text-left mb-4 ff-summary-table">
             <thead>
               <tr className="bg-gray-200">
                 <th className="px-4 py-2">Tên</th>
@@ -1104,13 +1098,13 @@ export default function Checkout() {
               <tr className="border-t font-bold">
                 <td className="px-4 py-2">Tổng Cộng</td>
                 <td></td>
-                <td className="px-4 py-2">{total.toLocaleString("vi-VN")}₫</td>
+                <td className="px-4 py-2">{total.toLocaleString("vi-VN") }₫</td>
               </tr>
             </tbody>
           </table>
 
           {/* Voucher */}
-          <div className="flex gap-2 mb-4">
+          <div className="flex gap-2 mb-4 ff-voucher-row">
             <input
               type="text"
               placeholder="Nhập mã giảm giá"
@@ -1133,7 +1127,7 @@ export default function Checkout() {
           </div>
 
           {/* Điều khoản */}
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-4 ff-terms">
             <input type="checkbox" onChange={(e) => setCheckBox(e.target.checked)} />
             <label className="text-sm">Vui lòng chấp nhận điều khoản</label>
           </div>
@@ -1141,20 +1135,20 @@ export default function Checkout() {
           {/* Buttons */}
           <button
             onClick={handlePaymentMomo}
-            className="w-full h-14 bg-blue-600 text-white rounded-lg mb-3 disabled:opacity-60"
+            className="w-full h-14 bg-blue-600 text-white rounded-lg mb-3 disabled:opacity-60 ff-btn-momo"
             disabled={
               submitting ||
               (!dataCart?.products?.length && !mixLines.length) ||
               !selectedAddressId ||
-              hasStockIssue ||
-              mixLines.length > 0 // tạm chặn MoMo nếu có Mix
+              hasStockIssue
             }
           >
             Thanh Toán Qua MOMO
           </button>
+
           <button
             onClick={handlePayment}
-            className="w-full h-14 bg-red-600 text-white rounded-lg disabled:opacity-60"
+            className="w-full h-14 bg-red-600 text-white rounded-lg disabled:opacity-60 ff-btn-cod"
             disabled={
               submitting ||
               (!dataCart?.products?.length && !mixLines.length) ||

@@ -198,7 +198,8 @@ function buildComboSnapshotForOrder(ci) {
 
   return {
     type: "combo",
-    product: ci?.productId || null,
+    // 🔧 đảm bảo có id combo cho inventory service
+    product: ci?.productId || ci?.product || null,
     productName: snap.title || ci?.title || "Combo",
     isCombo: true,
     isMix: false,
@@ -515,13 +516,11 @@ async function decMixInController(mixSnap) {
             .sort((a, b) => {
               const akg = kgFromWeight(a?.attributes?.weight) || 0;
               const bkg = kgFromWeight(b?.attributes?.weight) || 0;
-              // ưu tiên biến thể có kg > 0 (lẻ theo kg), sau đó tới 0 (piece)
               return (akg === 0) - (bkg === 0);
             })
             .find((v) => Number(v?.price || 0) === price);
 
           if (maybe) chosenId = String(maybe._id);
-          // fallback: lấy biến thể lẻ đầu tiên (có kgFromWeight > 0) hoặc bất kỳ
           if (!chosenId) {
             const vLoose = variants.find((v) => (kgFromWeight(v?.attributes?.weight) || 0) > 0);
             chosenId = String((vLoose || variants[0] || {})._id || "");
@@ -661,7 +660,7 @@ async function normalizeOrderForResponse(req, orderLean) {
       shippingFee = Math.max(0, Math.round(Number(quote?.amount || 0)));
       shippingRuleName = quote?.ruleName || shippingRuleName;
 
-      console.log("[SHIPPING_DEBUG][normalizeUserOrder] re-quote:", {
+      console.log("[SHIPPING_DEBUG][normalizeUserOrder] re-quote]:", {
         orderId: o._id,
         districtCode,
         wardCode,
@@ -893,19 +892,14 @@ export const checkout = async (req, res) => {
     const decLogs = [];
     try {
       for (const snap of itemsSnapshot) {
-        // Combo trừ ở hook khác → bỏ qua tại đây
-        if (snap?.isCombo) {
-          dbg("DEC_SKIP_COMBO", { reqId, product: String(snap.product || "") });
-          continue;
-        }
-
-        dbg("DEC_BEGIN", { reqId, item: briefItem(snap), isMix: !!snap.isMix });
+        dbg("DEC_BEGIN", { reqId, item: briefItem(snap), isMix: !!snap.isMix, isCombo: !!snap.isCombo });
 
         let info;
         if (snap?.isMix) {
           // ✅ Mix: dùng decMixInController (trừ cả kg + đơn vị/biến thể)
           info = await decMixInController(snap);
         } else {
+          // ✅ Variant & Combo: dùng inventory service chung
           info = await decOneStockNonTx(snap);
         }
 
@@ -922,12 +916,9 @@ export const checkout = async (req, res) => {
         });
 
         if (!info?.ok) {
-          // build message
           let msg = "Không đủ tồn kho";
           if (snap?.isMix) msg = "Giỏ Mix không đủ tồn kho cho một hoặc nhiều thành phần.";
-          else if (snap?.variant) {
-            msg = `Không đủ tồn kho cho biến thể ${snap?.variant?.weight || ""} / ${snap?.variant?.ripeness || ""}`;
-          }
+          if (snap?.isCombo) msg = "Combo không đủ tồn kho hoặc thành phần combo thiếu hàng.";
 
           // Rollback những gì đã dec trước
           for (const d of decLogs.reverse()) {
@@ -1009,8 +1000,10 @@ export const checkout = async (req, res) => {
       catch (e) { assignedVouchers = null; }
     }
 
+    // ✅ bổ sung orderId ở top-level để FE dễ bắt
     return res.status(201).json({
       message: "Đặt hàng thành công",
+      orderId: order._id,
       order: {
         _id: order._id,
         customId: order.customId,
@@ -1087,7 +1080,7 @@ export const getAllOrders = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    const normalized = await Promise.all(
+  const normalized = await Promise.all(
       (Array.isArray(orders) ? orders : []).map((o) => normalizeOrderForResponse(req, o))
     );
 

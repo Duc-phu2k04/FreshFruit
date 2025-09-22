@@ -32,7 +32,7 @@ export default function PreorderWidget({
   const [payMethod, setPayMethod] = useState("deposit"); // "deposit" | "full"
   const [loading, setLoading] = useState(false);
 
-  // Phân loại thông báo (success/error) — chỉ chỉnh UI, không đổi luồng
+  // Phân loại thông báo (success/error)
   const [msg, setMsg] = useState(null);
   const [msgType, setMsgType] = useState("error"); // "success" | "error"
 
@@ -192,7 +192,9 @@ export default function PreorderWidget({
         },
         qty: safeQty,
         payMethod, // "deposit" | "full"
-        // Gợi ý đơn giá để BE có thể log/đối chiếu (BE không tin giá client)
+        // thông tin để BE log nguồn gọi mà KHÔNG dùng custom header
+        clientOrigin: originHeaderValue,
+        // gợi ý đơn giá (BE không tin giá client)
         unitPriceClientHint: Number(unitPrice) || 0,
       };
 
@@ -202,7 +204,6 @@ export default function PreorderWidget({
       console.log("Headers:", {
         "Content-Type": "application/json",
         Authorization: token ? "Bearer <token_present>" : "NO_TOKEN",
-        "X-Preorder-Origin": originHeaderValue,
       });
       console.log("Request Body:", body);
       console.groupEnd();
@@ -210,10 +211,10 @@ export default function PreorderWidget({
 
       const res = await fetch(endpoint, {
         method: "POST",
+        // ❗ BỎ custom header 'X-Preorder-Origin' để tránh preflight fail (CORS)
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
-          "X-Preorder-Origin": originHeaderValue,
         },
         body: JSON.stringify(body),
       });
@@ -244,7 +245,7 @@ export default function PreorderWidget({
         throw new Error(message);
       }
 
-      // Thành công: set message xanh lá, giữ nguyên logic
+      // Thành công
       setMsgType("success");
       setMsg("Đặt trước thành công! Kiểm tra mục 'Đơn đặt trước' của bạn.");
       setQty(1);
@@ -253,9 +254,14 @@ export default function PreorderWidget({
         onSuccess(data.preorder);
       }
     } catch (err) {
+      // TypeError: Failed to fetch → hay xảy ra khi CORS/preflight fail
       console.error("[PreorderWidget] ERROR:", err);
       setMsgType("error");
-      setMsg(err?.message || "Có lỗi xảy ra. Vui lòng thử lại.");
+      const text =
+        err?.name === "TypeError" && /Failed to fetch/i.test(err?.message || "")
+          ? "Không gọi được máy chủ. Vui lòng kiểm tra kết nối hoặc cấu hình CORS của BE."
+          : err?.message || "Có lỗi xảy ra. Vui lòng thử lại.";
+      setMsg(text);
     } finally {
       setLoading(false);
     }
@@ -291,7 +297,7 @@ export default function PreorderWidget({
     </div>
   );
 
-  // Styles cho thông báo (inline, không tách file, không icon)
+  // Styles cho thông báo
   const notifyStyleBase = {
     marginTop: 10,
     padding: "12px 16px",
@@ -475,7 +481,7 @@ export default function PreorderWidget({
         <Row label="Trả ngay">{totalToPayNow.toLocaleString()}đ</Row>
       </div>
 
-      {/* Notification (success/error) — không icon */}
+      {/* Notification */}
       {msg && (
         <div style={notifyStyle}>
           <span style={{ flex: 1 }}>
