@@ -5,7 +5,6 @@ import { computeExpiryInfo } from "../utils/expiryHelpers.js";
 // ✅ Import theo namespace để tránh mismatch named export
 import * as inventory from "../services/inventory.service.js";
 
-
 /* =========================================================
  * Safe helpers (chống nổ)
  * ======================================================= */

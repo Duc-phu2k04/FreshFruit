@@ -686,136 +686,168 @@ export default function ProfilePage() {
     </div>
   );
 
-  const renderAddresses = () => (
+   const renderAddresses = () => (
     <div className="profile-section">
       <h2>Quản lý địa chỉ</h2>
       <ul style={{ listStyle: "none", paddingLeft: 0 }}>
-        {addresses.map((addr) => (
-          <li
-            key={addr._id}
-            style={{
-              marginBottom: "12px",
-              padding: "8px",
-              border: "1px solid #ccc",
-              borderRadius: "6px",
-            }}
-          >
-            {editingAddressId === addr._id ? (
-              <>
-                <input
-                  type="text"
-                  placeholder="Họ và tên"
-                  value={editingAddressData.fullName}
-                  onChange={(e) =>
-                    setEditingAddressData({ ...editingAddressData, fullName: e.target.value })
-                  }
-                  style={{ marginBottom: "6px", display: "block", width: "100%" }}
-                />
-                <input
-                  type="text"
-                  placeholder="Số điện thoại"
-                  value={editingAddressData.phone}
-                  onChange={(e) =>
-                    setEditingAddressData({ ...editingAddressData, phone: e.target.value })
-                  }
-                  style={{ marginBottom: "6px", display: "block", width: "100%" }}
-                />
-                <input
-                  type="text"
-                  value="Hà Nội"
-                  disabled
-                  style={{ marginBottom: "6px", display: "block", width: "100%" }}
-                />
-                <select
-                  value={editingAddressData.districtCode || ""}
-                  onChange={(e) => {
-                    const code = String(e.target.value);
-                    const selectedDistrict = districts.find((d) => String(d.code) === code);
-                    setEditingAddressData({
-                      ...editingAddressData,
-                      district: selectedDistrict?.name || "",
-                      districtCode: code,
-                      ward: "",
-                      wardCode: "",
-                    });
-                    handleDistrictChange(code, true);
-                  }}
-                  style={{ marginBottom: "6px", display: "block", width: "100%" }}
+   {addresses.map((addr) => (
+     <li
+      key={addr._id}
+      style={{
+        marginBottom: "12px",
+        padding: "8px",
+        border: "1px solid #ccc",
+        borderRadius: "6px",
+      }}
+    >
+      {editingAddressId === addr._id ? (
+        <>
+   <input
+    type="text"
+    placeholder="Họ và tên"
+    value={editingAddressData.fullName}
+    onChange={(e) =>
+      setEditingAddressData({ ...editingAddressData, fullName: e.target.value })
+    }
+    style={{ marginBottom: "6px", display: "block", width: "100%" }}
+   />
+   <input
+    type="text"
+    placeholder="Số điện thoại"
+    value={editingAddressData.phone}
+    onChange={(e) => {
+      let value = e.target.value;
+
+      // Chỉ cho nhập số
+      value = value.replace(/\D/g, "");
+
+      // Giới hạn tối đa 10 số
+      if (value.length > 10) {
+        value = value.slice(0, 10);
+      }
+
+      // Nếu có nhập mà ký tự đầu tiên không phải là 0 => ép thành 0
+      if (value && value[0] !== "0") {
+        value = "0" + value.slice(1, 10);
+      }
+
+      setEditingAddressData({ ...editingAddressData, phone: value });
+    }}
+     style={{ marginBottom: "6px", display: "block", width: "100%" }}
+   />
+   {editingAddressData.phone && editingAddressData.phone.length !== 10 && (
+    <span style={{ color: "red", fontSize: "12px" }}>
+      Số điện thoại phải đủ 10 số
+    </span>
+   )}
+   <input
+    type="text"
+    value="Hà Nội"
+    disabled
+    style={{ marginBottom: "6px", display: "block", width: "100%" }}
+   />
+   <select
+     value={editingAddressData.districtCode || ""}
+    onChange={(e) => {
+      const code = String(e.target.value);
+      const selectedDistrict = districts.find((d) => String(d.code) === code);
+      setEditingAddressData({
+        ...editingAddressData,
+        district: selectedDistrict?.name || "",
+        districtCode: code,
+        ward: "",
+        wardCode: "",
+      });
+      handleDistrictChange(code, true);
+    }}
+    style={{ marginBottom: "6px", display: "block", width: "100%" }}
+   >
+    <option value="">-- Chọn Quận/Huyện --</option>
+    {districts.map((d) => (
+      <option key={d.code} value={String(d.code)}>
+        {d.name}
+      </option>
+    ))}
+   </select>
+    <select
+    value={editingAddressData.wardCode || ""}
+    onChange={(e) => {
+      const code = String(e.target.value);
+      const selectedWard = editingWards.find((w) => String(w.code) === code);
+      setEditingAddressData({
+        ...editingAddressData,
+        ward: selectedWard?.name || "",
+        wardCode: selectedWard ? String(selectedWard.code) : "",
+      });
+    }}
+    style={{ marginBottom: "6px", display: "block", width: "100%" }}
+   >
+    <option value="">-- Chọn Phường/Xã --</option>
+    {editingWards.map((w) => (
+      <option key={w.code} value={String(w.code)}>
+        {w.name}
+      </option>
+    ))}
+   </select>
+   <input
+     type="text"
+    placeholder="Địa chỉ chi tiết"
+    value={editingAddressData.detail}
+    onChange={(e) =>
+      setEditingAddressData({ ...editingAddressData, detail: e.target.value })
+    }
+    style={{ marginBottom: "6px", display: "block", width: "100%" }}
+   />
+   <button
+    onClick={() => {
+      if (editingAddressData.phone.length !== 10) {
+        alert("Số điện thoại phải đủ 10 chữ số!");
+        return;
+      }
+      saveEditAddress();
+    }}
+   >
+    Lưu
+   </button>
+   <button onClick={cancelEditAddress} style={{ marginLeft: "8px" }}>
+    Hủy
+   </button>
+   </>
+
+      ) : (
+        <>
+          <div>
+            <strong>{addr.fullName}</strong> - {addr.phone}
+          </div>
+          <div>
+            {addr.detail}, {addr.ward}, {addr.district}, {addr.province}
+          </div>
+          <div className="address-actions">
+            <div className="default-select-wrapper">
+              {String(userInfo.defaultAddressId) === String(addr._id) ? (
+                <span className="default-label">(Mặc định)</span>
+              ) : (
+                <button
+                  onClick={() => selectDefaultAddress(addr._id)}
+                  className="btn-default-select"
                 >
-                  <option value="">-- Chọn Quận/Huyện --</option>
-                  {districts.map((d) => (
-                    <option key={d.code} value={String(d.code)}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={editingAddressData.wardCode || ""}
-                  onChange={(e) => {
-                    const code = String(e.target.value);
-                    const selectedWard = editingWards.find((w) => String(w.code) === code);
-                    setEditingAddressData({
-                      ...editingAddressData,
-                      ward: selectedWard?.name || "",
-                      wardCode: selectedWard ? String(selectedWard.code) : "",
-                    });
-                  }}
-                  style={{ marginBottom: "6px", display: "block", width: "100%" }}
-                >
-                  <option value="">-- Chọn Phường/Xã --</option>
-                  {editingWards.map((w) => (
-                    <option key={w.code} value={String(w.code)}>
-                      {w.name}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  placeholder="Địa chỉ chi tiết"
-                  value={editingAddressData.detail}
-                  onChange={(e) =>
-                    setEditingAddressData({ ...editingAddressData, detail: e.target.value })
-                  }
-                  style={{ marginBottom: "6px", display: "block", width: "100%" }}
-                />
-                <button onClick={saveEditAddress}>Lưu</button>
-                <button onClick={cancelEditAddress} style={{ marginLeft: "8px" }}>
-                  Hủy
+                  Chọn làm mặc định
                 </button>
-              </>
-            ) : (
-              <>
-                <div>
-                  <strong>{addr.fullName}</strong> - {addr.phone}
-                </div>
-                <div>
-                  {addr.detail}, {addr.ward}, {addr.district}, {addr.province}
-                </div>
-                <div className="address-actions">
-                  <div className="default-select-wrapper">
-                    {String(userInfo.defaultAddressId) === String(addr._id) ? (
-                      <span className="default-label">(Mặc định)</span>
-                    ) : (
-                      <button
-                        onClick={() => selectDefaultAddress(addr._id)}
-                        className="btn-default-select"
-                      >
-                        Chọn làm mặc định
-                      </button>
-                    )}
-                  </div>
-                  <button onClick={() => startEditAddress(addr)} className="btn-edit">
-                    Sửa
-                  </button>
-                  <button onClick={() => deleteAddress(addr._id)} className="btn-delete">
-                    Xóa
-                  </button>
-                </div>
-              </>
-            )}
-          </li>
-        ))}
-      </ul>
+              )}
+            </div>
+            <button onClick={() => startEditAddress(addr)} className="btn-edit">
+              Sửa
+            </button>
+            <button onClick={() => deleteAddress(addr._id)} className="btn-delete">
+              Xóa
+            </button>
+          </div>
+        </>
+      )}
+    </li>
+   ))}
+   </ul>
+
 
       {showAddForm ? (
         <div
@@ -834,12 +866,30 @@ export default function ProfilePage() {
             style={{ marginBottom: "6px", display: "block", width: "100%" }}
           />
           <input
-            type="text"
-            placeholder="Số điện thoại"
-            value={newAddressForm.phone}
-            onChange={(e) => setNewAddressForm({ ...newAddressForm, phone: e.target.value })}
-            style={{ marginBottom: "6px", display: "block", width: "100%" }}
-          />
+      type="text"
+     placeholder="Số điện thoại"
+      value={newAddressForm.phone}
+      onChange={(e) => {
+     let value = e.target.value;
+
+     // Chỉ cho nhập số
+     value = value.replace(/\D/g, "");
+
+      // Giới hạn tối đa 10 số
+     if (value.length > 10) {
+      value = value.slice(0, 10);
+      }
+
+     // Nếu ký tự đầu tiên không phải là 0 thì bỏ
+     if (value && value[0] !== "0") {
+      value = "0" + value.slice(1, 10);
+      }
+
+      setNewAddressForm({ ...newAddressForm, phone: value });
+      }}
+      className="border rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+
           <input
             type="text"
             value="Hà Nội"
@@ -896,7 +946,17 @@ export default function ProfilePage() {
             onChange={(e) => setNewAddressForm({ ...newAddressForm, detail: e.target.value })}
             style={{ marginBottom: "6px", display: "block", width: "100%" }}
           />
-          <button onClick={saveNewAddress}>Thêm địa chỉ</button>
+          <button
+            onClick={() => {
+              if (newAddressForm.phone.length !== 10) {
+                alert("Số điện thoại phải đủ 10 số!");
+                return;
+              }
+              saveNewAddress();
+            }}
+          >
+            Thêm địa chỉ
+          </button>
           <button onClick={() => setShowAddForm(false)} style={{ marginLeft: "8px" }}>
             Hủy
           </button>
@@ -906,6 +966,7 @@ export default function ProfilePage() {
           Thêm địa chỉ
         </button>
       )}
+
     </div>
   );
 
