@@ -529,9 +529,10 @@ function applyLinkedStockOnRet(ret) {
         return { ...v, stock: newStock };
       }
       // v.kind === 'loose'
-      if (kg === 1) {
-        return { ...v, stock: stock1kg };
-      }
+      // ✅ FIX: Không đồng bộ stock giữa các variants 1kg khác nhau
+      // if (kg === 1) {
+      //   return { ...v, stock: stock1kg };
+      // }
       return v;
     });
 
