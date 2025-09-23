@@ -93,7 +93,7 @@ const Sidebar = () => {
 
             {/* --- MỤC: QUẢN LÝ ĐỊA CHỈ NHẬN HÀNG --- */}
             <li>
-              <Link
+              {/* <Link
                 to="/admin/address"
                 className={`${linkClasses} ${
                   isLinkActive('/admin/address') ? activeLinkClasses : hoverClasses
@@ -101,7 +101,7 @@ const Sidebar = () => {
               >
                 <TruckIcon className={iconClasses} />
                 Quản lý địa chỉ
-              </Link>
+              </Link> */}
             </li>
 
             <li>

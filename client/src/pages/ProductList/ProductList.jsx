@@ -1,14 +1,163 @@
 // src/pages/ProductList/ProductList.jsx
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import "./ProductList.css";
-import CategoryFilter from "../../components/button/CategoryFilter";
-import LocationFilter from "../../components/button/LocationFilter";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import Pagination from "../../components/common/Pagination";
 
 // Helpers hạn sử dụng
 import { computeExpiryInfo, fmtDate } from "../../utils/expiryHelpers";
+
+/* ================================
+   Small UI Components (Checkbox)
+   ================================ */
+
+/**
+ * Checkbox item
+ * props:
+ *  - id, label, checked, onChange
+ */
+function FFCheckboxItem({ id, label, checked, onChange, count }) {
+  return (
+    <label
+      className={[
+        "ff-filter-item",
+        "ff-checkbox-item",
+        checked ? "is-checked" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      htmlFor={id}
+    >
+      <input
+        id={id}
+        type="checkbox"
+        className="ff-checkbox"
+        checked={checked}
+        onChange={(e) => onChange?.(e.target.checked)}
+      />
+      <span className="ff-checkbox-label">
+        {label}
+        {Number.isFinite(count) && (
+          <span className="ff-checkbox-count">({count})</span>
+        )}
+      </span>
+    </label>
+  );
+}
+
+/**
+ * Checkbox Group Filter
+ * props:
+ *  - title: string
+ *  - items: [{ _id, name, count? }]
+ *  - selected: string[] (ids)
+ *  - onChange: (ids: string[]) => void
+ *  - blockKey: string (for stable htmlFor/id)
+ */
+function FFCheckboxGroup({
+  title,
+  items = [],
+  selected = [],
+  onChange,
+  blockKey = "group",
+  enableSearch = true,
+}) {
+  const [q, setQ] = useState("");
+
+  const filtered = useMemo(() => {
+    const k = (q || "").trim().toLowerCase();
+    if (!k) return items;
+    return items.filter((it) =>
+      String(it?.name || "").toLowerCase().includes(k)
+    );
+  }, [items, q]);
+
+  const isAllChecked =
+    Array.isArray(selected) &&
+    selected.length > 0 &&
+    filtered.every((it) => selected.includes(String(it?._id)));
+
+  const toggleAll = () => {
+    if (isAllChecked) {
+      const remain = (selected || []).filter(
+        (id) => !filtered.some((it) => String(it?._id) === String(id))
+      );
+      onChange?.(remain);
+    } else {
+      const merged = new Set([...(selected || [])]);
+      filtered.forEach((it) => merged.add(String(it?._id)));
+      onChange?.(Array.from(merged));
+    }
+  };
+
+  const clearAll = () => onChange?.([]);
+
+  return (
+    <div className="ff-filter-card">
+      <div className="ff-filter-card__header">
+        <h3 className="ff-filter-title">{title}</h3>
+
+        <div className="ff-filter-actions">
+          <button
+            type="button"
+            className="ff-btn ff-btn--soft"
+            onClick={toggleAll}
+          >
+            {isAllChecked ? "Bỏ chọn tất cả" : "Chọn tất cả"}
+          </button>
+          <button
+            type="button"
+            className="ff-btn ff-btn--link"
+            onClick={clearAll}
+          >
+            Xóa chọn
+          </button>
+        </div>
+      </div>
+
+      {enableSearch && (
+        <div className="ff-filter-search">
+          <input
+            className="ff-input"
+            placeholder="Tìm..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
+      )}
+
+      <div className="ff-filter-list">
+        {filtered.length === 0 ? (
+          <div className="ff-filter-empty">Không có mục phù hợp</div>
+        ) : (
+          filtered.map((it, idx) => {
+            const id = `${blockKey}-${it?._id || idx}`;
+            const checked = (selected || []).includes(String(it?._id));
+            return (
+              <FFCheckboxItem
+                key={id}
+                id={id}
+                label={it?.name || "Không tên"}
+                checked={checked}
+                count={it?.count}
+                onChange={(isOn) => {
+                  if (isOn) {
+                    onChange?.([...(selected || []), String(it?._id)]);
+                  } else {
+                    onChange?.(
+                      (selected || []).filter((x) => String(x) !== String(it?._id))
+                    );
+                  }
+                }}
+              />
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function ProductListPage() {
   const [products, setProducts] = useState([]);
@@ -28,11 +177,23 @@ export default function ProductListPage() {
   const fetchFilters = useCallback(async () => {
     try {
       const [catRes, locRes] = await Promise.all([
-        fetch("http://localhost:3000/api/category"),
-        fetch("http://localhost:3000/api/locations"),
+        fetch("http://localhost:4000/api/category"),
+        fetch("http://localhost:4000/api/locations"),
       ]);
-      setCategories(await catRes.json());
-      setLocations(await locRes.json());
+      const cats = await catRes.json();
+      const locs = await locRes.json();
+
+      // Chuẩn hóa: đảm bảo có _id & name
+      setCategories(
+        Array.isArray(cats)
+          ? cats.map((c) => ({ _id: c?._id || c?.id || c?.value, name: c?.name || c?.label || "" }))
+          : []
+      );
+      setLocations(
+        Array.isArray(locs)
+          ? locs.map((l) => ({ _id: l?._id || l?.id || l?.value, name: l?.name || l?.label || "" }))
+          : []
+      );
     } catch (err) {
       console.error("Lỗi khi lấy danh mục hoặc khu vực:", err);
     }
@@ -41,7 +202,7 @@ export default function ProductListPage() {
   const fetchProducts = useCallback(async () => {
     try {
       // Luôn loại sản phẩm Coming Soon khỏi trang list thường
-      let url = "http://localhost:3000/api/product";
+      let url = "http://localhost:4000/api/product";
       const params = [];
 
       if (selectedCategories.length) {
@@ -94,16 +255,15 @@ export default function ProductListPage() {
     return Boolean(p?.isCombo || t === "combo");
   };
 
-  // Lấy tồn kho hiển thị cho combo: ưu tiên comboInventory.stock, fallback các key khác
+  // Tồn kho hiển thị cho combo
   const getComboStock = (p) => {
-    // Các khả năng tên field có thể có từ BE
     const candidates = [
-      p?.comboInventory?.stock,          // chuẩn mới
-      p?.comboStock,                     // fallback
-      p?.stock,                          // một số BE trộn vào stock chung
-      p?.inventory?.stock,               // fallback khác
-      p?.inventory,                      // đôi khi inventory là số
-      p?.available,                      // fallback
+      p?.comboInventory?.stock, // chuẩn mới
+      p?.comboStock,            // fallback
+      p?.stock,                 // trộn chung
+      p?.inventory?.stock,      // fallback khác
+      p?.inventory,             // inventory là số
+      p?.available,             // fallback
     ];
     for (const c of candidates) {
       const n = asNumber(c, NaN);
@@ -112,14 +272,12 @@ export default function ProductListPage() {
     return 0;
   };
 
-  // Lấy giá hiển thị cho combo
+  // Giá hiển thị cho combo
   const getComboPrice = (p, fallback) => {
     const fixed = p?.comboPricing?.fixedPrice;
-    const discountMode = p?.comboPricing?.mode === "discount";
     const base = asNumber(fallback, 0);
     if (Number.isFinite(asNumber(fixed, NaN))) return asNumber(fixed, base);
-    // nếu mode discount, không có fixed => cứ trả fallback (FE không triển khai discount tổng)
-    return base;
+    return base; // nếu mode discount tổng, FE vẫn lấy base để hiển thị
   };
 
   // Lọc client-side: combo + cận hạn
@@ -142,7 +300,7 @@ export default function ProductListPage() {
     return list;
   }, [products, discountOnly, comboFilter]);
 
-  // Phân trang dựa trên danh sách đã lọc
+  // Phân trang
   const indexOfLastProduct = currentPage * productsPerPage;
   const indexOfFirstProduct = indexOfLastProduct - productsPerPage;
   const currentProducts = Array.isArray(filteredProducts)
@@ -159,67 +317,91 @@ export default function ProductListPage() {
         />
       </div>
 
-      <div className="product-layout grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6 mt-6 px-4 sm:px-8">
-        <aside className="filter-panel bg-white border rounded-xl p-5 h-fit sticky top-4 shadow-md">
-          <div className="filter-group filter-group--category">
-            <CategoryFilter
-              categories={categories}
+      <div className="product-layout grid grid-cols-1 md:grid-cols-[300px_1fr] gap-6 mt-6 px-4 sm:px-8">
+        {/* ==== FILTER PANEL (Checkbox) ==== */}
+        <aside className="filter-panel ff-panel bg-white border rounded-2xl p-5 h-fit sticky top-4 shadow-md">
+          {/* DANH MỤC */}
+          <div className="filter-group filter-group--category ff-block ff-block--category">
+            <FFCheckboxGroup
+              title="Danh mục"
+              items={categories}
               selected={selectedCategories}
               onChange={(vals) => {
                 setSelectedCategories(vals);
                 setCurrentPage(1);
               }}
+              blockKey="cat"
+              enableSearch
             />
           </div>
 
-          <hr className="my-5 border-gray-300" />
+          <hr className="ff-divider" />
 
-          <div className="filter-group filter-group--location">
-            <LocationFilter
-              locations={locations}
+          {/* KHU VỰC */}
+          <div className="filter-group filter-group--location ff-block ff-block--location">
+            <FFCheckboxGroup
+              title="Khu vực"
+              items={locations}
               selected={selectedLocations}
               onChange={(vals) => {
                 setSelectedLocations(vals);
                 setCurrentPage(1);
               }}
+              blockKey="loc"
+              enableSearch
             />
           </div>
 
-          <hr className="my-5 border-gray-300" />
+          <hr className="ff-divider" />
 
-          {/* Bộ lọc: chỉ hiển thị sản phẩm đang giảm giá (cận hạn) */}
-          <label className="filter-group filter-group--discount flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={discountOnly}
-              onChange={(e) => {
-                setDiscountOnly(e.target.checked);
-                setCurrentPage(1);
-              }}
-            />
-            <b className="font-semibold">Sản phẩm giảm giá (cận hạn)</b>
-          </label>
+          {/* CẬN HẠN (giảm giá) */}
+          <div className="filter-group filter-group--discount ff-block ff-block--discount">
+            <div className="ff-filter-card">
+              <div className="ff-filter-card__header">
+                <h3 className="ff-filter-title">Khuyến mãi</h3>
+              </div>
+              <label className="ff-switch-line">
+                <input
+                  type="checkbox"
+                  className="ff-switch"
+                  checked={discountOnly}
+                  onChange={(e) => {
+                    setDiscountOnly(e.target.checked);
+                    setCurrentPage(1);
+                  }}
+                />
+                <span className="ff-switch-label">
+                  Sản phẩm giảm giá (cận hạn)
+                </span>
+              </label>
+            </div>
+          </div>
 
-          <hr className="my-5 border-gray-300" />
+          <hr className="ff-divider" />
 
-          {/* Bộ lọc Combo */}
-          <div className="filter-group filter-group--combo">
-            <label className="block text-sm font-semibold mb-2">Loại sản phẩm</label>
-            <select
-              className="filter-combo-select w-full border rounded-lg px-3 py-2 text-sm"
-              value={comboFilter}
-              onChange={(e) => {
-                setComboFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-            >
-              <option value="all">Tất cả</option>
-              <option value="only">Chỉ Combo</option>
-              <option value="exclude">Ẩn Combo</option>
-            </select>
+          {/* Combo */}
+          <div className="filter-group filter-group--combo ff-block ff-block--combo">
+            <div className="ff-filter-card">
+              <div className="ff-filter-card__header">
+                <h3 className="ff-filter-title">Loại sản phẩm</h3>
+              </div>
+              <select
+                className="ff-select w-full"
+                value={comboFilter}
+                onChange={(e) => {
+                  setComboFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+              >
+                <option value="all">Tất cả</option>
+                <option value="only">Chỉ Combo</option>
+                <option value="exclude">Ẩn Combo</option>
+              </select>
+            </div>
           </div>
         </aside>
 
+        {/* ==== MAIN ==== */}
         <main className="product-main">
           <h1 className="product-title text-2xl font-bold mb-4">
             Sản Phẩm <span className="text-green-700">FreshFruit</span>
@@ -245,7 +427,10 @@ export default function ProductListPage() {
                 transition={{ duration: 0.5 }}
               >
                 {currentProducts.map((product) => {
-                  const isCombo = isComboProduct(product);
+                  const isCombo =
+                    (typeof product?.type === "string"
+                      ? product.type.toLowerCase()
+                      : product?.type) === "combo" || product?.isCombo;
 
                   // Giá hiển thị
                   const variantData = product?.variants?.[0] || {};
@@ -259,20 +444,18 @@ export default function ProductListPage() {
                   const comboPrice = isCombo ? getComboPrice(product, basePrice) : null;
 
                   // Tồn kho hiển thị
-                  const normalStock = asNumber(variantData?.stock ?? 0, 0);
+                  const normalStock = Number(variantData?.stock ?? 0) || 0;
                   const comboStock = isCombo ? getComboStock(product) : null;
 
                   // Cận hạn
                   const exp = computeExpiryInfo(product);
                   const isNearExpiry = Boolean(exp?.isNearExpiry);
-                  const discountPercent = asNumber(exp?.discountPercent || 0, 0);
+                  const discountPercent = Number(exp?.discountPercent || 0) || 0;
                   const hasDiscount = isNearExpiry && discountPercent > 0;
 
                   const rawPrice = isCombo ? comboPrice : basePrice;
-                  const finalPrice = asNumber(
-                    hasDiscount ? (exp?.finalPrice ?? rawPrice) : rawPrice,
-                    0
-                  );
+                  const finalPrice =
+                    Number(hasDiscount ? exp?.finalPrice ?? rawPrice : rawPrice) || 0;
 
                   const daysLeft = hasDiscount ? exp?.daysLeft ?? null : null;
                   const expiryStr = hasDiscount ? fmtDate(exp?.expireAt) : null;
@@ -296,17 +479,19 @@ export default function ProductListPage() {
                     >
                       <div className="product-card__media relative">
                         {hasDiscount && (
-                          <span className="product-card__badge product-card__badge--discount absolute left-2 top-2 bg-amber-500 text-white text-xs font-semibold px-2 py-1 rounded">
+                          <span className="product-card__badge product-card__badge--discount absolute left-2 top-2 text-xs font-semibold px-2 py-1 rounded">
                             Cận hạn -{discountPercent}%
                           </span>
                         )}
                         {isCombo && (
-                          <span className="product-card__badge product-card__badge--combo absolute right-2 top-2 bg-emerald-600 text-white text-[10px] font-semibold px-2 py-1 rounded">
+                          <span className="product-card__badge product-card__badge--combo absolute right-2 top-2 text-[10px] font-semibold px-2 py-1 rounded">
                             COMBO
                           </span>
                         )}
+
+                        {/* ĐÃ BỎ HOÀN TOÀN NÚT "THÊM VÀO MIX"  */}
                         <img
-                          src={`http://localhost:3000${product.image}`}
+                          src={`http://localhost:4000${product.image}`}
                           alt={product.name}
                           className="product-card__image product-image cursor-pointer"
                           onClick={() => handleViewDetail(product)}
@@ -323,31 +508,17 @@ export default function ProductListPage() {
                         {hasDiscount ? (
                           <div className="product-card__price-row flex items-baseline gap-2">
                             <span className="product-card__price--strike line-through text-gray-400">
-                              {asNumber(rawPrice, 0).toLocaleString("vi-VN")}đ
+                              {Number(rawPrice || 0).toLocaleString("vi-VN")}đ
                             </span>
                             <span className="product-card__price product-price font-semibold text-red-600">
-                              {asNumber(finalPrice, 0).toLocaleString("vi-VN")}đ
+                              {Number(finalPrice || 0).toLocaleString("vi-VN")}đ
                             </span>
                           </div>
                         ) : (
                           <p className="product-card__price product-price">
-                            {asNumber(finalPrice, 0).toLocaleString("vi-VN")}đ
+                            {Number(finalPrice || 0).toLocaleString("vi-VN")}đ
                           </p>
                         )}
-
-                        {/* <p className="product-card__stock text-sm text-gray-500">
-                          {isCombo ? (
-                            <>
-                              Tồn kho combo:{" "}
-                              {comboStock > 0 ? comboStock : <span className="text-red-600">Hết hàng</span>}
-                            </>
-                          ) : (
-                            <>
-                              Tồn kho:{" "}
-                              {normalStock > 0 ? normalStock : <span className="text-red-600">Hết hàng</span>}
-                            </>
-                          )}
-                        </p> */}
 
                         {/* Hạn sử dụng — chỉ hiển thị khi cận hạn có giảm giá */}
                         {hasDiscount && expiryStr && (
@@ -372,7 +543,7 @@ export default function ProductListPage() {
 
           <Pagination
             currentPage={currentPage}
-            totalPages={Math.ceil(filteredProducts.length / productsPerPage)}
+            totalPages={Math.ceil((filteredProducts?.length || 0) / productsPerPage)}
             onPageChange={setCurrentPage}
           />
         </main>
