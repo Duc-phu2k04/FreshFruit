@@ -11,10 +11,77 @@ const fmtKg = (grams) => {
   const g = Number(grams || 0);
   if (g <= 0) return "";
   const kg = g / 1000;
-  // 1kg, 2kg hiển thị gọn "1kg" — số lẻ thì hiển thị tối đa 2 chữ số thập phân
   const isInt = Math.abs(kg - Math.round(kg)) < 1e-9;
   return `${isInt ? Math.round(kg) : kg.toFixed(2)}kg`;
 };
+
+// ========== Helpers ==========
+const pickText = (...xs) => {
+  for (const x of xs) {
+    const s = String(x ?? "").trim();
+    if (s) return s;
+  }
+  return "";
+};
+
+// Lấy productId từ item hoặc item con combo (phủ nhiều khả năng field)
+const getProductIdFrom = (it) => {
+  if (!it) return "";
+  if (typeof it.productId === "string") return it.productId;
+  if (typeof it.product === "string") return it.product;
+  if (it.product && typeof it.product._id === "string") return it.product._id;
+  if (typeof it.id === "string" && it.id.length >= 8) return it.id; // đôi khi BE để id là _id sản phẩm
+  return "";
+};
+
+// Lấy tên đã có sẵn trong item (nếu payload có)
+const getInlineName = (it) =>
+  pickText(
+    it?.productName,
+    it?.name,
+    it?.title,
+    it?.product?.name,
+    it?.product?.title
+  );
+
+// Lấy độ chín/tình trạng
+const getRipeness = (it) =>
+  pickText(it?.variant?.ripeness, it?.ripeness, it?.condition, it?.state, it?.conditionLabel);
+
+// Lấy nhãn cân nặng (không theo gram)
+const getWeightLabel = (it) =>
+  pickText(it?.variant?.weight, it?.weight, it?.weightLabel);
+
+// “(Chín vừa, 1kg)”
+const variantLabel = (it) => {
+  const parts = [];
+  const ripe = getRipeness(it);
+  const wLabel = getWeightLabel(it);
+  if (ripe) parts.push(ripe);
+  if (wLabel) parts.push(wLabel);
+  return parts.length ? ` (${parts.join(", ")})` : "";
+};
+
+// Tạo key ổn định cho item
+const makeItemKey = (orderKey, it, idx) => {
+  const p = it?.product || it?.productId || it?.id || "";
+  const vId = it?.variantId || it?.variant?._id || "";
+  const w = it?.variant?.weight || "";
+  const r = it?.variant?.ripeness || "";
+  const t = it?.type || (it?.isCombo ? "combo" : "variant");
+  return it?._id || `${orderKey}__${t}__${p}__${vId}__${w}__${r}__${idx}`;
+};
+
+// Key cho item con trong combo
+const makeComboChildKey = (parentKey, child, cIdx) => {
+  const pid = child?.productId || child?.id || "";
+  return `${parentKey}__c_${pid}__${cIdx}`;
+};
+
+// Badge nho nhỏ
+const Badge = ({ children, tone = "neutral" }) => (
+  <span className={`ao-badge ao-badge--${tone}`}>{children}</span>
+);
 
 const STATUS_FLOW = ["pending", "confirmed", "shipping", "delivered", "cancelled"];
 const STATUS_LABEL = {
@@ -25,7 +92,7 @@ const STATUS_LABEL = {
   cancelled: "Đã huỷ",
 };
 
-// Địa chỉ rút gọn + đầy đủ (tooltip)
+// Địa chỉ rút gọn + đầy đủ
 const formatAddress = (addr) => {
   if (!addr) return { short: "—", full: "" };
   const detail = addr.detail || addr.address || addr.addressLine || "";
@@ -37,7 +104,7 @@ const formatAddress = (addr) => {
   return { short, full };
 };
 
-// Xác định xem đơn có yêu cầu đổi/trả không
+// Có yêu cầu đổi/trả?
 const hasReturnRequest = (order) => {
   const rf =
     order?.returnFlow ||
@@ -55,39 +122,14 @@ const hasReturnRequest = (order) => {
   return Boolean(rf.requestedAt || rf.createdAt || tl.requestedAt);
 };
 
-// Key ổn định cho item sản phẩm
-const makeItemKey = (orderKey, it, idx) => {
-  const p = it?.product || it?.productId || it?.id || "";
-  const vId = it?.variantId || it?.variant?._id || "";
-  const w = it?.variant?.weight || "";
-  const r = it?.variant?.ripeness || "";
-  const t = it?.type || (it?.isMix ? "mix" : it?.isCombo ? "combo" : "variant");
-  return it?._id || `${orderKey}__${t}__${p}__${vId}__${w}__${r}__${idx}`;
-};
-
-// Key cho item con bên trong combo
-const makeComboChildKey = (parentKey, child, cIdx) => {
-  const pid = child?.productId || child?.id || "";
-  return `${parentKey}__c_${pid}__${cIdx}`;
-};
-
-// Key cho item con bên trong mix
-const makeMixChildKey = (parentKey, child, mIdx) => {
-  const pid = child?.productId || child?.id || "";
-  const grams = child?.weightGram || 0;
-  return `${parentKey}__m_${pid}_${grams}__${mIdx}`;
-};
-
-// Hiển thị badge nho nhỏ
-const Badge = ({ children, tone = "neutral" }) => (
-  <span className={`ao-badge ao-badge--${tone}`}>{children}</span>
-);
-
 export default function AdminOrderPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedOrderId, setExpandedOrderId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Cache tên sản phẩm theo id để hiển thị khi payload không có name
+  const [productNameCache, setProductNameCache] = useState({}); // { [id]: name }
 
   const fetchOrders = async () => {
     try {
@@ -106,6 +148,62 @@ export default function AdminOrderPage() {
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  // Sau khi có orders: gom tất cả productId (sản phẩm thường + con trong combo) để prefetch tên
+  useEffect(() => {
+    const ids = new Set();
+    for (const o of orders || []) {
+      for (const it of o?.items || []) {
+        // item thường
+        const id1 = getProductIdFrom(it);
+        if (id1 && !getInlineName(it)) ids.add(id1);
+
+        // item con combo
+        const combo = it?.combo;
+        if (it?.isCombo || it?.type === "combo" || combo) {
+          const children = Array.isArray(combo?.items) ? combo.items : [];
+          for (const c of children) {
+            const id2 = getProductIdFrom(c);
+            if (id2 && !getInlineName(c)) ids.add(id2);
+          }
+        }
+      }
+    }
+
+    const need = [...ids].filter((id) => !productNameCache[id]);
+    if (need.length === 0) return;
+
+    (async () => {
+      try {
+        // Không giả định có API batch, gọi song song từng id và cache
+        const reqs = need.map((id) =>
+          axios
+            .get(`${API_URL}/api/product/${id}`)
+            .then((r) => ({ id, name: r?.data?.name || r?.data?.product?.name || "" }))
+            .catch(() => ({ id, name: "" }))
+        );
+        const results = await Promise.all(reqs);
+        const map = {};
+        results.forEach(({ id, name }) => {
+          if (id) map[id] = String(name || "").trim();
+        });
+        if (Object.keys(map).length) {
+          setProductNameCache((prev) => ({ ...prev, ...map }));
+        }
+      } catch (e) {
+        console.error("Prefetch tên sản phẩm lỗi:", e);
+      }
+    })();
+  }, [orders, productNameCache]);
+
+  // Lấy tên hiển thị cuối cùng (ưu tiên name trong item, sau đó tra cache theo id)
+  const getDisplayName = (it) => {
+    const inline = getInlineName(it);
+    if (inline) return inline;
+    const id = getProductIdFrom(it);
+    if (id && productNameCache[id]) return productNameCache[id];
+    return ""; // không fallback id/placeholder
+  };
 
   const getNextStatus = (currentStatus) => {
     const i = STATUS_FLOW.indexOf(currentStatus);
@@ -138,7 +236,7 @@ export default function AdminOrderPage() {
     }
   };
 
-  // Bổ sung search trong các item con của mix
+  // Search (bỏ phần mix)
   const filteredOrders = useMemo(() => {
     const q = (searchTerm || "").toLowerCase().trim();
     if (!q) return orders;
@@ -151,23 +249,17 @@ export default function AdminOrderPage() {
       const addr = formatAddress(o.shippingAddress);
       const byAddr = addr.full.toLowerCase().includes(q);
 
-      const byItemsName = (o.items || []).some((it) =>
-        (it.productName || "").toLowerCase().includes(q)
-      );
+      const byItemsName = (o.items || []).some((it) => {
+        if ((it?.isCombo || it?.type === "combo" || it?.combo) && Array.isArray(it?.combo?.items)) {
+          // tìm theo tên con combo
+          if (it.combo.items.some((c) => getDisplayName(c).toLowerCase().includes(q))) return true;
+        }
+        return getDisplayName(it).toLowerCase().includes(q);
+      });
 
-      const byMixChildren =
-        (o.items || []).some((it) => {
-          const isMix = it?.isMix || it?.type === "mix" || Array.isArray(it?.mix?.items);
-          if (!isMix) return false;
-          const children = Array.isArray(it?.mix?.items) ? it.mix.items : [];
-          return children.some((m) =>
-            (m.productName || m.name || "").toLowerCase().includes(q)
-          );
-        });
-
-      return byCode || byUser || byAddr || byItemsName || byMixChildren;
+      return byCode || byUser || byAddr || byItemsName;
     });
-  }, [orders, searchTerm]);
+  }, [orders, searchTerm, productNameCache]);
 
   if (loading) {
     return <div className="ao-wrap ao-loading">Đang tải...</div>;
@@ -250,7 +342,7 @@ export default function AdminOrderPage() {
                           // ---- COMBO ----
                           if (it?.isCombo || it?.type === "combo" || it?.combo) {
                             const combo = it.combo || {};
-                            const title = combo.title || it.productName || "Combo";
+                            const title = pickText(combo.title, it.productName) || "Combo";
                             const children = Array.isArray(combo.items) ? combo.items : [];
 
                             return (
@@ -267,13 +359,14 @@ export default function AdminOrderPage() {
                                   <ul className="ao-combo-list ao-combo-list--inline">
                                     {children.map((c, cIdx) => {
                                       const cKey = makeComboChildKey(itemKey, c, cIdx);
+                                      const baseName = getDisplayName(c);
+                                      const label = baseName ? baseName + variantLabel(c) : "";
+                                      const qty = Number(c?.qty || 0);
                                       return (
                                         <li key={cKey} className="ao-combo-chip">
-                                          <span className="ao-combo-chip__name">
-                                            {c.productName || c.name || c.productId || "SP"}
-                                          </span>
-                                          {c.qty ? (
-                                            <span className="ao-combo-chip__qty">×{c.qty}</span>
+                                          <span className="ao-combo-chip__name">{label}</span>
+                                          {qty ? (
+                                            <span className="ao-combo-chip__qty">×{qty}</span>
                                           ) : null}
                                         </li>
                                       );
@@ -284,55 +377,14 @@ export default function AdminOrderPage() {
                             );
                           }
 
-                          // ---- MIX ----
-                          const isMix = it?.isMix || it?.type === "mix" || Array.isArray(it?.mix?.items);
-                          if (isMix) {
-                            const title = it.productName || "Giỏ Mix";
-                            const children = Array.isArray(it?.mix?.items) ? it.mix.items : [];
-
-                            return (
-                              <div key={itemKey} className="ao-product ao-product--mix">
-                                <div className="ao-product-head">
-                                  <Badge tone="warning">MIX</Badge>
-                                  <span className="ao-product-name ao-product-name--mix">{title}</span>
-                                  {it.quantity ? (
-                                    <span className="ao-product-qty">× {it.quantity}</span>
-                                  ) : null}
-                                </div>
-
-                                {children.length > 0 && (
-                                  <ul className="ao-combo-list ao-combo-list--inline">
-                                    {children.slice(0, 6).map((m, mIdx) => {
-                                      const mKey = makeMixChildKey(itemKey, m, mIdx);
-                                      const name = m.productName || m.name || m.productId || "SP";
-                                      const qty = Number(m.qty || 0);
-                                      const w = Number(m.weightGram || 0);
-                                      const pieceStr = w > 0 ? `${fmtKg(w)} ×${qty}` : `×${qty}`;
-                                      return (
-                                        <li key={mKey} className="ao-combo-chip">
-                                          <span className="ao-combo-chip__name">{name}</span>
-                                          <span className="ao-combo-chip__qty"> {pieceStr}</span>
-                                        </li>
-                                      );
-                                    })}
-                                    {children.length > 6 && (
-                                      <li className="ao-combo-chip">+{children.length - 6} sp</li>
-                                    )}
-                                  </ul>
-                                )}
-                              </div>
-                            );
-                          }
-
-                          // ---- Sản phẩm đơn ----
+                          // ---- Sản phẩm thường (không MIX) ----
+                          const baseName = getDisplayName(it);
                           return (
                             <div key={itemKey} className="ao-product">
-                              <span className="ao-product-name">{it.productName}</span>
+                              <span className="ao-product-name">{baseName}</span>
                               <span className="ao-product-variant">
-                                {it?.variant?.weight || it?.variant?.ripeness
-                                  ? ` (${[it.variant.weight, it.variant.ripeness].filter(Boolean).join(", ")})`
-                                  : ""}{" "}
-                                {it.quantity ? `× ${it.quantity}` : ""}
+                                {variantLabel(it)}
+                                {it.quantity ? ` × ${it.quantity}` : ""}
                               </span>
                             </div>
                           );
@@ -393,7 +445,7 @@ export default function AdminOrderPage() {
                           Quản lý đổi/trả
                         </Link>
 
-                        {canCancel && (
+                        {["pending", "failed"].includes(order.status) && (
                           <button
                             className="ao-btn ao-btn-danger"
                             onClick={() => handleCancelOrder(order._id)}
@@ -407,7 +459,9 @@ export default function AdminOrderPage() {
                             className="ao-btn ao-btn-primary"
                             onClick={() => handleStatusNext(order._id, order.status)}
                           >
-                            {next !== order.status ? `Chuyển ➜ ${STATUS_LABEL[next] || next}` : "Đã hoàn tất"}
+                            {next !== order.status
+                              ? `Chuyển ➜ ${STATUS_LABEL[next] || next}`
+                              : "Đã hoàn tất"}
                           </button>
                         )}
                       </div>
@@ -417,7 +471,6 @@ export default function AdminOrderPage() {
                   {/* Hàng chi tiết */}
                   {expandedOrderId === order._id && (
                     <tr className="ao-tr-detail" key={`${rowKey}__detail`}>
-                      {/* tăng colSpan lên 8 vì có cột Địa chỉ */}
                       <td className="ao-td-detail" colSpan={8}>
                         <div className="ao-detail">
                           <div className="ao-detail-card">
@@ -443,7 +496,6 @@ export default function AdminOrderPage() {
                           <div className="ao-detail-card">
                             <div className="ao-detail-card__title">Sản phẩm</div>
 
-                            {/* Danh sách sản phẩm/combos/mix với style rõ ràng */}
                             <ul className="ao-detail-list">
                               {(order.items || []).map((it, idx) => {
                                 const itemKey = `detail_${makeItemKey(rowKey, it, idx)}`;
@@ -451,7 +503,7 @@ export default function AdminOrderPage() {
                                 // ---- COMBO ----
                                 if (it?.isCombo || it?.type === "combo" || it?.combo) {
                                   const combo = it.combo || {};
-                                  const title = combo.title || it.productName || "Combo";
+                                  const title = pickText(combo.title, it.productName) || "Combo";
                                   const children = Array.isArray(combo.items) ? combo.items : [];
 
                                   return (
@@ -469,14 +521,15 @@ export default function AdminOrderPage() {
                                         <ul className="ao-combo-items">
                                           {children.map((c, cIdx) => {
                                             const cKey = makeComboChildKey(itemKey, c, cIdx);
+                                            const baseName = getDisplayName(c);
+                                            const label = baseName ? baseName + variantLabel(c) : "";
+                                            const qty = Number(c?.qty || 0);
                                             return (
                                               <li key={cKey} className="ao-combo-item">
                                                 <span className="ao-combo-item__dot" />
-                                                <span className="ao-combo-item__name">
-                                                  {c.productName || c.name || c.productId || "Sản phẩm"}
-                                                </span>
-                                                {c.qty ? (
-                                                  <span className="ao-combo-item__qty">× {c.qty}</span>
+                                                <span className="ao-combo-item__name">{label}</span>
+                                                {qty ? (
+                                                  <span className="ao-combo-item__qty">× {qty}</span>
                                                 ) : null}
                                               </li>
                                             );
@@ -487,58 +540,14 @@ export default function AdminOrderPage() {
                                   );
                                 }
 
-                                // ---- MIX ----
-                                const isMix = it?.isMix || it?.type === "mix" || Array.isArray(it?.mix?.items);
-                                if (isMix) {
-                                  const title = it.productName || "Giỏ Mix";
-                                  const children = Array.isArray(it?.mix?.items) ? it.mix.items : [];
-
-                                  return (
-                                    <li key={itemKey} className="ao-detail-item ao-detail-item--mix">
-                                      <div className="ao-detail-line">
-                                        <Badge tone="warning">MIX</Badge>
-                                        <span className="ao-detail-name ao-detail-name--mix">{title}</span>
-                                        {it.quantity ? (
-                                          <span className="ao-detail-qty">× {it.quantity}</span>
-                                        ) : null}
-                                        {/* Giá 1 hộp (đơn giá mix) */}
-                                        <span className="ao-detail-price">{toVND(it.price)}</span>
-                                      </div>
-
-                                      {children.length > 0 && (
-                                        <ul className="ao-combo-items ao-mix-items">
-                                          {children.map((m, mIdx) => {
-                                            const mKey = makeMixChildKey(itemKey, m, mIdx);
-                                            const name = m.productName || m.name || m.productId || "Sản phẩm";
-                                            const qtyPerBox = Number(m.qty || 0);
-                                            const w = Number(m.weightGram || 0);
-                                            const piece =
-                                              w > 0
-                                                ? `${fmtKg(w)} × ${qtyPerBox} (mỗi hộp)`
-                                                : `× ${qtyPerBox} (mỗi hộp)`;
-                                            return (
-                                              <li key={mKey} className="ao-combo-item ao-mix-item">
-                                                <span className="ao-combo-item__dot" />
-                                                <span className="ao-combo-item__name">{name}</span>
-                                                <span className="ao-combo-item__qty">{piece}</span>
-                                              </li>
-                                            );
-                                          })}
-                                        </ul>
-                                      )}
-                                    </li>
-                                  );
-                                }
-
-                                // ---- Sản phẩm đơn ----
+                                // ---- Sản phẩm thường (không MIX) ----
+                                const baseName = getDisplayName(it);
                                 return (
                                   <li key={itemKey} className="ao-detail-item">
                                     <div className="ao-detail-line">
-                                      <span className="ao-detail-name">{it.productName}</span>
+                                      <span className="ao-detail-name">{baseName}</span>
                                       <span className="ao-detail-variant">
-                                        {it?.variant?.weight || it?.variant?.ripeness
-                                          ? ` (${[it.variant.weight, it.variant.ripeness].filter(Boolean).join(", ")})`
-                                          : ""}
+                                        {variantLabel(it)}
                                       </span>
                                       <span className="ao-detail-qty">× {it.quantity}</span>
                                       <span className="ao-detail-price">{toVND(it.price)}</span>

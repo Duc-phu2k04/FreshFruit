@@ -1,4 +1,4 @@
-// src/pages/admin/product/Add.jsx
+// src/pages/admin/product/Add.jsx  (PART 1/3)
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../../../utils/axiosConfig";
@@ -17,7 +17,7 @@ export default function Add() {
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
 
-  // Loại SP: normal | combo | mix
+  // Loại SP: normal | combo
   const [productType, setProductType] = useState("normal");
   const onChangeProductType = (val) => {
     setProductType(val);
@@ -29,14 +29,6 @@ export default function Add() {
       setComboDiscountPercent(0);
       setComboStock(0);
     }
-    // reset mix khi rời khỏi mix
-    if (val !== "mix") {
-      setMinItems(2);
-      setMaxItems(5);
-      setAllowDuplicates(true);
-      setAllowedCategories("");
-      setMixBasePricePerKg(0);
-    }
   };
 
   // Origin (chuỗi tương thích BE cũ)
@@ -46,7 +38,7 @@ export default function Add() {
   const [originCertNo, setOriginCertNo] = useState("");
   const [storageText, setStorageText] = useState("");
 
-  // Biến thể cơ bản (CHỈ dùng cho normal/mix)
+  // Biến thể cơ bản (CHỈ dùng cho normal)
   const weightOptions = ["0.5kg", "1kg", "1.5kg", "2kg"];
   const ripenessOptions = ["Xanh", "Chín vừa", "Chín"];
   const [selectedWeights, setSelectedWeights] = useState([]);
@@ -86,7 +78,7 @@ export default function Add() {
   const [thresholdDays, setThresholdDays] = useState(0);
   const [discountPercentNear, setDiscountPercentNear] = useState(0);
 
-  /* ========== PACKAGING (THÙNG) – CHỈ normal/mix ========== */
+  /* ========== PACKAGING (THÙNG) – CHỈ normal ========== */
   // Tạo stockBy ban đầu theo danh sách tình trạng đã chọn
   const makeStockBy = (rList) =>
     (rList || []).reduce((m, r) => ({ ...m, [r]: 0 }), {});
@@ -190,13 +182,6 @@ export default function Add() {
   const [comboFixedPrice, setComboFixedPrice] = useState(0);
   const [comboDiscountPercent, setComboDiscountPercent] = useState(0);
 
-  /* ========== MIX BUILDER (user tự mix khi mua) ========== */
-  const [minItems, setMinItems] = useState(2);
-  const [maxItems, setMaxItems] = useState(5);
-  const [allowDuplicates, setAllowDuplicates] = useState(true);
-  const [allowedCategories, setAllowedCategories] = useState("");
-  const [mixBasePricePerKg, setMixBasePricePerKg] = useState(0);
-
   /* ========== HELPERS ========== */
   const weightMultiplier = useMemo(
     () => ({ "0.5kg": 0.5, "1kg": 1, "1.5kg": 1.5, "2kg": 2 }),
@@ -292,11 +277,11 @@ export default function Add() {
     const size = Number(p?.unitSize || 0);
     return size > 0 ? `Thùng ${size}kg` : "Thùng";
   };
-
+// src/pages/admin/product/Add.jsx  (PART 2/3)
   /* ==== COMBO search + hiển thị ripeness ==== */
   const filteredForCombo = useMemo(() => {
     const kw = comboSearch.trim().toLowerCase();
-    const arr = allProducts.filter((p) => !p.isCombo && !p.isMixBuilder);
+    const arr = allProducts.filter((p) => !p.isCombo); // bỏ kiểm tra mix
     if (!kw) return arr.slice(0, 30);
     return arr.filter(
       (p) =>
@@ -341,7 +326,6 @@ export default function Add() {
 
   // Lấy giá đơn vị theo tình trạng & weight đã chọn (nếu có)
   const getUnitPriceForComboItem = (p, r, w) => {
-    // ưu tiên tìm đúng cả (ripeness, weight)
     const v1 = Array.isArray(p?.variants)
       ? p.variants.find(
           (x) => x?.attributes?.ripeness === r && x?.attributes?.weight === w
@@ -349,13 +333,11 @@ export default function Add() {
       : null;
     if (v1?.price != null) return Number(v1.price) || 0;
 
-    // sau đó thử khớp theo ripeness
     const v2 = Array.isArray(p?.variants)
       ? p.variants.find((x) => x?.attributes?.ripeness === r)
       : null;
     if (v2?.price != null) return Number(v2.price) || 0;
 
-    // baseVariant trùng ripeness
     if (
       p?.baseVariant?.attributes?.ripeness === r &&
       p?.baseVariant?.price != null
@@ -363,7 +345,6 @@ export default function Add() {
       return Number(p.baseVariant.price) || 0;
     }
 
-    // fallback
     return (
       Number(p?.baseVariant?.price) ||
       Number(p?.price) ||
@@ -522,7 +503,7 @@ export default function Add() {
       };
     }
 
-    // ===== NORMAL / MIX =====
+    // ===== NORMAL =====
     const firstRipeness = selectedRipeness[0];
 
     const baseVariant = {
@@ -559,15 +540,15 @@ export default function Add() {
 
       for (const r of selectedRipeness) {
         const stockByR = Number(p?.stockBy?.[r]) || 0;
-        if (stockByR <= 0) continue; // ❗️chỉ tạo biến thể THÙNG cho ripeness có tồn > 0
+        if (stockByR <= 0) continue;
 
         variants.push({
           kind: "box",
           attributes: {
-            weight: label,          // để FE hiển thị “Thùng 10kg”
-            ripeness: r,            // tình trạng được bán
-            boxLabel: label,        // metadata cho BE
-            boxWeightKg: boxKg,     // metadata cho BE (liên thông tồn kho)
+            weight: label,
+            ripeness: r,
+            boxLabel: label,
+            boxWeightKg: boxKg,
           },
           price: Number(p.price) || 0,
           stock: stockByR,
@@ -632,23 +613,6 @@ export default function Add() {
       payload.expiry = exp;
     }
 
-    // MIX flags
-    if (productType === "mix") {
-      payload.isMixBuilder = true;
-      payload.mix = { basePricePerKg: Number(mixBasePricePerKg) || 0 };
-      payload.mixRules = {
-        minItems: Number(minItems) || 1,
-        maxItems: Number(maxItems) || 5,
-        allowDuplicates: !!allowDuplicates,
-        allowedCategories: (allowedCategories || "")
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean),
-      };
-    } else {
-      payload.isMixBuilder = false;
-    }
-
     return payload;
   };
 
@@ -705,15 +669,6 @@ export default function Add() {
           "\nBạn vẫn muốn tiếp tục lưu?";
         if (!window.confirm(msg)) return;
       }
-    } else if (productType === "mix") {
-      if (Number(mixBasePricePerKg) <= 0) {
-        alert("❌ Mix: Nhập giá cơ sở theo kg (>0).");
-        return;
-      }
-      if (Number(minItems) > Number(maxItems)) {
-        alert("❌ Mix: Min items không được lớn hơn Max items.");
-        return;
-      }
     } else {
       // normal
       if (selectedWeights.length === 0 && packagingOptions.length === 0) {
@@ -742,7 +697,6 @@ export default function Add() {
           return;
         }
       }
-      // Packaging: cho phép 0 nhưng sẽ KHÔNG sinh biến thể box nếu 0 → đúng yêu cầu
       for (const p of packagingOptions) {
         for (const r of selectedRipeness) {
           const v = Number(p?.stockBy?.[r]);
@@ -784,7 +738,7 @@ export default function Add() {
     "AdminAdd__card bg-white rounded-xl border border-gray-200 shadow-sm p-4 md:p-5";
   const sectionTitleCls =
     "AdminAdd__sectionTitle text-lg font-semibold mb-3 flex items-center gap-2";
-
+// src/pages/admin/product/Add.jsx  (PART 3/3)
   /* ========== RENDER ========== */
   return (
     <div className="AdminAdd container max-w-5xl mx-auto py-6 px-4">
@@ -836,7 +790,6 @@ export default function Add() {
             >
               <option value="normal">Loại: Thông thường</option>
               <option value="combo">Loại: Combo</option>
-              <option value="mix">Loại: Mix (user tự chọn)</option>
             </select>
           </div>
 
@@ -1356,7 +1309,7 @@ Không rửa trước khi cất`}
               </div>
             </div>
 
-            {/* Danh sách item của combo (CÓ hiển thị tồn kho & dự kiến trừ) */}
+            {/* Danh sách item của combo */}
             <div className="AdminAdd__comboList space-y-3 mt-4">
               {comboItems.length === 0 && (
                 <p className="text-sm text-gray-500">
@@ -1392,7 +1345,6 @@ Không rửa trước khi cất`}
                         ID: {it.product?._id}
                       </div>
 
-                      {/* Tồn kho và dự kiến cần */}
                       <div className="mt-2 text-xs">
                         <div>
                           Tồn ({r || "Không ghi"}
@@ -1444,7 +1396,6 @@ Không rửa trước khi cất`}
                         ))}
                       </select>
 
-                      {/* Chọn khối lượng */}
                       <label className="block text-sm text-gray-600 mb-1 mt-2">
                         Khối lượng
                       </label>
@@ -1494,7 +1445,7 @@ Không rửa trước khi cất`}
               })}
             </div>
 
-            {/* Tồn kho combo + Preview dự kiến trừ tồn */}
+            {/* Tồn kho combo */}
             <div className="mt-5 border rounded-lg p-3">
               <h3 className="font-semibold mb-2">📦 Tồn kho Combo (tách riêng)</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1514,111 +1465,6 @@ Không rửa trước khi cất`}
                     * Đây là tồn của <b>chính combo</b>, độc lập với tồn của các sản phẩm con.
                   </p>
                 </div>
-              </div>
-
-              {/* Preview dự kiến trừ tồn */}
-              <div className="mt-4">
-                <div className="text-sm font-medium mb-1">
-                  Dự kiến trừ tồn (mỗi biến thể sẽ trừ đúng bằng{" "}
-                  <b>Tồn kho Combo</b>):
-                </div>
-                <div className="rounded-lg border divide-y">
-                  {fixedDeductBreakdown.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-gray-500">
-                      Thêm sản phẩm để xem dự kiến.
-                    </div>
-                  ) : (
-                    fixedDeductBreakdown.map((d, i) => (
-                      <div
-                        key={i}
-                        className="px-3 py-2 text-sm flex items-center justify-between"
-                      >
-                        <div>
-                          {d.name}{" "}
-                          {d.ripeness ? (
-                            <span className="text-gray-500">• {d.ripeness}</span>
-                          ) : null}
-                          {d.weight ? (
-                            <span className="text-gray-500"> • {d.weight}</span>
-                          ) : null}
-                        </div>
-                        <div className="font-medium">-{d.need}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  * Khi lưu, BE sẽ trừ tồn theo <b>aggregatedBreakdown</b> ở trên.
-                </p>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* MIX – chỉ khi productType=mix */}
-        {productType === "mix" && (
-          <section className={`AdminAdd__section AdminAdd__section--mix ${cardCls}`}>
-            <h2 className={sectionTitleCls}>🥗 Mix hoa quả (user tự chọn khi mua)</h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">
-                  Giá cơ sở theo kg (đ/kg)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  className={inputStyle}
-                  value={mixBasePricePerKg}
-                  onChange={(e) => setMixBasePricePerKg(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">
-                  Min items
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  className={inputStyle}
-                  value={minItems}
-                  onChange={(e) => setMinItems(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">
-                  Max items
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  className={inputStyle}
-                  value={maxItems}
-                  onChange={(e) => setMaxItems(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={allowDuplicates}
-                  onChange={(e) => setAllowDuplicates(e.target.checked)}
-                />
-                <span>Cho phép trùng</span>
-              </label>
-
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">
-                  Allowed categories (CSV mã/slug/ID)
-                </label>
-                <input
-                  className={inputStyle}
-                  value={allowedCategories}
-                  onChange={(e) => setAllowedCategories(e.target.value)}
-                  placeholder="citrus,berry"
-                />
               </div>
             </div>
           </section>

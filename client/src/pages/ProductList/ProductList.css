@@ -282,3 +282,45 @@ aside .discount-only-toggle * {
   transform: translateY(-2px);
   box-shadow: 0 10px 26px rgba(234, 88, 12, 0.18);
 }
+/* Panel & blocks */
+.ff-panel { border-color: #e5e7eb; }
+.ff-block + .ff-block { margin-top: 16px; }
+.ff-divider { margin: 16px 0; border: 0; height: 1px; background: #e5e7eb; }
+
+/* Card */
+.ff-filter-card { border: 1px solid #e5e7eb; border-radius: 14px; padding: 12px; }
+.ff-filter-card__header { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.ff-filter-title { font-size: 14px; font-weight: 700; }
+
+/* Actions */
+.ff-btn { font-size: 12px; padding: 6px 10px; border-radius: 999px; border: 1px solid transparent; cursor: pointer; }
+.ff-btn--soft { background: #f3f4f6; border-color: #e5e7eb; }
+.ff-btn--link { background: transparent; color: #2563eb; }
+
+/* Search */
+.ff-filter-search { margin-bottom: 8px; }
+.ff-input { width: 100%; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 13px; }
+
+/* List */
+.ff-filter-list { display: grid; gap: 6px; max-height: 240px; overflow: auto; padding-right: 6px; }
+.ff-filter-empty { color: #6b7280; font-size: 12px; }
+
+/* Checkbox */
+.ff-checkbox-item { display:flex; align-items:center; gap:8px; padding: 8px; border-radius: 10px; cursor: pointer; }
+.ff-checkbox-item:hover { background: #f9fafb; }
+.ff-checkbox-item.is-checked { background: #eef2ff; }
+.ff-checkbox { width: 16px; height: 16px; }
+.ff-checkbox-label { font-size: 13px; color: #111827; }
+.ff-checkbox-count { margin-left: 6px; font-size: 12px; color: #6b7280; }
+
+/* Switch line */
+.ff-switch-line { display:flex; align-items:center; gap:10px; }
+.ff-switch { width: 16px; height: 16px; }
+.ff-switch-label { font-size: 13px; }
+
+/* Select */
+.ff-select { border: 1px solid #e5e7eb; border-radius: 10px; padding: 8px 10px; font-size: 13px; }
+
+/* Badges on product card (just neutral styles; your Tailwind classes still apply) */
+.product-card__badge--discount { background: #f59e0b; color: #fff; }
+.product-card__badge--combo { background: #059669; color: #fff; }
