@@ -117,40 +117,23 @@ export default function UserList() {
 
   const handleDeleteUser = async (user) => {
     setSelectedUser(user);
-    
+
     // Lấy thông tin user hiện tại từ localStorage
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-    const isSelfDeletion = currentUser._id === user._id;
-    
+
+    // ❌ Không cho phép xóa admin đang đăng nhập
+    if (currentUser._id === user._id && user.role === "admin") {
+      alert("❌ Không thể xóa tài khoản admin đang đăng nhập!");
+      return;
+    }
+
     setModalMessage(
-      isSelfDeletion 
-        ? `⚠️ **CẢNH BÁO**: Bạn đang xóa chính tài khoản của mình! Sau khi xóa, bạn sẽ bị đăng xuất khỏi hệ thống và không thể truy cập vào trang admin nữa. Bạn có chắc chắn muốn tiếp tục không?`
-        : `Bạn có chắc chắn muốn **xóa vĩnh viễn** tài khoản "${user.username}" không? Hành động này không thể hoàn tác.`
+      `Bạn có chắc chắn muốn **xóa vĩnh viễn** tài khoản "${user.username}" không? Hành động này không thể hoàn tác.`
     );
-    
+
     setModalAction(() => async () => {
       try {
-        const response = await axiosInstance.delete(`http://localhost:3000/auth/users/${user._id}`);
-        
-        // ✅ Kiểm tra nếu admin xóa chính mình
-        if (response.data.isSelfDeletion) {
-          // Xóa tất cả dữ liệu user khỏi localStorage
-          localStorage.removeItem('user');
-          localStorage.removeItem('token');
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('cart');
-          localStorage.removeItem('cart_mix_draft_v1');
-          localStorage.removeItem('preorderPaying');
-          localStorage.removeItem('mix_widget_open_v1');
-          
-          alert('Tài khoản của bạn đã được xóa thành công. Bạn sẽ được chuyển về trang chủ.');
-          
-          // Chuyển về trang home
-          window.location.href = '/';
-          return;
-        }
-        
-        // Nếu không phải xóa chính mình, cập nhật danh sách bình thường
+        await axiosInstance.delete(`http://localhost:3000/auth/users/${user._id}`);
         setUsers(prevUsers => prevUsers.filter(u => u._id !== user._id));
         alert(`Tài khoản "${user.username}" đã được xóa thành công.`);
       } catch (err) {
@@ -162,6 +145,7 @@ export default function UserList() {
         setModalAction(null);
       }
     });
+
     setShowModal(true);
   };
 

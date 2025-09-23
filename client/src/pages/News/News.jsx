@@ -24,7 +24,6 @@ export default function News() {
     inner: {
       title: 'Ship nội thành Hà Nội',
       price: 30000,
-      // Ví dụ các quận / phường nội thành (bạn có thể thay thành danh sách phường/xã cụ thể)
       areas: [
         'Quận Hoàn Kiếm',
         'Quận Ba Đình',
@@ -37,7 +36,6 @@ export default function News() {
     outer: {
       title: 'Ship ngoại thành Hà Nội',
       price: 45000,
-      // Ví dụ các huyện / xã ngoại thành (có thể chỉnh)
       areas: [
         'Huyện Đông Anh',
         'Huyện Gia Lâm',
@@ -69,7 +67,7 @@ export default function News() {
       </div>
 
       {/* Phần Ship Hà Nội */}
-<section className="bg-white rounded-xl shadow-md p-6">
+      <section className="bg-white rounded-xl shadow-md p-6">
         <h2 className="text-2xl font-semibold text-gray-800 mb-4">Phí ship tại Hà Nội</h2>
         <p className="text-gray-600 mb-6">Phí ship nội thành, ngoại thành Hà Nội</p>
 
@@ -103,7 +101,9 @@ export default function News() {
           </div>
         </div>
 
-        <p className="text-xs text-gray-500 mt-4">Ghi chú: Giá ship áp dụng cho đơn hàng tiêu chuẩn. Trường hợp ngoại lệ (vùng quá xa, yêu cầu giao gấp, khối lượng lớn...) có thể phát sinh phí khác.</p>
+        <p className="text-xs text-gray-500 mt-4">
+          Ghi chú: Giá ship áp dụng cho đơn hàng tiêu chuẩn. Trường hợp ngoại lệ (vùng quá xa, yêu cầu giao gấp, khối lượng lớn...) có thể phát sinh phí khác.
+        </p>
       </section>
     </div>
   );
