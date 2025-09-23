@@ -26,6 +26,9 @@ router.get("/combos", productController.getCombos);
 // Tính giá COMBO động (mới)
 router.post("/combo-quote", productController.comboQuote);
 
+// ✅ Kiểm tra combo availability (bao gồm child products)
+router.post("/check-combo-availability", productController.checkComboAvailability);
+
 // Lấy sản phẩm theo tên danh mục
 router.get("/category-name/:categoryName", productController.getByCategoryName);
 

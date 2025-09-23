@@ -173,13 +173,13 @@ function AppWrapper() {
         </Route>
       </Routes>
 
-      {/* Floating widgets */}
+      {/* Floating widgets
       {!hideChatbot && <ChatFruitBot />}
       {!hideMixWidget && (
         <div className={`fixed bottom-4 ${mixDockSideClass} z-40`}>
           <MixWidgetDock />
         </div>
-      )}
+      )} */}
     </>
   );
 }

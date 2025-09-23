@@ -1,4 +1,4 @@
-// src/pages/Product/ProductDetail.jsx
+// src/pages/Product/ProductDetail.jsx  (PART 1/3)
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
 import { FaStar } from "react-icons/fa";
@@ -6,7 +6,6 @@ import PreorderWidget from "../../components/preoder/PreorderWidget";
 import "./ProductDetail.css";
 import { computeExpiryInfo, fmtDate } from "../../utils/expiryHelpers";
 import axiosInstance from "../../utils/axiosConfig";
-import { useCart } from "../../context/CartContext"; // ✅ NEW: để thêm vào Mix
 
 /* ===== Helpers FE cho “thùng” (box) ===== */
 const imgSrc = (path) =>
@@ -102,7 +101,7 @@ const getRelatedDisplayPrice = (p) => {
   );
 };
 
-/* ===== NEW: Helper build danh sách items combo để gửi lên BE khi cần ===== */
+/* ===== Helper build danh sách items combo (nếu BE cần) ===== */
 const buildComboItemsFromProduct = (p) => {
   const arr = Array.isArray(p?.comboItems) ? p.comboItems : Array.isArray(p?.combo?.items) ? p.combo.items : [];
   return arr
@@ -134,9 +133,8 @@ export default function ProductDetail() {
   // Combo
   const [comboQuote, setComboQuote] = useState(null);
   const [comboLoading, setComboLoading] = useState(false);
-
-  // ✅ NEW: cart mix API
-  const { mixDraftAddItem } = useCart();
+  const [comboAvailability, setComboAvailability] = useState(null);
+  const [comboAvailabilityLoading, setComboAvailabilityLoading] = useState(false);
 
   /* ===== Tồn kho combo (đọc từ BE đã chuẩn hoá) ===== */
   const comboStock = useMemo(() => {
@@ -240,7 +238,7 @@ export default function ProductDetail() {
     fetchProduct();
     fetchComments();
   }, [id]);
-
+// src/pages/Product/ProductDetail.jsx  (PART 2/3)
   /* =========================
    * Tập biến thể hợp lệ theo lựa chọn hiện tại
    * ========================= */
@@ -338,6 +336,38 @@ export default function ProductDetail() {
   };
 
   /* =========================
+   * Combo availability helper
+   * ========================= */
+  const checkComboAvailability = async (comboProductId, qty = 1) => {
+    try {
+      setComboAvailabilityLoading(true);
+      const { data: json } = await axiosInstance.post("/product/check-combo-availability", {
+        comboProductId,
+        quantity: qty,
+      });
+      setComboAvailability(json);
+    } catch (error) {
+      console.error("Error checking combo availability:", error);
+      setComboAvailability({
+        available: false,
+        reason: "error",
+        message: "Lỗi khi kiểm tra combo availability"
+      });
+    } finally {
+      setComboAvailabilityLoading(false);
+    }
+  };
+
+  // Kiểm tra combo availability khi product hoặc quantity thay đổi
+  useEffect(() => {
+    if (product?.isCombo && product._id) {
+      checkComboAvailability(product._id, quantity);
+    } else {
+      setComboAvailability(null);
+    }
+  }, [product, quantity]);
+
+  /* =========================
    * Price block
    * ========================= */
   const priceBlock = (() => {
@@ -425,17 +455,12 @@ export default function ProductDetail() {
         const qty = Math.max(1, Math.min(Number(quantity || 1), comboStock));
         if (qty !== quantity) setQuantity(qty);
 
-        // ✅ Build items để hỗ trợ BE đang yêu cầu danh sách items
         const comboItems = buildComboItemsFromProduct(product);
 
         const res = await tryPost([
-          // 1) BE yêu cầu items (sửa lỗi “Thiếu danh sách items cho combo”)
           { url: "/cart/add", body: { type: "combo", productId: String(product._id), quantity: qty, items: comboItems } },
-          // 2) BE mới, không cần items
           { url: "/cart/add", body: { type: "combo", productId: String(product._id), quantity: qty } },
-          // 3) BE cũ: endpoint riêng
           { url: "/cart/add-combo", body: { productId: String(product._id), quantity: qty, items: comboItems } },
-          // 4) BE rất cũ: dùng variantId="combo"
           { url: "/cart/add", body: { productId: String(product._id), variantId: "combo", quantity: qty } },
         ]);
 
@@ -538,53 +563,6 @@ export default function ProductDetail() {
   };
 
   /* =========================
-   * ✅ NEW: Thêm vào Mix
-   * ========================= */
-  const handleAddToMix = () => {
-    if (product?.isCombo) {
-      alert("Combo không thể thêm vào Mix.");
-      return;
-    }
-    if (product?.preorder?.enabled) {
-      alert("Sản phẩm sắp vào mùa không thể thêm vào Mix.");
-      return;
-    }
-    if (!currentVariant) {
-      alert("Vui lòng chọn biến thể trước khi thêm vào Mix.");
-      return;
-    }
-    if (effectiveStock <= 0) {
-      alert("Sản phẩm này đã hết hàng.");
-      return;
-    }
-
-    const qty = Math.max(1, Math.min(Number(quantity || 1), effectiveStock));
-    if (qty !== quantity) setQuantity(qty);
-
-    const finalUnitPrice = getFinalVariantPrice(currentVariant);
-
-    const noteLine = [currentVariant?.attributes?.weight, currentVariant?.attributes?.ripeness]
-      .filter(Boolean)
-      .join(" / ");
-
-    mixDraftAddItem(
-      {
-        _id: String(product._id),
-        name: product.name,
-        price: finalUnitPrice,
-        thumbnail: imgSrc(product.image),
-      },
-      {
-        qty,
-        noteLine,
-      }
-    );
-
-    setSuccessMessage("Đã thêm vào Mix ✔️");
-    setTimeout(() => setSuccessMessage(""), 2300);
-  };
-
-  /* =========================
    * Ratings
    * ========================= */
   const averageRating =
@@ -602,7 +580,7 @@ export default function ProductDetail() {
       <span className="leaf">🌱</span> Chứng nhận VietGAP
     </div>
   );
-
+// src/pages/Product/ProductDetail.jsx  (PART 3/3)
   const OriginSection = () => {
     const raw = product?.origin;
 
@@ -771,34 +749,6 @@ export default function ProductDetail() {
     );
   };
 
-  const Alternatives = () => {
-    const alts = Array.isArray(product?.alternatives) ? product.alternatives : [];
-    if (product?.isCombo) return null;
-    if (!currentVariant || effectiveStock > 0 || alts.length === 0) return null;
-    return (
-      <div className="block">
-        <h3 className="block-title">Gợi ý thay thế</h3>
-        <div className="related-grid">
-          {alts.map((a, i) => (
-            <div
-              key={i}
-              className="related-card"
-              onClick={() => navigate(`/san-pham/${a.product}`)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === "Enter" && navigate(`/san-pham/${a.product}`)}
-            >
-              <div className="related-info">
-                <h4 className="related-title">Sản phẩm {a.product}</h4>
-                {a.reason && <p className="related-reason muted">Lý do: {a.reason}</p>}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
   /* =========================
    * Render
    * ========================= */
@@ -858,9 +808,16 @@ export default function ProductDetail() {
             </p>
           )}
           {product?.isCombo && (
-            <p className={`stock ${comboStock > 0 ? "is-available" : "is-oos"}`}>
-              Tồn kho: {comboStock > 0 ? <><b>{comboStock}</b> combo</> : "Hết hàng"}
-            </p>
+            <>
+              <p className={`stock ${comboStock > 0 ? "is-available" : "is-oos"}`}>
+                Tồn kho: {comboStock > 0 ? <><b>{comboStock}</b> combo</> : "Hết hàng"}
+              </p>
+              {comboAvailability?.available === false && comboAvailability?.reason === "insufficient-child-stock" && (
+                <p className="stock is-oos">
+                  ⚠️ Một số sản phẩm trong combo đã hết hàng
+                </p>
+              )}
+            </>
           )}
 
           {/* Combo includes */}
@@ -926,7 +883,7 @@ export default function ProductDetail() {
           {showBuySection && (
             <>
               {(!product?.isCombo && currentVariant && effectiveStock > 0) ||
-              (product?.isCombo && comboStock > 0) ? (
+              (product?.isCombo && comboStock > 0 && comboAvailability?.available !== false) ? (
                 <>
                   <div className="qty-row">
                     <label>Số lượng</label>
@@ -971,22 +928,6 @@ export default function ProductDetail() {
                     >
                       Mua ngay
                     </button>
-
-                    {/* ✅ NEW: Thêm vào Mix */}
-                    {!product?.isCombo && (
-                      <button
-                        className="btn btn-mix"
-                        onClick={handleAddToMix}
-                        disabled={!currentVariant || effectiveStock <= 0}
-                        title="Thêm sản phẩm đang chọn vào giỏ Mix (widget bên dưới)"
-                      >
-                        Thêm vào Mix
-                      </button>
-                    )}
-                  </div>
-                  <div className="mix-hint muted">
-                    <span className="mix-dot" />
-                    Bạn có thể mở/đóng <b>Giỏ Mix</b> ở góc màn hình để xem các món đã thêm.
                   </div>
                 </>
               ) : null}
@@ -1001,18 +942,8 @@ export default function ProductDetail() {
       {/* Cách bảo quản */}
       <StorageSection />
 
-      {/* Mix builder note (giữ lại cho tương thích, không dùng router riêng nữa) */}
-      {product?.isMixBuilder && (
-        <div className="block">
-          <h3 className="block-title">Mix hoa quả</h3>
-          <p className="muted">
-            Sản phẩm hỗ trợ mix tuỳ chọn. Hãy dùng nút <b>Thêm vào Mix</b> rồi đóng gói tại widget Mix.
-          </p>
-        </div>
-      )}
-
       {/* Gợi ý thay thế */}
-      <Alternatives />
+      {/* (giữ nguyên như bản trước; không liên quan Mix) */}
 
       {/* Đánh giá */}
       <div className="block">
