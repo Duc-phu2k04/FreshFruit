@@ -102,11 +102,27 @@ export const updateUser = async (req, res) => {
 export const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
+    const currentUserId = req.user._id;
+    const isAdmin = req.user.role === 'admin';
+    
+    // Kiểm tra quyền: chỉ admin hoặc tự xóa chính mình
+    if (!isAdmin && currentUserId.toString() !== id) {
+      return res.status(403).json({ error: 'Bạn không có quyền xóa người dùng này' });
+    }
+    
     const deletedUser = await User.findByIdAndDelete(id);
     if (!deletedUser) {
       return res.status(404).json({ error: 'Không tìm thấy người dùng' });
     }
-    res.json({ message: 'Xóa người dùng thành công', user: deletedUser });
+    
+    // ✅ Kiểm tra nếu admin xóa chính mình
+    const isSelfDeletion = currentUserId.toString() === id;
+    
+    res.json({ 
+      message: 'Xóa người dùng thành công', 
+      user: deletedUser,
+      isSelfDeletion: isSelfDeletion // Flag để frontend biết cần đăng xuất
+    });
   } catch (err) {
     res.status(500).json({ error: 'Lỗi khi xóa người dùng' });
   }

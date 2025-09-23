@@ -23,7 +23,7 @@ const partnerCode = "MOMO";
 const accessKey = "F8BBA842ECF85";
 const secretKey = "K951B6PE1waDMi640xX08PD3vg6EkVlz";
 const redirectUrl = "http://localhost:5173/order-success";
-const ipnUrl = "https://570d49dabb27.ngrok-free.app/api/momo/ipn"; // ✅ bỏ khoảng trắng thừa
+const ipnUrl = "https://d2fd82414e58.ngrok-free.app/api/momo/ipn"; // ✅ bỏ khoảng trắng thừa
 
 /* ---------------------------------------------
  * Utils
@@ -651,4 +651,7 @@ export default {
   createMomoPayment,
   confirmMomoOrder,
   cancelMomoOrder,
+  _restoreStockForMixItem,
+  _restoreStockForComboItem,
+  _restoreStockForVariantItem,
 };

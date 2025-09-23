@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { TrendingUp, Package, DollarSign, ShoppingCart, Apple, Globe, Gift } from 'lucide-react';
+import { Package, DollarSign, ShoppingCart, Apple, Globe, Gift } from 'lucide-react';
 
 const StatCard = ({ icon: Icon, title, value, subtitle, color = "blue" }) => {
   const colorClasses = {
@@ -166,7 +166,7 @@ const Dashboard = () => {
         </div>
 
         {/* Tổng quan chung */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           <StatCard
             icon={DollarSign}
             title="Tổng Doanh Thu"
@@ -187,13 +187,6 @@ const Dashboard = () => {
             value={formatNumber(overview.successfulOrders)}
             subtitle={`Tổng ${formatNumber(overview.totalOrders)} đơn`}
             color="purple"
-          />
-          <StatCard
-            icon={TrendingUp}
-            title="Tăng Trưởng"
-            value={`${overview.growthRate >= 0 ? '+' : ''}${overview.growthRate}%`}
-            subtitle="So với tháng trước"
-            color={overview.growthRate >= 0 ? "green" : "red"}
           />
         </div>
 

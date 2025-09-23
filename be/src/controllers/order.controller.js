@@ -7,6 +7,7 @@ import Product from "../models/product.model.js";
 import mongoose from "mongoose";
 import { quoteShipping } from "../services/shipping.service.js";
 import { computeExpiryInfo } from "../utils/expiryHelpers.js";
+import momoService from "../services/momo.service.js";
 
 // ✅ DÙNG CHUNG logic tồn kho cho variant/combo + rollback
 import {
@@ -198,7 +199,8 @@ function buildComboSnapshotForOrder(ci) {
 
   return {
     type: "combo",
-    product: ci?.productId || null,
+    // 🔧 đảm bảo có id combo cho inventory service
+    product: ci?.productId || ci?.product || null,
     productName: snap.title || ci?.title || "Combo",
     isCombo: true,
     isMix: false,
@@ -515,13 +517,11 @@ async function decMixInController(mixSnap) {
             .sort((a, b) => {
               const akg = kgFromWeight(a?.attributes?.weight) || 0;
               const bkg = kgFromWeight(b?.attributes?.weight) || 0;
-              // ưu tiên biến thể có kg > 0 (lẻ theo kg), sau đó tới 0 (piece)
               return (akg === 0) - (bkg === 0);
             })
             .find((v) => Number(v?.price || 0) === price);
 
           if (maybe) chosenId = String(maybe._id);
-          // fallback: lấy biến thể lẻ đầu tiên (có kgFromWeight > 0) hoặc bất kỳ
           if (!chosenId) {
             const vLoose = variants.find((v) => (kgFromWeight(v?.attributes?.weight) || 0) > 0);
             chosenId = String((vLoose || variants[0] || {})._id || "");
@@ -661,7 +661,7 @@ async function normalizeOrderForResponse(req, orderLean) {
       shippingFee = Math.max(0, Math.round(Number(quote?.amount || 0)));
       shippingRuleName = quote?.ruleName || shippingRuleName;
 
-      console.log("[SHIPPING_DEBUG][normalizeUserOrder] re-quote:", {
+      console.log("[SHIPPING_DEBUG][normalizeUserOrder] re-quote]:", {
         orderId: o._id,
         districtCode,
         wardCode,
@@ -893,19 +893,14 @@ export const checkout = async (req, res) => {
     const decLogs = [];
     try {
       for (const snap of itemsSnapshot) {
-        // Combo trừ ở hook khác → bỏ qua tại đây
-        if (snap?.isCombo) {
-          dbg("DEC_SKIP_COMBO", { reqId, product: String(snap.product || "") });
-          continue;
-        }
-
-        dbg("DEC_BEGIN", { reqId, item: briefItem(snap), isMix: !!snap.isMix });
+        dbg("DEC_BEGIN", { reqId, item: briefItem(snap), isMix: !!snap.isMix, isCombo: !!snap.isCombo });
 
         let info;
         if (snap?.isMix) {
           // ✅ Mix: dùng decMixInController (trừ cả kg + đơn vị/biến thể)
           info = await decMixInController(snap);
         } else {
+          // ✅ Variant & Combo: dùng inventory service chung
           info = await decOneStockNonTx(snap);
         }
 
@@ -922,12 +917,9 @@ export const checkout = async (req, res) => {
         });
 
         if (!info?.ok) {
-          // build message
           let msg = "Không đủ tồn kho";
           if (snap?.isMix) msg = "Giỏ Mix không đủ tồn kho cho một hoặc nhiều thành phần.";
-          else if (snap?.variant) {
-            msg = `Không đủ tồn kho cho biến thể ${snap?.variant?.weight || ""} / ${snap?.variant?.ripeness || ""}`;
-          }
+          if (snap?.isCombo) msg = "Combo không đủ tồn kho hoặc thành phần combo thiếu hàng.";
 
           // Rollback những gì đã dec trước
           for (const d of decLogs.reverse()) {
@@ -1009,8 +1001,10 @@ export const checkout = async (req, res) => {
       catch (e) { assignedVouchers = null; }
     }
 
+    // ✅ bổ sung orderId ở top-level để FE dễ bắt
     return res.status(201).json({
       message: "Đặt hàng thành công",
+      orderId: order._id,
       order: {
         _id: order._id,
         customId: order.customId,
@@ -1087,7 +1081,7 @@ export const getAllOrders = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    const normalized = await Promise.all(
+  const normalized = await Promise.all(
       (Array.isArray(orders) ? orders : []).map((o) => normalizeOrderForResponse(req, o))
     );
 
@@ -1194,6 +1188,80 @@ export const deleteOrder = async (req, res) => {
     res.json({ message: "Đã huỷ đơn hàng thành công" });
   } catch (err) {
     res.status(500).json({ message: "Lỗi server khi huỷ đơn hàng", error: err.message });
+  }
+};
+
+/* -----------------------------------------------------------
+ * Hủy đơn hàng (thay đổi trạng thái thành cancelled)
+ * ---------------------------------------------------------*/
+export const cancelOrder = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const isAdmin = req.user.role === "admin";
+    const { id } = req.params;
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+
+    if (!isAdmin && order.user.toString() !== userId.toString()) {
+      return res.status(403).json({ message: "Bạn không có quyền hủy đơn này" });
+    }
+
+    // Chỉ cho phép hủy khi đơn hàng đang pending hoặc confirmed
+    if (!["pending", "confirmed"].includes(order.status)) {
+      return res.status(400).json({
+        message: "Chỉ được hủy đơn khi đang chờ xác nhận hoặc đã xác nhận",
+      });
+    }
+
+    // Chỉ cho phép hủy khi chưa thanh toán
+    if (order.paymentStatus === "paid") {
+      return res.status(400).json({
+        message: "Không thể hủy đơn hàng đã thanh toán",
+      });
+    }
+
+    // ✅ HOÀN LẠI SỐ LƯỢNG SẢN PHẨM TRƯỚC KHI HỦY ĐƠN HÀNG
+    try {
+      console.log(`[cancelOrder] Bắt đầu hoàn lại stock cho đơn hàng ${order._id}`);
+      for (const item of order.items || []) {
+        console.log(`[cancelOrder] Xử lý item:`, {
+          isMix: item.isMix,
+          isCombo: item.isCombo,
+          productId: item.product,
+          quantity: item.quantity,
+          variantId: item.variantId
+        });
+        
+        if (item.isMix || (item.mix && Array.isArray(item.mix.items))) {
+          // Mix items: hoàn lại từng sản phẩm trong mix
+          console.log(`[cancelOrder] Hoàn lại stock cho mix item`);
+          await momoService._restoreStockForMixItem(item);
+        } else if (item.isCombo && item.combo) {
+          // Combo: hoàn lại stock combo
+          console.log(`[cancelOrder] Hoàn lại stock cho combo item`);
+          await momoService._restoreStockForComboItem(item);
+        } else {
+          // Sản phẩm thường: hoàn lại theo variant
+          console.log(`[cancelOrder] Hoàn lại stock cho variant item`);
+          await momoService._restoreStockForVariantItem(item);
+        }
+      }
+      console.log(`[cancelOrder] Hoàn thành hoàn lại stock cho đơn hàng ${order._id}`);
+    } catch (stockError) {
+      console.error("[cancelOrder] Lỗi hoàn lại stock:", stockError?.message || stockError);
+      // Không dừng việc hủy đơn hàng nếu lỗi hoàn stock
+    }
+
+    // Cập nhật trạng thái đơn hàng thành cancelled
+    order.status = "cancelled";
+    order.timeline = order.timeline || {};
+    order.timeline.cancelledAt = new Date();
+    await order.save();
+
+    res.json({ message: "Đã hủy đơn hàng thành công và hoàn lại số lượng sản phẩm" });
+  } catch (err) {
+    res.status(500).json({ message: "Lỗi server khi hủy đơn hàng", error: err.message });
   }
 };
 

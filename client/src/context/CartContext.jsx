@@ -34,6 +34,25 @@ function computeMixDraftTotal(items) {
   return round(items.reduce((s, it) => s + calcMixLinePrice(it), 0), 0);
 }
 
+/* ========== Helpers chung cho combo ========== */
+const isComboProduct = (p) =>
+  p?.isCombo === true || String(p?.type || "").toLowerCase() === "combo";
+
+const buildComboItemsFromProduct = (p) => {
+  const arr = Array.isArray(p?.comboItems)
+    ? p.comboItems
+    : Array.isArray(p?.combo?.items)
+    ? p.combo.items
+    : [];
+  return arr
+    .map((it) => ({
+      productId: it?.product?._id || it?.product || it?.item?._id || it?.item || null,
+      variantId: it?.variant?._id || it?.variant || null,
+      qty: Number(it?.qty || 1),
+    }))
+    .filter((x) => x.productId && x.qty > 0);
+};
+
 export const CartProvider = ({ children }) => {
   const { user } = useAuth();
   const [cartItems, setCartItems] = useState([]);
@@ -100,7 +119,8 @@ export const CartProvider = ({ children }) => {
           setCartItems([]);
         }
       } else {
-        setCartItems(loadGuest());
+        // ✅ Xóa giỏ hàng khi đăng xuất
+        setCartItems([]);
       }
 
       setLoading(false);
@@ -109,23 +129,123 @@ export const CartProvider = ({ children }) => {
     fetchCart();
   }, [user]);
 
-  // ========== Sync guest cart ==========
+  // ✅ Xóa giỏ hàng khi user logout (từ đăng nhập thành chưa đăng nhập)
   useEffect(() => {
-    if (!user?._id) saveGuest(cartItems);
-  }, [cartItems, user]);
+    if (!user?._id) {
+      setCartItems([]);
+      // ✅ Xóa mix draft khi logout
+      setMixDraft({ items: [], note: "" });
+    }
+  }, [user?._id]);
 
   // ========== Actions ==========
-  const addToCart = async (product) => {
-    // Luồng server (không đổi)
+  /**
+   * addToCart(product, options?)
+   * options: { quantity, variantId, items }  // items dùng cho combo nếu muốn override
+   */
+  const addToCart = async (product, options = {}) => {
+    // ✅ Bắt buộc đăng nhập để thêm vào giỏ hàng
+    if (!user?._id) {
+      // Redirect đến trang đăng nhập với returnUrl để quay lại sau khi đăng nhập
+      const currentPath = window.location.pathname + window.location.search;
+      window.location.href = `/login?returnUrl=${encodeURIComponent(currentPath)}`;
+      return;
+    }
+
+    const quantity = Math.max(1, Number(options.quantity || 1));
+    const combo = isComboProduct(product);
+
+    // Luồng server
     if (user?._id && getToken()) {
+      const token = getToken();
+
+      const tryPost = async (tries) => {
+        let lastErr;
+        for (const t of tries) {
+          try {
+            const res = await fetch(`http://localhost:3000/api${t.url}`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify(t.body),
+            });
+            if (res.ok) return res;
+            lastErr = await res.json().catch(() => ({}));
+            // nếu 404 thì thử endpoint khác, nếu 400/401/422 thì dừng
+            if (res.status !== 404) break;
+          } catch (e) {
+            lastErr = e;
+            break;
+          }
+        }
+        throw lastErr || new Error("Không thể thêm vào giỏ");
+      };
+
       try {
+        if (combo) {
+          // build items từ product nếu chưa truyền options.items
+          const items =
+            Array.isArray(options.items) && options.items.length > 0
+              ? options.items
+              : buildComboItemsFromProduct(product);
+
+          const res = await tryPost([
+            // 1) BE yêu cầu items (tránh lỗi 400 thiếu items)
+            {
+              url: "/cart/add",
+              body: {
+                type: "combo",
+                productId: product._id,
+                quantity,
+                items,
+              },
+            },
+            // 2) BE mới không cần items
+            {
+              url: "/cart/add",
+              body: {
+                type: "combo",
+                productId: product._id,
+                quantity,
+              },
+            },
+            // 3) BE cũ endpoint riêng
+            {
+              url: "/cart/add-combo",
+              body: {
+                productId: product._id,
+                quantity,
+                items,
+              },
+            },
+            // 4) BE rất cũ: variantId="combo"
+            {
+              url: "/cart/add",
+              body: { productId: product._id, variantId: "combo", quantity },
+            },
+          ]);
+
+          const updated = await res.json().catch(() => ({}));
+          if (updated?.cart?.items) setCartItems(updated.cart.items);
+          return;
+        }
+
+        // HÀNG THƯỜNG
+        const payload = {
+          productId: product._id,
+          quantity,
+          ...(options.variantId ? { variantId: options.variantId } : {}),
+        };
+
         const res = await fetch("http://localhost:3000/api/cart/add", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${getToken()}`,
+            Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ productId: product._id, quantity: 1 }),
+          body: JSON.stringify(payload),
         });
 
         if (res.status === 401) {
@@ -140,15 +260,27 @@ export const CartProvider = ({ children }) => {
       }
     }
 
-    // Guest (không đổi)
+    // Guest (giữ nguyên luồng, thêm hỗ trợ combo)
     setCartItems((prev) => {
+      if (combo) {
+        const line = {
+          _id: genId("combo"),
+          type: "combo",
+          product: { _id: product._id, name: product.name },
+          // ưu tiên comboPrice nếu có, fallback price
+          price: Number(product.comboPrice || product.price || 0),
+          quantity,
+        };
+        return [...prev, line];
+      }
+
       const existing = prev.find((i) => i._id === product._id);
       if (existing) {
         return prev.map((i) =>
-          i._id === product._id ? { ...i, quantity: i.quantity + 1 } : i
+          i._id === product._id ? { ...i, quantity: (i.quantity || 0) + quantity } : i
         );
       }
-      return [...prev, { ...product, quantity: 1 }];
+      return [...prev, { ...product, quantity }];
     });
   };
 
@@ -186,7 +318,9 @@ export const CartProvider = ({ children }) => {
     }
 
     // Guest (giữ nguyên)
-    setCartItems((prev) => prev.filter((item) => item._id !== productId));
+    setCartItems((prev) =>
+      prev.filter((item) => item._id !== productId)
+    );
   };
 
   const updateQuantity = async (productId, quantity) => {

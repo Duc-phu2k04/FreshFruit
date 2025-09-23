@@ -252,6 +252,44 @@ async function decVariantByAttrs(productId, { weight, ripeness }, qty, session, 
   }
 }
 
+/** giảm theo row bất kỳ: ưu tiên variantId → attrs → fallback nhỏ nhất/1kg */
+async function decVariantSmart(productId, row, qty, session, ProductModel = Product) {
+  const variantId =
+    row?.variantId || row?.variant || row?.variant?._id || null;
+  const weight = row?.weight || row?.attributes?.weight || "";
+  const ripeness = row?.ripeness || row?.attributes?.ripeness || "";
+
+  // 1) variantId
+  if (variantId) {
+    try {
+      await decVariantById(productId, variantId, qty, session, ProductModel);
+      return;
+    } catch (e) {
+      // fall through to attrs
+    }
+  }
+
+  // 2) attrs
+  if (weight || ripeness) {
+    try {
+      await decVariantByAttrs(productId, { weight, ripeness }, qty, session, ProductModel);
+      return;
+    } catch (e) {
+      // fall through to fallback
+    }
+  }
+
+  // 3) fallback: chọn biến thể 1kg hoặc lẻ nhỏ nhất
+  const p = await ProductModel.findById(productId, { variants: 1 }).lean();
+  if (!p) throw new Error("Sản phẩm con không tồn tại");
+
+  const v1 = findOneKgVariant(p);
+  const chosen = v1?.v || v1 || findSmallestLooseVariant(p)?.v || null;
+  if (!chosen) throw new Error("Không tìm thấy biến thể phù hợp để trừ tồn");
+
+  await decVariantById(productId, chosen._id, qty, session, ProductModel);
+}
+
 /** Trừ 1 dòng hàng thường (variant) */
 export async function deductVariantLine(line, session, ProductModel = Product) {
   // line: { productId, variantId?, variant:{weight,ripeness}, quantity }
@@ -291,16 +329,18 @@ export async function deductVariantLine(line, session, ProductModel = Product) {
 function buildComboAggregatedFallback(comboProduct) {
   const map = new Map();
   for (const it of comboProduct?.comboItems || []) {
-    const key = [
-      String(it.product || ""),
-      String(it.ripeness || ""),
-      String(it.weight || ""),
-    ].join("__");
+    const productId = it?.product?._id || it?.product;
+    const ripeness = it?.ripeness || it?.variant?.attributes?.ripeness || null;
+    const weight = it?.weight || it?.variant?.attributes?.weight || null;
+    const variantId = it?.variant?._id || it?.variantId || it?.variant || null;
+
+    const key = [String(productId || ""), String(ripeness || ""), String(weight || ""), String(variantId || "")].join("__");
 
     const prev = map.get(key) || {
-      product: it.product,
-      ripeness: it.ripeness || null,
-      weight: it.weight || null,
+      product: productId,
+      ripeness,
+      weight,
+      variantId, // ✅ giữ variantId nếu có để trừ chính xác
       need: 0,
     };
     prev.need += Math.max(1, Number(it.qty || 0));
@@ -320,6 +360,7 @@ export async function deductComboLine(line, session, ProductModel = Product) {
       isCombo: 1,
       "comboInventory.autoDeduct.aggregatedBreakdown": 1,
       "comboInventory.stock": 1,
+      comboStock: 1, // ✅ legacy support
       comboItems: 1,
     })
     .lean();
@@ -329,13 +370,28 @@ export async function deductComboLine(line, session, ProductModel = Product) {
     throw new Error("Sản phẩm không phải combo");
   }
 
-  // 1) Trừ tồn của chính combo
-  const res = await ProductModel.updateOne(
-    { _id: combo._id, "comboInventory.stock": { $gte: combosQty } },
-    { $inc: { "comboInventory.stock": -combosQty } },
-    { session }
-  );
-  if (res.modifiedCount !== 1) {
+  // 1) Trừ tồn của chính combo (ưu tiên comboInventory.stock, fallback comboStock)
+  let decComboDone = false;
+
+  if (typeof combo?.comboInventory?.stock === "number") {
+    const r = await ProductModel.updateOne(
+      { _id: combo._id, "comboInventory.stock": { $gte: combosQty } },
+      { $inc: { "comboInventory.stock": -combosQty } },
+      { session }
+    );
+    if (r.modifiedCount === 1) decComboDone = true;
+  }
+
+  if (!decComboDone && typeof combo?.comboStock === "number") {
+    const r2 = await ProductModel.updateOne(
+      { _id: combo._id, comboStock: { $gte: combosQty } },
+      { $inc: { comboStock: -combosQty } },
+      { session }
+    );
+    if (r2.modifiedCount === 1) decComboDone = true;
+  }
+
+  if (!decComboDone) {
     throw new Error("Không đủ tồn kho combo");
   }
 
@@ -346,15 +402,71 @@ export async function deductComboLine(line, session, ProductModel = Product) {
       ? combo.comboInventory.autoDeduct.aggregatedBreakdown
       : buildComboAggregatedFallback(combo);
 
-  for (const row of agg) {
-    const productId = row.product;
-    const weight = row.weight || "";
-    const ripeness = row.ripeness || "";
-    const need = Math.max(0, Number(row.need || 0));
-    if (!productId || need <= 0) continue;
+  const childrenDone = [];
+  try {
+    for (const row of agg) {
+      const productId = row.product;
+      const need = Math.max(0, Number(row.need || 0));
+      if (!productId || need <= 0) continue;
 
-    const qty = need * combosQty;
-    await decVariantByAttrs(productId, { weight, ripeness }, qty, session, ProductModel);
+      const qty = need * combosQty;
+
+      // ✅ ưu tiên variantId nếu có, sau đó attrs, sau nữa là fallback 1kg/nhỏ nhất
+      await decVariantSmart(productId, row, qty, session, ProductModel);
+
+      childrenDone.push({
+        productId,
+        weight: row.weight || "",
+        ripeness: row.ripeness || "",
+        variantId: row.variantId || null,
+        qty,
+      });
+    }
+  } catch (e) {
+    // rollback combo stock vừa trừ
+    if (typeof combo?.comboInventory?.stock === "number") {
+      await ProductModel.updateOne(
+        { _id: combo._id },
+        { $inc: { "comboInventory.stock": combosQty } },
+        { session }
+      );
+    } else if (typeof combo?.comboStock === "number") {
+      await ProductModel.updateOne(
+        { _id: combo._id },
+        { $inc: { comboStock: combosQty } },
+        { session }
+      );
+    }
+
+    // rollback các child đã trừ
+    for (const done of childrenDone.reverse()) {
+      if (done.variantId) {
+        await ProductModel.updateOne(
+          { _id: done.productId },
+          { $inc: { "variants.$[elem].stock": done.qty } },
+          {
+            session,
+            arrayFilters: [{ "elem._id": new mongoose.Types.ObjectId(String(done.variantId)) }],
+          }
+        );
+      } else {
+        await ProductModel.updateOne(
+          { _id: done.productId },
+          { $inc: { "variants.$[elem].stock": done.qty } },
+          {
+            session,
+            arrayFilters: [
+              {
+                "elem.attributes.weight": String(done.weight || ""),
+                "elem.attributes.ripeness": String(done.ripeness || ""),
+              },
+            ],
+          }
+        );
+      }
+    }
+
+    throw e;
   }
 }
 
@@ -499,10 +611,9 @@ export async function decMixEntriesNonTx(mixSnap, ProductModel = Product) {
         if (remainKg <= eps) break;
 
         const perUnitKg = bucket.kgPerUnit;
-        const canUnits = Math.max(0, Math.floor(bucket.stockUnits)); // đơn vị hiện có (nguyên)
+        const canUnits = Math.max(0, Math.floor(bucket.stockUnits));
         if (canUnits <= 0 || perUnitKg <= 0) continue;
 
-        // số đơn vị cần từ biến thể này để giúp cover phần còn thiếu
         const unitsNeeded = Math.min(
           canUnits,
           Math.max(1, Math.ceil((remainKg - eps) / perUnitKg))
@@ -510,7 +621,6 @@ export async function decMixEntriesNonTx(mixSnap, ProductModel = Product) {
 
         if (unitsNeeded <= 0) continue;
 
-        // trừ kho cho biến thể này
         const r = await ProductModel.updateOne(
           {
             _id: pid,
@@ -521,7 +631,7 @@ export async function decMixEntriesNonTx(mixSnap, ProductModel = Product) {
         );
 
         if (r.modifiedCount !== 1) {
-          // fail — rollback những gì đã trừ với sản phẩm này và toàn bộ trước đó
+          // fail — rollback
           for (const d of perProductLogs.reverse()) {
             await ProductModel.updateOne(
               { _id: d.productId, "variants._id": d.variantId },
@@ -553,7 +663,7 @@ export async function decMixEntriesNonTx(mixSnap, ProductModel = Product) {
       }
 
       if (remainKg > eps) {
-        // Không cover đủ dù đã đi hết loose (không nên xảy ra do check tổng ở trên)
+        // Không cover đủ dù đã đi hết loose (hiếm)
         for (const d of perProductLogs.reverse()) {
           await ProductModel.updateOne(
             { _id: d.productId, "variants._id": d.variantId },
@@ -574,7 +684,6 @@ export async function decMixEntriesNonTx(mixSnap, ProductModel = Product) {
         };
       }
 
-      // gộp logs của sản phẩm này vào tổng mix logs
       allLogs.push(...perProductLogs);
     }
 
@@ -598,7 +707,7 @@ export async function decOneStockNonTx(snap, ProductModel = Product) {
   const isMix =
     snap?.type === "mix" || snap?.isMix === true || !!snap?.mix;
 
-  // ========== MIX (chỉ xử lý entry theo kg) ========== (đã nâng cấp phân bổ đa biến thể)
+  // ========== MIX ==========
   if (isMix) {
     return decMixEntriesNonTx(snap, ProductModel);
   }
@@ -612,6 +721,7 @@ export async function decOneStockNonTx(snap, ProductModel = Product) {
         isCombo: 1,
         "comboInventory.autoDeduct.aggregatedBreakdown": 1,
         "comboInventory.stock": 1,
+        comboStock: 1, // ✅ legacy support
         comboItems: 1,
       })
       .lean();
@@ -621,12 +731,23 @@ export async function decOneStockNonTx(snap, ProductModel = Product) {
       return { ok: false, reason: "not-a-combo" };
     }
 
-    // 1) trừ tồn combo
-    const res = await ProductModel.updateOne(
-      { _id: combo._id, "comboInventory.stock": { $gte: combosQty } },
-      { $inc: { "comboInventory.stock": -combosQty } }
-    );
-    if (res.modifiedCount !== 1) {
+    // 1) trừ tồn combo (ưu tiên comboInventory, fallback comboStock)
+    let decComboDone = false;
+    if (typeof combo?.comboInventory?.stock === "number") {
+      const r = await ProductModel.updateOne(
+        { _id: combo._id, "comboInventory.stock": { $gte: combosQty } },
+        { $inc: { "comboInventory.stock": -combosQty } }
+      );
+      if (r.modifiedCount === 1) decComboDone = true;
+    }
+    if (!decComboDone && typeof combo?.comboStock === "number") {
+      const r2 = await ProductModel.updateOne(
+        { _id: combo._id, comboStock: { $gte: combosQty } },
+        { $inc: { comboStock: -combosQty } }
+      );
+      if (r2.modifiedCount === 1) decComboDone = true;
+    }
+    if (!decComboDone) {
       return { ok: false, reason: "insufficient-combo" };
     }
 
@@ -640,51 +761,61 @@ export async function decOneStockNonTx(snap, ProductModel = Product) {
     const childrenDone = [];
     for (const row of agg) {
       const productId = row.product;
-      const weight = row.weight || "";
-      const ripeness = row.ripeness || "";
       const need = Math.max(0, Number(row.need || 0));
       if (!productId || need <= 0) continue;
 
       const qty = need * combosQty;
 
-      const r = await ProductModel.updateOne(
-        { _id: productId },
-        { $inc: { "variants.$[elem].stock": -qty } },
-        {
-          arrayFilters: [
-            {
-              "elem.attributes.weight": String(weight || ""),
-              "elem.attributes.ripeness": String(ripeness || ""),
-              "elem.stock": { $gte: qty },
-            },
-          ],
-        }
-      );
-
-      if (r.modifiedCount !== 1) {
+      try {
+        await decVariantSmart(productId, row, qty, null, ProductModel);
+      } catch (e) {
         // rollback những gì đã trừ trước đó (bao gồm stock combo)
-        await ProductModel.updateOne(
-          { _id: combo._id },
-          { $inc: { "comboInventory.stock": combosQty } }
-        );
-        for (const done of childrenDone) {
+        if (typeof combo?.comboInventory?.stock === "number") {
           await ProductModel.updateOne(
-            { _id: done.productId },
-            { $inc: { "variants.$[elem].stock": done.qty } },
-            {
-              arrayFilters: [
-                {
-                  "elem.attributes.weight": String(done.weight || ""),
-                  "elem.attributes.ripeness": String(done.ripeness || ""),
-                },
-              ],
-            }
+            { _id: combo._id },
+            { $inc: { "comboInventory.stock": combosQty } }
           );
+        } else if (typeof combo?.comboStock === "number") {
+          await ProductModel.updateOne(
+            { _id: combo._id },
+            { $inc: { comboStock: combosQty } }
+          );
+        }
+
+        for (const done of childrenDone.reverse()) {
+          if (done.variantId) {
+            await ProductModel.updateOne(
+              { _id: done.productId },
+              { $inc: { "variants.$[elem].stock": done.qty } },
+              {
+                arrayFilters: [{ "elem._id": new mongoose.Types.ObjectId(String(done.variantId)) }],
+              }
+            );
+          } else {
+            await ProductModel.updateOne(
+              { _id: done.productId },
+              { $inc: { "variants.$[elem].stock": done.qty } },
+              {
+                arrayFilters: [
+                  {
+                    "elem.attributes.weight": String(done.weight || ""),
+                    "elem.attributes.ripeness": String(done.ripeness || ""),
+                  },
+                ],
+              }
+            );
+          }
         }
         return { ok: false, reason: "insufficient-child-variant" };
       }
 
-      childrenDone.push({ productId, weight, ripeness, qty });
+      childrenDone.push({
+        productId,
+        weight: row.weight || "",
+        ripeness: row.ripeness || "",
+        variantId: row.variantId || null,
+        qty,
+      });
     }
 
     return {
@@ -777,25 +908,42 @@ export async function rollbackOneStock(snap, info, ProductModel = Product) {
   if (info.mode === "combo") {
     // trả lại stock combo
     if (info?.combo?.comboId && info?.combo?.qty) {
-      await ProductModel.updateOne(
+      // thử comboInventory trước, nếu không có thì comboStock
+      const r = await ProductModel.updateOne(
         { _id: info.combo.comboId },
         { $inc: { "comboInventory.stock": Number(info.combo.qty) } }
       );
+      if (r.modifiedCount !== 1) {
+        await ProductModel.updateOne(
+          { _id: info.combo.comboId },
+          { $inc: { comboStock: Number(info.combo.qty) } }
+        );
+      }
     }
     // trả lại từng biến thể con
     for (const done of info.children || []) {
-      await ProductModel.updateOne(
-        { _id: done.productId },
-        { $inc: { "variants.$[elem].stock": Number(done.qty || 0) } },
-        {
-          arrayFilters: [
-            {
-              "elem.attributes.weight": String(done.weight || ""),
-              "elem.attributes.ripeness": String(done.ripeness || ""),
-            },
-          ],
-        }
-      );
+      if (done.variantId) {
+        await ProductModel.updateOne(
+          { _id: done.productId },
+          { $inc: { "variants.$[elem].stock": Number(done.qty || 0) } },
+          {
+            arrayFilters: [{ "elem._id": new mongoose.Types.ObjectId(String(done.variantId)) }],
+          }
+        );
+      } else {
+        await ProductModel.updateOne(
+          { _id: done.productId },
+          { $inc: { "variants.$[elem].stock": Number(done.qty || 0) } },
+          {
+            arrayFilters: [
+              {
+                "elem.attributes.weight": String(done.weight || ""),
+                "elem.attributes.ripeness": String(done.ripeness || ""),
+              },
+            ],
+          }
+        );
+      }
     }
     return;
   }
