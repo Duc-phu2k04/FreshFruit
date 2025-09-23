@@ -72,8 +72,7 @@ import { AuthProvider } from "./context/AuthContext";
 import ChatFruitBot from "./components/chatbot/ChatFruitBot";
 import MixWidgetDock from "./pages/mix/MixWidgetDock";
 
-/* ===== Session manager (side effects) ===== */
-import sessionManager from "./utils/sessionManager";
+
 
 function AppWrapper() {
   const location = useLocation();
@@ -186,11 +185,7 @@ function AppWrapper() {
 }
 
 function App() {
-  // Kích hoạt sessionManager (side effect)
-  React.useEffect(() => {
-    sessionManager?.init?.(); // nếu có hàm init; nếu không, side-effect import vẫn đủ
-    // console.log("SessionManager activated");
-  }, []);
+
 
   return (
     <AuthProvider>
