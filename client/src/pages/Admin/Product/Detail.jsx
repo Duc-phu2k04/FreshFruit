@@ -74,6 +74,16 @@ export default function Detail() {
       setLoading(true);
       const res = await axiosInstance.get(`/product/${id}`);
       const data = res.data;
+      
+      // ✅ Debug: Log variants trước khi set state
+      console.log("🔄 [Frontend] Fetched product variants:", data.variants?.map(v => ({
+        _id: v._id,
+        weight: v.attributes?.weight,
+        ripeness: v.attributes?.ripeness,
+        price: v.price,
+        stock: v.stock
+      })));
+      
       setProduct(data);
 
       // ---- map Expiry từ server vào form ----
@@ -157,10 +167,41 @@ export default function Detail() {
           },
         });
       } else {
-        await axiosInstance.put(`/product/${id}/variant/${variantId}`, {
+        // ✅ Tìm variant hiện tại để lấy attributes và debug
+        const currentVariant = product.variants.find(v => v._id === variantId);
+        if (!currentVariant) {
+          alert("❌ Không tìm thấy biến thể");
+          return;
+        }
+
+        console.log("🔍 Debug variant update:", {
+          variantId,
+          currentVariant: {
+            weight: currentVariant.attributes?.weight,
+            ripeness: currentVariant.attributes?.ripeness,
+            price: currentVariant.price,
+            stock: currentVariant.stock
+          },
+          updatedData
+        });
+
+        const updatePayload = {
           price: Number(updatedData.price) || 0,
           stock: Number(updatedData.stock) || 0,
+          // ✅ Gửi kèm attributes để đảm bảo không bị ghi đè
+          attributes: {
+            weight: currentVariant.attributes?.weight || "",
+            ripeness: currentVariant.attributes?.ripeness || "",
+            ...currentVariant.attributes
+          }
+        };
+        
+        console.log("🚀 [Frontend] Sending API request:", {
+          url: `/product/${id}/variant/${variantId}`,
+          payload: updatePayload
         });
+        
+        await axiosInstance.put(`/product/${id}/variant/${variantId}`, updatePayload);
       }
       alert("✅ Cập nhật thành công");
       fetchProduct();
@@ -557,14 +598,28 @@ export default function Detail() {
                     type="number"
                     min={0}
                     value={v.price || 0}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      console.log("🔍 [Frontend] Updating price for variant:", {
+                        targetId: v._id,
+                        targetWeight: v.attributes?.weight,
+                        targetRipeness: v.attributes?.ripeness,
+                        newPrice: e.target.value
+                      });
                       setProduct((prev) => ({
                         ...prev,
-                        variants: prev.variants.map((item) =>
-                          item._id === v._id ? { ...item, price: Number(e.target.value) } : item
-                        ),
-                      }))
-                    }
+                        variants: prev.variants.map((item) => {
+                          const isMatch = item._id.toString() === v._id.toString();
+                          if (isMatch) {
+                            console.log("✅ [Frontend] Found matching variant for price update:", {
+                              itemId: item._id,
+                              itemWeight: item.attributes?.weight,
+                              itemRipeness: item.attributes?.ripeness
+                            });
+                          }
+                          return isMatch ? { ...item, price: Number(e.target.value) } : item;
+                        }),
+                      }));
+                    }}
                     className="border px-2 py-1 w-28 rounded"
                   />
                 </td>
@@ -573,14 +628,28 @@ export default function Detail() {
                     type="number"
                     min={0}
                     value={v.stock || 0}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      console.log("🔍 [Frontend] Updating stock for variant:", {
+                        targetId: v._id,
+                        targetWeight: v.attributes?.weight,
+                        targetRipeness: v.attributes?.ripeness,
+                        newStock: e.target.value
+                      });
                       setProduct((prev) => ({
                         ...prev,
-                        variants: prev.variants.map((item) =>
-                          item._id === v._id ? { ...item, stock: Number(e.target.value) } : item
-                        ),
-                      }))
-                    }
+                        variants: prev.variants.map((item) => {
+                          const isMatch = item._id.toString() === v._id.toString();
+                          if (isMatch) {
+                            console.log("✅ [Frontend] Found matching variant for stock update:", {
+                              itemId: item._id,
+                              itemWeight: item.attributes?.weight,
+                              itemRipeness: item.attributes?.ripeness
+                            });
+                          }
+                          return isMatch ? { ...item, stock: Number(e.target.value) } : item;
+                        }),
+                      }));
+                    }}
                     className="border px-2 py-1 w-24 rounded"
                   />
                 </td>
