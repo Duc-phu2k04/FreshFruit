@@ -4,6 +4,7 @@ import voucherService from "../services/voucher.service.js";
 import Order from "../models/order.model.js";
 import Address from "../models/address.model.js";
 import Product from "../models/product.model.js";
+import Cart from "../models/cart.model.js";
 import mongoose from "mongoose";
 import { quoteShipping } from "../services/shipping.service.js";
 import { computeExpiryInfo } from "../utils/expiryHelpers.js";
@@ -999,6 +1000,72 @@ export const checkout = async (req, res) => {
     if (order.paymentStatus === "paid") {
       try { assignedVouchers = await voucherService.assignVoucherBasedOnSpending(userId); }
       catch (e) { assignedVouchers = null; }
+    }
+
+    // ✅ Xóa sản phẩm khỏi giỏ hàng sau khi tạo order thành công
+    try {
+      console.log("🛒 [Checkout Controller] Starting cart cleanup for user:", userId);
+      const cart = await Cart.findOne({ user: userId });
+      if (!cart) {
+        console.log("🛒 [Checkout Controller] Cart not found for user:", userId);
+      } else {
+        console.log("🛒 [Checkout Controller] Cart before cleanup:", cart.items.length, "items");
+        
+        // Xóa items đã mua
+        for (const orderItem of itemsSnapshot) {
+          if (orderItem.variantId) {
+            // Variant items: xóa theo product + variantId
+            const variantItems = cart.items.filter(item => 
+              item.type === "variant" && 
+              item.product.toString() === orderItem.product.toString() &&
+              item.variantId.toString() === orderItem.variantId.toString()
+            );
+            
+            // Xóa số lượng đã mua
+            let remainingQty = orderItem.quantity;
+            for (const cartItem of variantItems) {
+              if (remainingQty <= 0) break;
+              
+              if (cartItem.quantity <= remainingQty) {
+                // Xóa toàn bộ item này
+                cart.items.pull(cartItem._id);
+                remainingQty -= cartItem.quantity;
+              } else {
+                // Giảm số lượng
+                cartItem.quantity -= remainingQty;
+                remainingQty = 0;
+              }
+            }
+          } else if (orderItem.isCombo) {
+            // Combo items: xóa theo product + type
+            const comboItems = cart.items.filter(item => 
+              item.type === "combo" && 
+              item.product.toString() === orderItem.product.toString()
+            );
+            
+            // Xóa số lượng đã mua
+            let remainingQty = orderItem.quantity;
+            for (const cartItem of comboItems) {
+              if (remainingQty <= 0) break;
+              
+              if (cartItem.quantity <= remainingQty) {
+                // Xóa toàn bộ item này
+                cart.items.pull(cartItem._id);
+                remainingQty -= cartItem.quantity;
+              } else {
+                // Giảm số lượng
+                cartItem.quantity -= remainingQty;
+                remainingQty = 0;
+              }
+            }
+          }
+        }
+        
+        await cart.save();
+        console.log("🛒 [Checkout Controller] Cart after cleanup:", cart.items.length, "items");
+      }
+    } catch (e) {
+      console.warn("🛒 [Checkout Controller] Cart cleanup error (non-fatal):", e?.message || e);
     }
 
     // ✅ bổ sung orderId ở top-level để FE dễ bắt

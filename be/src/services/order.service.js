@@ -478,17 +478,75 @@ export const createOrder = async ({
     console.warn("[order.service] giảm số lượng voucher lỗi:", e?.message || e);
   }
 
-  // 8b) Xoá các item variant khỏi giỏ (combo để nguyên) – soft fail
+  // 8b) Xoá các item khỏi giỏ (variant + combo) – soft fail
   try {
-    const pullConds = items
-      .filter((i) => i.variantId) // chỉ xoá dòng variant
-      .map((i) => ({ product: i.product, variantId: i.variantId }));
-    if (pullConds.length) {
-      await Cart.findOneAndUpdate(
-        { user: userId },
-        { $pull: { items: { $or: pullConds } } }
-      );
+    console.log("🛒 [Order Service] Starting cart cleanup for user:", userId);
+    const cart = await Cart.findOne({ user: userId });
+    if (!cart) {
+      console.log("🛒 [Order Service] Cart not found for user:", userId);
+      return;
     }
+    
+    console.log("🛒 [Order Service] Cart before cleanup:", cart.items.length, "items");
+    console.log("🛒 [Order Service] Order items to remove:", items.map(item => ({
+      productId: item.product,
+      variantId: item.variantId,
+      isCombo: item.isCombo,
+      quantity: item.quantity
+    })));
+    
+    for (const orderItem of items) {
+      if (orderItem.variantId) {
+        // Variant items: xóa theo product + variantId
+        const variantItems = cart.items.filter(item => 
+          item.type === "variant" && 
+          item.product.toString() === orderItem.product.toString() &&
+          item.variantId.toString() === orderItem.variantId.toString()
+        );
+        
+        // Xóa số lượng đã mua
+        let remainingQty = orderItem.quantity;
+        for (const cartItem of variantItems) {
+          if (remainingQty <= 0) break;
+          
+          if (cartItem.quantity <= remainingQty) {
+            // Xóa toàn bộ item này
+            cart.items.pull(cartItem._id);
+            remainingQty -= cartItem.quantity;
+          } else {
+            // Giảm số lượng
+            cartItem.quantity -= remainingQty;
+            remainingQty = 0;
+          }
+        }
+      } else if (orderItem.isCombo) {
+        // Combo items: xóa theo product + type
+        const comboItems = cart.items.filter(item => 
+          item.type === "combo" && 
+          item.product.toString() === orderItem.product.toString()
+        );
+        
+        // Xóa số lượng đã mua
+        let remainingQty = orderItem.quantity;
+        for (const cartItem of comboItems) {
+          if (remainingQty <= 0) break;
+          
+          if (cartItem.quantity <= remainingQty) {
+            // Xóa toàn bộ item này
+            cart.items.pull(cartItem._id);
+            remainingQty -= cartItem.quantity;
+          } else {
+            // Giảm số lượng
+            cartItem.quantity -= remainingQty;
+            remainingQty = 0;
+          }
+        }
+      }
+    }
+    
+    await cart.save();
+    console.log("🛒 [Order Service] Cart after cleanup:", cart.items.length, "items");
+    console.log("🛒 [Order Service] Updated cart for user", userId, "after order");
   } catch (e) {
     console.warn("[order.service] remove-from-cart lỗi (bỏ qua):", e?.message || e);
   }

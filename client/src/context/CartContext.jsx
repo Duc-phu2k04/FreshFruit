@@ -100,6 +100,7 @@ export const CartProvider = ({ children }) => {
         }
 
         try {
+          console.log("🛒 [CartContext] Fetching cart from server...");
           const res = await fetch("http://localhost:3000/api/cart", {
             headers: { Authorization: `Bearer ${token}` },
           });
@@ -113,6 +114,8 @@ export const CartProvider = ({ children }) => {
           }
 
           const data = await res.json();
+          console.log("🛒 [CartContext] Server cart response:", data);
+          console.log("🛒 [CartContext] Cart items count:", data.items?.length || 0);
           setCartItems(data.items || []);
         } catch (err) {
           console.error("Lỗi lấy giỏ hàng từ server:", err);

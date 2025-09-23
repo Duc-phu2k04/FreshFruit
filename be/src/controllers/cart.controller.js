@@ -440,12 +440,25 @@ export const getCartByUser = async (req, res) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
+    console.log("🛒 [Backend] Getting cart for user:", userId);
     const cart = await Cart.findOne({ user: userId }).populate("items.product");
     if (!cart || !cart.items || cart.items.length === 0) {
+      console.log("🛒 [Backend] Cart is empty for user:", userId);
       return res.status(200).json({ message: "Giỏ hàng trống", items: [], cart: { items: [] } });
     }
 
+    console.log("🛒 [Backend] Raw cart items:", cart.items.length, "items");
+    console.log("🛒 [Backend] Cart items details:", cart.items.map(item => ({
+      _id: item._id,
+      type: item.type,
+      productId: item.product?._id,
+      productName: item.product?.name,
+      quantity: item.quantity
+    })));
+
     const items = enrichItems(cart.items);
+    console.log("🛒 [Backend] Enriched cart items:", items.length, "items");
+    
     return res.status(200).json({ items, cart: { items } });
   } catch (error) {
     console.error("getCartByUser failed:", error);
