@@ -35,16 +35,32 @@ export default function CategoryList() {
 
     // --- DELETE HANDLER ---
     const handleDelete = async (categoryId) => {
+        // Tìm danh mục để hiển thị tên trong thông báo
+        const category = categories.find(cat => cat._id === categoryId);
+        const categoryName = category?.name || 'danh mục này';
+        
         // Hỏi xác nhận trước khi xóa
-        if (window.confirm('Bạn có chắc chắn muốn xóa danh mục này không? Hành động này không thể hoàn tác.')) {
+        if (window.confirm(`Bạn có chắc chắn muốn xóa danh mục "${categoryName}" không? Hành động này không thể hoàn tác.`)) {
             try {
-                await axiosInstance.delete(`/category/${categoryId}`);
-                // Xóa danh mục khỏi state để cập nhật UI ngay lập tức
+                const response = await axiosInstance.delete(`/category/${categoryId}`);
+                
+                // ✅ Xóa danh mục khỏi state để cập nhật UI ngay lập tức
                 setCategories(prevCategories => prevCategories.filter(category => category._id !== categoryId));
-                // Có thể thêm thông báo thành công ở đây
+                
+                // ✅ Hiển thị thông báo thành công
+                alert(response.data.message || 'Đã xóa danh mục thành công!');
+                
+                // ✅ Xóa error nếu có
+                setError('');
             } catch (err) {
-                setError('Xóa danh mục thất bại.');
-                console.error(err);
+                // ✅ Xử lý lỗi từ backend
+                const errorMessage = err.response?.data?.message || 'Xóa danh mục thất bại.';
+                setError(errorMessage);
+                
+                // ✅ Hiển thị thông báo lỗi chi tiết
+                alert(`❌ ${errorMessage}`);
+                
+                console.error('Lỗi xóa danh mục:', err);
             }
         }
     };

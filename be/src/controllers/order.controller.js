@@ -4,9 +4,11 @@ import voucherService from "../services/voucher.service.js";
 import Order from "../models/order.model.js";
 import Address from "../models/address.model.js";
 import Product from "../models/product.model.js";
+import Cart from "../models/cart.model.js";
 import mongoose from "mongoose";
 import { quoteShipping } from "../services/shipping.service.js";
 import { computeExpiryInfo } from "../utils/expiryHelpers.js";
+import momoService from "../services/momo.service.js";
 
 // ✅ DÙNG CHUNG logic tồn kho cho variant/combo + rollback
 import {
@@ -1000,6 +1002,72 @@ export const checkout = async (req, res) => {
       catch (e) { assignedVouchers = null; }
     }
 
+    // ✅ Xóa sản phẩm khỏi giỏ hàng sau khi tạo order thành công
+    try {
+      console.log("🛒 [Checkout Controller] Starting cart cleanup for user:", userId);
+      const cart = await Cart.findOne({ user: userId });
+      if (!cart) {
+        console.log("🛒 [Checkout Controller] Cart not found for user:", userId);
+      } else {
+        console.log("🛒 [Checkout Controller] Cart before cleanup:", cart.items.length, "items");
+        
+        // Xóa items đã mua
+        for (const orderItem of itemsSnapshot) {
+          if (orderItem.variantId) {
+            // Variant items: xóa theo product + variantId
+            const variantItems = cart.items.filter(item => 
+              item.type === "variant" && 
+              item.product.toString() === orderItem.product.toString() &&
+              item.variantId.toString() === orderItem.variantId.toString()
+            );
+            
+            // Xóa số lượng đã mua
+            let remainingQty = orderItem.quantity;
+            for (const cartItem of variantItems) {
+              if (remainingQty <= 0) break;
+              
+              if (cartItem.quantity <= remainingQty) {
+                // Xóa toàn bộ item này
+                cart.items.pull(cartItem._id);
+                remainingQty -= cartItem.quantity;
+              } else {
+                // Giảm số lượng
+                cartItem.quantity -= remainingQty;
+                remainingQty = 0;
+              }
+            }
+          } else if (orderItem.isCombo) {
+            // Combo items: xóa theo product + type
+            const comboItems = cart.items.filter(item => 
+              item.type === "combo" && 
+              item.product.toString() === orderItem.product.toString()
+            );
+            
+            // Xóa số lượng đã mua
+            let remainingQty = orderItem.quantity;
+            for (const cartItem of comboItems) {
+              if (remainingQty <= 0) break;
+              
+              if (cartItem.quantity <= remainingQty) {
+                // Xóa toàn bộ item này
+                cart.items.pull(cartItem._id);
+                remainingQty -= cartItem.quantity;
+              } else {
+                // Giảm số lượng
+                cartItem.quantity -= remainingQty;
+                remainingQty = 0;
+              }
+            }
+          }
+        }
+        
+        await cart.save();
+        console.log("🛒 [Checkout Controller] Cart after cleanup:", cart.items.length, "items");
+      }
+    } catch (e) {
+      console.warn("🛒 [Checkout Controller] Cart cleanup error (non-fatal):", e?.message || e);
+    }
+
     // ✅ bổ sung orderId ở top-level để FE dễ bắt
     return res.status(201).json({
       message: "Đặt hàng thành công",
@@ -1187,6 +1255,120 @@ export const deleteOrder = async (req, res) => {
     res.json({ message: "Đã huỷ đơn hàng thành công" });
   } catch (err) {
     res.status(500).json({ message: "Lỗi server khi huỷ đơn hàng", error: err.message });
+  }
+};
+
+/* -----------------------------------------------------------
+ * Hủy đơn hàng (thay đổi trạng thái thành cancelled)
+ * ---------------------------------------------------------*/
+export const cancelOrder = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const isAdmin = req.user.role === "admin";
+    const { id } = req.params;
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+
+    if (!isAdmin && order.user.toString() !== userId.toString()) {
+      return res.status(403).json({ message: "Bạn không có quyền hủy đơn này" });
+    }
+
+    // Chỉ cho phép hủy khi đơn hàng đang pending hoặc confirmed
+    if (!["pending", "confirmed"].includes(order.status)) {
+      return res.status(400).json({
+        message: "Chỉ được hủy đơn khi đang chờ xác nhận hoặc đã xác nhận",
+      });
+    }
+
+    // Chỉ cho phép hủy khi chưa thanh toán
+    if (order.paymentStatus === "paid") {
+      return res.status(400).json({
+        message: "Không thể hủy đơn hàng đã thanh toán",
+      });
+    }
+
+    // ✅ HOÀN LẠI SỐ LƯỢNG SẢN PHẨM TRƯỚC KHI HỦY ĐƠN HÀNG
+    try {
+      console.log(`[cancelOrder] Bắt đầu hoàn lại stock cho đơn hàng ${order._id}`);
+      
+      // Tạo thông tin rollback từ order items
+      const rollbackLogs = [];
+      
+      for (const item of order.items || []) {
+        console.log(`[cancelOrder] Xử lý item:`, {
+          isMix: item.isMix,
+          isCombo: item.isCombo,
+          productId: item.product,
+          quantity: item.quantity,
+          variantId: item.variantId
+        });
+        
+        // Tạo thông tin rollback giả lập từ order item
+        const rollbackInfo = {
+          ok: true,
+          mode: item.isCombo ? "combo-with-children" : "variant-specific",
+          chosenId: item.variantId,
+          quantity: item.quantity
+        };
+        
+        // Nếu là combo, cần tạo thông tin child stock updates
+        if (item.isCombo) {
+          const combo = await Product.findById(item.product).lean();
+          if (combo && combo.comboItems) {
+            const childStockUpdates = [];
+            for (const comboItem of combo.comboItems) {
+              const childProduct = await Product.findById(comboItem.product).lean();
+              if (childProduct) {
+                const childVariant = (childProduct.variants || []).find(v => 
+                  v.attributes?.weight === comboItem.weight && 
+                  v.attributes?.ripeness === comboItem.ripeness
+                );
+                if (childVariant) {
+                  childStockUpdates.push({
+                    productId: comboItem.product,
+                    variantId: childVariant._id,
+                    qtyDeducted: (comboItem.qty || 1) * item.quantity
+                  });
+                }
+              }
+            }
+            rollbackInfo.childStockUpdates = childStockUpdates;
+          }
+        }
+        
+        rollbackLogs.push({ item, info: rollbackInfo });
+      }
+      
+      // Thực hiện rollback
+      for (const log of rollbackLogs) {
+        try {
+          await orderService.rollbackOneStock(log.item, log.info);
+          console.log(`[cancelOrder] Hoàn lại stock thành công cho item:`, {
+            productId: log.item.product,
+            quantity: log.item.quantity,
+            mode: log.info.mode
+          });
+        } catch (rollbackError) {
+          console.error(`[cancelOrder] Lỗi hoàn lại stock cho item:`, rollbackError?.message || rollbackError);
+        }
+      }
+      
+      console.log(`[cancelOrder] Hoàn thành hoàn lại stock cho đơn hàng ${order._id}`);
+    } catch (stockError) {
+      console.error("[cancelOrder] Lỗi hoàn lại stock:", stockError?.message || stockError);
+      // Không dừng việc hủy đơn hàng nếu lỗi hoàn stock
+    }
+
+    // Cập nhật trạng thái đơn hàng thành cancelled
+    order.status = "cancelled";
+    order.timeline = order.timeline || {};
+    order.timeline.cancelledAt = new Date();
+    await order.save();
+
+    res.json({ message: "Đã hủy đơn hàng thành công và hoàn lại số lượng sản phẩm" });
+  } catch (err) {
+    res.status(500).json({ message: "Lỗi server khi hủy đơn hàng", error: err.message });
   }
 };
 

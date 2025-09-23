@@ -147,7 +147,7 @@ export default function Checkout() {
   const navigate = useNavigate();
 
   // Cart context (để lấy Giỏ Mix)
-  const { cartItems } = useCart();
+  const { cartItems, removePurchasedItems, clearMixLines } = useCart();
   const mixLines = useMemo(
     () => (cartItems || []).filter((it) => it?.type === "mix"),
     [cartItems]
@@ -665,6 +665,23 @@ export default function Checkout() {
       };
 
       await axios.post(`${API_URL}/api/orders/add`, payload, { headers });
+      
+      console.log("🛒 [Checkout] Order created successfully, cleaning cart...");
+      
+      // ✅ Xóa sản phẩm khỏi giỏ hàng sau khi đặt hàng thành công
+      const purchasedProductIds = cartItemsPayload
+        .filter(item => item.productId) // Chỉ lấy items có productId
+        .map(item => item.productId);
+      
+      console.log("🛒 [Checkout] Purchased product IDs:", purchasedProductIds);
+      
+      if (purchasedProductIds.length > 0) {
+        console.log("🛒 [Checkout] Calling removePurchasedItems...");
+        removePurchasedItems(purchasedProductIds);
+      }
+      clearMixLines(); // Xóa các dòng MIX
+      
+      console.log("🛒 [Checkout] Cart cleanup completed");
       alert("Đặt hàng thành công!");
       navigate("/order-success");
     } catch (error) {

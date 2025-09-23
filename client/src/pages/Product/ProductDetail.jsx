@@ -134,6 +134,8 @@ export default function ProductDetail() {
   // Combo
   const [comboQuote, setComboQuote] = useState(null);
   const [comboLoading, setComboLoading] = useState(false);
+  const [comboAvailability, setComboAvailability] = useState(null);
+  const [comboAvailabilityLoading, setComboAvailabilityLoading] = useState(false);
 
   // ✅ NEW: cart mix API
   const { mixDraftAddItem } = useCart();
@@ -336,6 +338,38 @@ export default function ProductDetail() {
       setComboLoading(false);
     }
   };
+
+  /* =========================
+   * Combo availability helper
+   * ========================= */
+  const checkComboAvailability = async (comboProductId, qty = 1) => {
+    try {
+      setComboAvailabilityLoading(true);
+      const { data: json } = await axiosInstance.post("/product/check-combo-availability", {
+        comboProductId,
+        quantity: qty,
+      });
+      setComboAvailability(json);
+    } catch (error) {
+      console.error("Error checking combo availability:", error);
+      setComboAvailability({
+        available: false,
+        reason: "error",
+        message: "Lỗi khi kiểm tra combo availability"
+      });
+    } finally {
+      setComboAvailabilityLoading(false);
+    }
+  };
+
+  // ✅ Kiểm tra combo availability khi product hoặc quantity thay đổi
+  useEffect(() => {
+    if (product?.isCombo && product._id) {
+      checkComboAvailability(product._id, quantity);
+    } else {
+      setComboAvailability(null);
+    }
+  }, [product, quantity]);
 
   /* =========================
    * Price block
@@ -858,9 +892,16 @@ export default function ProductDetail() {
             </p>
           )}
           {product?.isCombo && (
-            <p className={`stock ${comboStock > 0 ? "is-available" : "is-oos"}`}>
-              Tồn kho: {comboStock > 0 ? <><b>{comboStock}</b> combo</> : "Hết hàng"}
-            </p>
+            <>
+              <p className={`stock ${comboStock > 0 ? "is-available" : "is-oos"}`}>
+                Tồn kho: {comboStock > 0 ? <><b>{comboStock}</b> combo</> : "Hết hàng"}
+              </p>
+              {comboAvailability?.available === false && comboAvailability?.reason === "insufficient-child-stock" && (
+                <p className="stock is-oos">
+                  ⚠️ Một số sản phẩm trong combo đã hết hàng
+                </p>
+              )}
+            </>
           )}
 
           {/* Combo includes */}
@@ -926,7 +967,7 @@ export default function ProductDetail() {
           {showBuySection && (
             <>
               {(!product?.isCombo && currentVariant && effectiveStock > 0) ||
-              (product?.isCombo && comboStock > 0) ? (
+              (product?.isCombo && comboStock > 0 && comboAvailability?.available !== false) ? (
                 <>
                   <div className="qty-row">
                     <label>Số lượng</label>

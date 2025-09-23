@@ -13,6 +13,7 @@ import {
   getOrderById,
   updateStatus,
   deleteOrder,
+  cancelOrder,
   hideOrderFromHistory,
 
   // Return/Refund flow
@@ -163,6 +164,7 @@ router.patch(
  *   Ẩn / Huỷ (giữ luồng cũ)
  * ============================== */
 router.patch("/:id/hide", verifyToken, hideOrderFromHistory);
+router.patch("/:id/cancel", verifyToken, cancelOrder); // ✅ Hủy đơn hàng (thay đổi trạng thái)
 router.delete("/:id", verifyToken, deleteOrder);
 
 /* ================================

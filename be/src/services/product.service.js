@@ -950,8 +950,46 @@ const productService = {
   updateVariant: async (productId, variantId, updateData) => {
     const product = await Product.findById(productId);
     if (!product) return null;
-    const variant = product.variants.id(variantId);
-    if (!variant) return null;
+    
+    // ✅ Debug: Log tất cả variants trước khi tìm
+    console.log("🔍 [updateVariant] All variants:", product.variants.map(v => ({
+      _id: v._id,
+      weight: v.attributes?.weight,
+      ripeness: v.attributes?.ripeness,
+      price: v.price,
+      stock: v.stock
+    })));
+    
+    // ✅ Sử dụng find() thay vì id() để tránh lỗi tìm variant
+    const variant = product.variants.find(v => {
+      const vId = v._id ? v._id.toString() : '';
+      const targetId = variantId.toString();
+      const isMatch = vId === targetId;
+      console.log("🔍 [updateVariant] Comparing:", { 
+        vId, 
+        targetId, 
+        match: isMatch,
+        weight: v.attributes?.weight,
+        ripeness: v.attributes?.ripeness
+      });
+      return isMatch;
+    });
+    
+    if (!variant) {
+      console.error("❌ [updateVariant] Variant not found:", variantId);
+      console.error("❌ [updateVariant] Available variant IDs:", product.variants.map(v => v._id.toString()));
+      return null;
+    }
+
+    // ✅ Debug: Log variant được tìm thấy
+    console.log("✅ [updateVariant] Found variant:", {
+      _id: variant._id,
+      weight: variant.attributes?.weight,
+      ripeness: variant.attributes?.ripeness,
+      price: variant.price,
+      stock: variant.stock,
+      updateData
+    });
 
     // xác định có phải boxish không
     const vPlain = variant.toObject ? variant.toObject() : variant;
@@ -971,7 +1009,26 @@ const productService = {
       variant.kind = updateData.kind;
     }
 
+    // ✅ Debug: Log variant trước khi save
+    console.log("💾 [updateVariant] Before save - variant:", {
+      _id: variant._id,
+      weight: variant.attributes?.weight,
+      ripeness: variant.attributes?.ripeness,
+      price: variant.price,
+      stock: variant.stock
+    });
+    
     await product.save();
+    
+    // ✅ Debug: Log variant sau khi save
+    console.log("✅ [updateVariant] After save - variant:", {
+      _id: variant._id,
+      weight: variant.attributes?.weight,
+      ripeness: variant.attributes?.ripeness,
+      price: variant.price,
+      stock: variant.stock
+    });
+    
     return attachExpiryViews(product);
   },
 

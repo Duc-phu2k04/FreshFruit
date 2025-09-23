@@ -468,9 +468,10 @@ export default function ProfilePage() {
 
   // ===== Orders =====
   const cancelOrder = async (id) => {
-    if (!window.confirm("Hủy đơn hàng này?")) return;
+    if (!window.confirm("Hủy đơn hàng này? Số lượng sản phẩm sẽ được hoàn lại.")) return;
     try {
-      await axiosAuth.delete(`/api/orders/${id}`);
+      await axiosAuth.patch(`/api/orders/${id}/cancel`);
+      alert("Đã hủy đơn hàng thành công và hoàn lại số lượng sản phẩm");
       fetchOrders();
     } catch (err) {
       logErr("Lỗi hủy đơn:", err.response?.data || err.message);
@@ -1079,7 +1080,7 @@ export default function ProfilePage() {
                 <td>{o.paymentMethod === "cod" ? "Thanh toán khi nhận hàng" : String(o.paymentMethod || "").toUpperCase()}</td>
                 <td>{addressString}</td>
                 <td>
-                  {o.status === "pending" && (
+                  {(o.status === "pending" || (o.status === "confirmed" && o.paymentStatus !== "paid")) && (
                     <button className="btn-cancel" onClick={() => cancelOrder(o._id)}>
                       Hủy
                     </button>

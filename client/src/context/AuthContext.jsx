@@ -16,6 +16,11 @@ export function AuthProvider({ children }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem("user");
+    localStorage.removeItem("token"); // ✅ Xóa token khi logout
+    localStorage.removeItem("cart"); // ✅ Xóa giỏ hàng guest khi logout
+    localStorage.removeItem("cart_mix_draft_v1"); // ✅ Xóa mix draft khi logout
+    localStorage.removeItem("preorderPaying"); // ✅ Xóa trạng thái thanh toán preorder
+    localStorage.removeItem("mix_widget_open_v1"); // ✅ Xóa trạng thái mix widget
   };
 
   const updateUser = (newUserData) => {

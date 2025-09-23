@@ -831,7 +831,41 @@ export async function decOneStockNonTx(snap, ProductModel = Product) {
   const pDoc = await ProductModel.findById(snap.product).lean();
   if (!pDoc) return { ok: false, reason: "product-not-found" };
 
+  // ✅ Debug: Log thông tin snap và variants
+  console.log("🔍 [inventory.service] Snap info:", {
+    productId: snap.product,
+    variantId: snap.variantId,
+    variant: snap.variant,
+    quantity: qty
+  });
+
+  console.log("🔍 [inventory.service] Available variants:", pDoc.variants?.map(v => ({
+    _id: v._id,
+    weight: v.attributes?.weight,
+    ripeness: v.attributes?.ripeness,
+    stock: v.stock
+  })));
+
   // Xác định biến thể người dùng chọn
+  console.log("🔍 [inventory.service] Searching for variantId:", String(snap.variantId));
+  
+  // Debug: Log từng variant để so sánh
+  for (let i = 0; i < (pDoc.variants || []).length; i++) {
+    const v = pDoc.variants[i];
+    const vIdStr = String(v._id);
+    const snapIdStr = String(snap.variantId);
+    const isMatch = vIdStr === snapIdStr;
+    console.log(`🔍 [inventory.service] Variant ${i}:`, {
+      _id: v._id,
+      _idStr: vIdStr,
+      snapIdStr: snapIdStr,
+      isMatch: isMatch,
+      weight: v.attributes?.weight,
+      ripeness: v.attributes?.ripeness,
+      stock: v.stock
+    });
+  }
+
   let chosen =
     (pDoc.variants || []).find((v) => String(v._id) === String(snap.variantId)) ||
     (pDoc.variants || []).find(
@@ -840,6 +874,13 @@ export async function decOneStockNonTx(snap, ProductModel = Product) {
         String(v?.attributes?.ripeness || "") === String(snap?.variant?.ripeness || "")
     ) ||
     null;
+
+  console.log("🔍 [inventory.service] Found variant:", chosen ? {
+    _id: chosen._id,
+    weight: chosen.attributes?.weight,
+    ripeness: chosen.attributes?.ripeness,
+    stock: chosen.stock
+  } : "NOT FOUND");
 
   // Nếu không tìm thấy (dữ liệu thay đổi), thử trừ trực tiếp theo id
   if (!chosen && snap.variantId) {
@@ -878,10 +919,71 @@ export async function decOneStockNonTx(snap, ProductModel = Product) {
   }
 
   // HÀNG LẺ: trừ trực tiếp đúng biến thể (không quy đổi)
+  console.log("🔍 [inventory.service] Deducting stock for variant:", {
+    variantId: chosen._id,
+    weight: chosen.attributes?.weight,
+    ripeness: chosen.attributes?.ripeness,
+    stockBefore: chosen.stock,
+    quantityToDeduct: qty,
+    stockAfter: chosen.stock - qty
+  });
+
+  // ✅ Debug: Log MongoDB query trước khi thực hiện
+  console.log("🔍 [inventory.service] MongoDB query:", {
+    filter: { 
+      _id: snap.product, 
+      "variants._id": chosen._id, 
+      "variants.stock": { $gte: qty } 
+    },
+    update: { $inc: { "variants.$.stock": -qty } }
+  });
+
+  // ✅ Sử dụng arrayFilters để đảm bảo update đúng variant
   const resChosen = await ProductModel.updateOne(
-    { _id: snap.product, "variants._id": chosen._id, "variants.stock": { $gte: qty } },
-    { $inc: { "variants.$.stock": -qty } }
+    { 
+      _id: snap.product,
+      "variants._id": chosen._id,
+      "variants.stock": { $gte: qty }
+    },
+    { 
+      $inc: { "variants.$[elem].stock": -qty } 
+    },
+    {
+      arrayFilters: [{ "elem._id": chosen._id }]
+    }
   );
+
+  console.log("🔍 [inventory.service] Update result:", {
+    modifiedCount: resChosen.modifiedCount,
+    matchedCount: resChosen.matchedCount
+  });
+
+  if (resChosen.modifiedCount > 0) {
+    console.log("✅ [inventory.service] Stock deducted successfully");
+    
+    // ✅ Lấy dữ liệu thực tế từ database sau khi update
+    const updatedProduct = await ProductModel.findById(snap.product).lean();
+    const updatedVariant = updatedProduct.variants.find(v => String(v._id) === String(chosen._id));
+    
+    console.log("🔍 [inventory.service] ACTUAL database data after update:", {
+      variantId: updatedVariant._id,
+      weight: updatedVariant.attributes?.weight,
+      ripeness: updatedVariant.attributes?.ripeness,
+      stockAfter: updatedVariant.stock
+    });
+    
+    // ✅ Debug: Log tất cả variants để xem variant nào thực sự bị thay đổi
+    console.log("🔍 [inventory.service] ALL variants after update:", updatedProduct.variants.map(v => ({
+      _id: v._id,
+      weight: v.attributes?.weight,
+      ripeness: v.attributes?.ripeness,
+      stock: v.stock
+    })));
+    
+  } else {
+    console.error("❌ [inventory.service] Stock deduction failed");
+  }
+
   return resChosen.modifiedCount > 0
     ? { ok: true, mode: "variantsById", chosenId: chosen._id }
     : { ok: false, reason: "insufficient-stock" };
