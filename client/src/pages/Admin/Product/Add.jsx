@@ -241,7 +241,7 @@ export default function Add() {
       setPreview(
         imagePath.startsWith("http")
           ? imagePath
-          : `http://localhost:4000${imagePath}`
+          : `http://localhost:3000${imagePath}`
       );
     } catch (err) {
       console.error("[AdminAdd] upload error:", err?.response?.data || err);

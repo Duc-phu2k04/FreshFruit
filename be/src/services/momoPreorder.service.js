@@ -20,11 +20,11 @@ const redirectUrl =
 /**  PHẢI KHỚP VỚI ROUTE:
  * server/routes/momoPreorder.route.js → router.post("/ipn", handlePreorderIPN)
  * và index.js mount: app.use("/api/momo-preorder", momoPreorderRoutes)
- * => IPN đầy đủ: http://localhost:4000/api/momo-preorder/ipn
+ * => IPN đầy đủ: http://localhost:3000/api/momo-preorder/ipn
  */
 const ipnUrl =
   process.env.MOMO_PREORDER_IPN_URL ||
-  "http://localhost:4000/api/momo-preorder/ipn";
+  "http://localhost:3000/api/momo-preorder/ipn";
 
 /* =========================
  * Helpers

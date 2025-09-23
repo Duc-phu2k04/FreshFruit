@@ -177,8 +177,8 @@ export default function ProductListPage() {
   const fetchFilters = useCallback(async () => {
     try {
       const [catRes, locRes] = await Promise.all([
-        fetch("http://localhost:4000/api/category"),
-        fetch("http://localhost:4000/api/locations"),
+        fetch("http://localhost:3000/api/category"),
+        fetch("http://localhost:3000/api/locations"),
       ]);
       const cats = await catRes.json();
       const locs = await locRes.json();
@@ -202,7 +202,7 @@ export default function ProductListPage() {
   const fetchProducts = useCallback(async () => {
     try {
       // Luôn loại sản phẩm Coming Soon khỏi trang list thường
-      let url = "http://localhost:4000/api/product";
+      let url = "http://localhost:3000/api/product";
       const params = [];
 
       if (selectedCategories.length) {
@@ -491,7 +491,7 @@ export default function ProductListPage() {
 
                         {/* ĐÃ BỎ HOÀN TOÀN NÚT "THÊM VÀO MIX"  */}
                         <img
-                          src={`http://localhost:4000${product.image}`}
+                          src={`http://localhost:3000${product.image}`}
                           alt={product.name}
                           className="product-card__image product-image cursor-pointer"
                           onClick={() => handleViewDetail(product)}

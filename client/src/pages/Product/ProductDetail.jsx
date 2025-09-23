@@ -9,7 +9,7 @@ import axiosInstance from "../../utils/axiosConfig";
 
 /* ===== Helpers FE cho “thùng” (box) ===== */
 const imgSrc = (path) =>
-  path?.startsWith?.("http") ? path : `http://localhost:4000${path || ""}`;
+  path?.startsWith?.("http") ? path : `http://localhost:3000${path || ""}`;
 
 const parseKgFromLabel = (label = "") => {
   const s = String(label || "").toLowerCase().replace(",", ".").replace(/\s+/g, "");
