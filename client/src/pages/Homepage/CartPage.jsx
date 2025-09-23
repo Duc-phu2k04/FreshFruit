@@ -167,10 +167,13 @@ export default function CartPage() {
   /* ---------------- Data ---------------- */
   const fetchCart = async () => {
     try {
+      console.log("🛒 [CartPage] Fetching cart...");
       const { data } = await axiosInstance.get("/cart");
+      console.log("🛒 [CartPage] Raw cart data:", data);
       const arr = Array.isArray(data?.items) ? data.items : [];
       // 🔒 lọc bẩn: bỏ item thiếu product/_id để tránh crash
       const clean = arr.filter((it) => it && it.product && it.product._id);
+      console.log("🛒 [CartPage] Clean cart items:", clean.length, "items");
       setItems(clean);
 
       // Giữ các item đã tick nếu vẫn còn (chuẩn hoá variantId cho combo)
