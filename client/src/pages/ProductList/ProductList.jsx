@@ -335,7 +335,7 @@ export default function ProductListPage() {
                           </p>
                         )}
 
-                        <p className="product-card__stock text-sm text-gray-500">
+                        {/* <p className="product-card__stock text-sm text-gray-500">
                           {isCombo ? (
                             <>
                               Tồn kho combo:{" "}
@@ -347,7 +347,7 @@ export default function ProductListPage() {
                               {normalStock > 0 ? normalStock : <span className="text-red-600">Hết hàng</span>}
                             </>
                           )}
-                        </p>
+                        </p> */}
 
                         {/* Hạn sử dụng — chỉ hiển thị khi cận hạn có giảm giá */}
                         {hasDiscount && expiryStr && (

@@ -1291,6 +1291,10 @@ export const cancelOrder = async (req, res) => {
     // ✅ HOÀN LẠI SỐ LƯỢNG SẢN PHẨM TRƯỚC KHI HỦY ĐƠN HÀNG
     try {
       console.log(`[cancelOrder] Bắt đầu hoàn lại stock cho đơn hàng ${order._id}`);
+      
+      // Tạo thông tin rollback từ order items
+      const rollbackLogs = [];
+      
       for (const item of order.items || []) {
         console.log(`[cancelOrder] Xử lý item:`, {
           isMix: item.isMix,
@@ -1300,20 +1304,56 @@ export const cancelOrder = async (req, res) => {
           variantId: item.variantId
         });
         
-        if (item.isMix || (item.mix && Array.isArray(item.mix.items))) {
-          // Mix items: hoàn lại từng sản phẩm trong mix
-          console.log(`[cancelOrder] Hoàn lại stock cho mix item`);
-          await momoService._restoreStockForMixItem(item);
-        } else if (item.isCombo && item.combo) {
-          // Combo: hoàn lại stock combo
-          console.log(`[cancelOrder] Hoàn lại stock cho combo item`);
-          await momoService._restoreStockForComboItem(item);
-        } else {
-          // Sản phẩm thường: hoàn lại theo variant
-          console.log(`[cancelOrder] Hoàn lại stock cho variant item`);
-          await momoService._restoreStockForVariantItem(item);
+        // Tạo thông tin rollback giả lập từ order item
+        const rollbackInfo = {
+          ok: true,
+          mode: item.isCombo ? "combo-with-children" : "variant-specific",
+          chosenId: item.variantId,
+          quantity: item.quantity
+        };
+        
+        // Nếu là combo, cần tạo thông tin child stock updates
+        if (item.isCombo) {
+          const combo = await Product.findById(item.product).lean();
+          if (combo && combo.comboItems) {
+            const childStockUpdates = [];
+            for (const comboItem of combo.comboItems) {
+              const childProduct = await Product.findById(comboItem.product).lean();
+              if (childProduct) {
+                const childVariant = (childProduct.variants || []).find(v => 
+                  v.attributes?.weight === comboItem.weight && 
+                  v.attributes?.ripeness === comboItem.ripeness
+                );
+                if (childVariant) {
+                  childStockUpdates.push({
+                    productId: comboItem.product,
+                    variantId: childVariant._id,
+                    qtyDeducted: (comboItem.qty || 1) * item.quantity
+                  });
+                }
+              }
+            }
+            rollbackInfo.childStockUpdates = childStockUpdates;
+          }
+        }
+        
+        rollbackLogs.push({ item, info: rollbackInfo });
+      }
+      
+      // Thực hiện rollback
+      for (const log of rollbackLogs) {
+        try {
+          await orderService.rollbackOneStock(log.item, log.info);
+          console.log(`[cancelOrder] Hoàn lại stock thành công cho item:`, {
+            productId: log.item.product,
+            quantity: log.item.quantity,
+            mode: log.info.mode
+          });
+        } catch (rollbackError) {
+          console.error(`[cancelOrder] Lỗi hoàn lại stock cho item:`, rollbackError?.message || rollbackError);
         }
       }
+      
       console.log(`[cancelOrder] Hoàn thành hoàn lại stock cho đơn hàng ${order._id}`);
     } catch (stockError) {
       console.error("[cancelOrder] Lỗi hoàn lại stock:", stockError?.message || stockError);

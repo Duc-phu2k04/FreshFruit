@@ -85,75 +85,215 @@ async function computeComboPrice(comboProductDoc) {
 
 /* ===========================================================
  * Atomic stock helpers (non-transaction) + rollback
- * - Ưu tiên trừ kho theo biến thể 1kg (nếu có)
- * - decUnits = ROUND(qty * weightKg)
- * - ĐỐI VỚI COMBO: KHÔNG trừ kho thành phần
+ * - Trừ stock đúng variant được chọn (không trừ theo 1kg)
+ * - ĐỐI VỚI COMBO: Trừ combo stock + stock của từng sản phẩm con
  * =========================================================*/
 async function decOneStockNonTx(item) {
-  // Combo: không trừ kho
-  if (item?.isCombo) return { ok: true, mode: "combo-no-stock-change" };
-
   const qty = Math.max(1, Number(item.quantity || 1));
 
-  // Cần doc để biết weight & tìm base 1kg
+  // ✅ COMBO: Trừ combo stock + stock của từng sản phẩm con
+  if (item?.isCombo) {
+    return await deductComboStock(item, qty);
+  }
+
+  // ✅ VARIANT: Trừ stock của variant cụ thể được chọn
   const pDoc = await Product.findById(item.product).lean();
   if (!pDoc) return { ok: false, reason: "product-not-found" };
+
+  // ✅ Debug: Log thông tin item và variants
+  console.log("🔍 [decOneStockNonTx] Item info:", {
+    productId: item.product,
+    variantId: item.variantId,
+    variant: item.variant,
+    quantity: qty
+  });
+
+  console.log("🔍 [decOneStockNonTx] Available variants:", pDoc.variants?.map(v => ({
+    _id: v._id,
+    weight: v.attributes?.weight,
+    ripeness: v.attributes?.ripeness,
+    stock: v.stock
+  })));
 
   // Xác định biến thể đã chọn
   let chosen =
     (pDoc.variants || []).find((v) => String(v._id) === String(item.variantId)) || null;
 
+  console.log("🔍 [decOneStockNonTx] Found by variantId:", chosen ? {
+    _id: chosen._id,
+    weight: chosen.attributes?.weight,
+    ripeness: chosen.attributes?.ripeness,
+    stock: chosen.stock
+  } : "NOT FOUND");
+
   if (!chosen) {
     const w = item?.variant?.weight ?? "";
     const r = item?.variant?.ripeness ?? "";
+    console.log("🔍 [decOneStockNonTx] Searching by attributes:", { weight: w, ripeness: r });
+    
     if (w || r) {
       chosen = (pDoc.variants || []).find((v) =>
         isSameVariantAttr(v?.attributes || {}, { weight: w, ripeness: r })
       ) || null;
     }
+    
+    console.log("🔍 [decOneStockNonTx] Found by attributes:", chosen ? {
+      _id: chosen._id,
+      weight: chosen.attributes?.weight,
+      ripeness: chosen.attributes?.ripeness,
+      stock: chosen.stock
+    } : "NOT FOUND");
   }
 
-  // Nếu không tìm được → thử trừ trực tiếp theo id (giữ hành vi cũ)
   if (!chosen) {
-    const resFallback = await Product.updateOne(
-      { _id: item.product, "variants._id": item.variantId, "variants.stock": { $gte: qty } },
-      { $inc: { "variants.$.stock": -qty } }
-    );
-    if (resFallback.modifiedCount > 0) return { ok: true, mode: "variantsById-fallback" };
+    console.error("❌ [decOneStockNonTx] Variant not found for item:", item);
     return { ok: false, reason: "variant-not-found" };
   }
 
-  // Tính số đơn vị 1kg cần trừ
-  const weightKg = kgFromWeight(chosen?.attributes?.weight) || 1;
-  const decUnits = Math.round(qty * weightKg);
+  // ✅ Trừ stock của variant cụ thể được chọn
+  console.log("🔍 [decOneStockNonTx] Deducting stock for variant:", {
+    variantId: chosen._id,
+    weight: chosen.attributes?.weight,
+    ripeness: chosen.attributes?.ripeness,
+    stockBefore: chosen.stock,
+    quantityToDeduct: qty,
+    stockAfter: chosen.stock - qty
+  });
 
-  // Tìm biến thể 1kg để trừ
-  const base1kg = findBase1kgVariant(pDoc);
-  if (base1kg?._id) {
-    const resBase = await Product.updateOne(
-      { _id: item.product, "variants._id": base1kg._id, "variants.stock": { $gte: decUnits } },
-      { $inc: { "variants.$.stock": -decUnits } }
-    );
-    if (resBase.modifiedCount > 0)
-      return { ok: true, mode: "base1kg", baseId: base1kg._id, decUnits };
-  }
-
-  // Không có 1kg → trừ trực tiếp biến thể chọn
   const resChosen = await Product.updateOne(
     { _id: item.product, "variants._id": chosen._id, "variants.stock": { $gte: qty } },
     { $inc: { "variants.$.stock": -qty } }
   );
-  if (resChosen.modifiedCount > 0) return { ok: true, mode: "variantsById", chosenId: chosen._id };
+  
+  console.log("🔍 [decOneStockNonTx] Update result:", {
+    modifiedCount: resChosen.modifiedCount,
+    matchedCount: resChosen.matchedCount
+  });
+  
+  if (resChosen.modifiedCount > 0) {
+    console.log("✅ [decOneStockNonTx] Stock deducted successfully");
+    return { 
+      ok: true, 
+      mode: "variant-specific", 
+      chosenId: chosen._id,
+      variant: {
+        weight: chosen.attributes?.weight,
+        ripeness: chosen.attributes?.ripeness,
+        stockBefore: chosen.stock,
+        stockAfter: chosen.stock - qty
+      }
+    };
+  }
 
+  console.error("❌ [decOneStockNonTx] Insufficient stock or update failed");
   return { ok: false, reason: "insufficient-stock" };
+}
+
+// ✅ Helper function để trừ combo stock
+async function deductComboStock(item, qty) {
+  const combo = await Product.findById(item.product).lean();
+  if (!combo) return { ok: false, reason: "combo-not-found" };
+
+  // 1) Trừ combo stock chính
+  const comboStock = combo?.comboInventory?.stock || combo?.comboStock || 0;
+  if (comboStock < qty) {
+    return { ok: false, reason: "insufficient-combo-stock" };
+  }
+
+  // Trừ combo stock
+  const comboResult = await Product.updateOne(
+    { _id: item.product, "comboInventory.stock": { $gte: qty } },
+    { $inc: { "comboInventory.stock": -qty } }
+  );
+
+  if (comboResult.modifiedCount === 0) {
+    return { ok: false, reason: "combo-stock-update-failed" };
+  }
+
+  // 2) Trừ stock của từng sản phẩm con trong combo
+  const comboItems = combo?.comboItems || [];
+  const childStockUpdates = [];
+
+  for (const comboItem of comboItems) {
+    const childProduct = await Product.findById(comboItem.product).lean();
+    if (!childProduct) continue;
+
+    // Tìm variant của sản phẩm con theo weight + ripeness
+    const childVariant = (childProduct.variants || []).find(v => 
+      v.attributes?.weight === comboItem.weight && 
+      v.attributes?.ripeness === comboItem.ripeness
+    );
+
+    if (childVariant) {
+      const childQty = (comboItem.qty || 1) * qty; // Số lượng trong combo * số combo mua
+      
+      const childResult = await Product.updateOne(
+        { 
+          _id: comboItem.product, 
+          "variants._id": childVariant._id, 
+          "variants.stock": { $gte: childQty } 
+        },
+        { $inc: { "variants.$.stock": -childQty } }
+      );
+
+      if (childResult.modifiedCount > 0) {
+        childStockUpdates.push({
+          productId: comboItem.product,
+          variantId: childVariant._id,
+          weight: comboItem.weight,
+          ripeness: comboItem.ripeness,
+          qtyDeducted: childQty,
+          stockBefore: childVariant.stock,
+          stockAfter: childVariant.stock - childQty
+        });
+      }
+    }
+  }
+
+  return { 
+    ok: true, 
+    mode: "combo-with-children", 
+    comboStockBefore: comboStock,
+    comboStockAfter: comboStock - qty,
+    childStockUpdates
+  };
 }
 
 async function rollbackOneStock(item, info) {
   if (!info?.ok) return;
-  if (info.mode === "combo-no-stock-change") return;
 
   const qty = Math.max(1, Number(item.quantity || 1));
 
+  // ✅ COMBO: Hoàn lại combo stock + stock của từng sản phẩm con
+  if (info.mode === "combo-with-children") {
+    // Hoàn lại combo stock chính
+    await Product.updateOne(
+      { _id: item.product },
+      { $inc: { "comboInventory.stock": qty } }
+    );
+
+    // Hoàn lại stock của từng sản phẩm con
+    if (info.childStockUpdates && Array.isArray(info.childStockUpdates)) {
+      for (const childUpdate of info.childStockUpdates) {
+        await Product.updateOne(
+          { _id: childUpdate.productId, "variants._id": childUpdate.variantId },
+          { $inc: { "variants.$.stock": childUpdate.qtyDeducted } }
+        );
+      }
+    }
+    return;
+  }
+
+  // ✅ VARIANT: Hoàn lại stock của variant cụ thể
+  if (info.mode === "variant-specific") {
+    await Product.updateOne(
+      { _id: item.product, "variants._id": info.chosenId },
+      { $inc: { "variants.$.stock": qty } }
+    );
+    return;
+  }
+
+  // Legacy modes (giữ để tương thích)
   if (info.mode === "base1kg") {
     const incUnits = Math.max(0, Number(info.decUnits || 0)) || Math.round(qty);
     await Product.updateOne(
@@ -617,3 +757,6 @@ export const updateOrderStatus = async (orderId, updates = {}) => {
 
   return order;
 };
+
+// ✅ Export rollbackOneStock để sử dụng trong controller
+export { rollbackOneStock };

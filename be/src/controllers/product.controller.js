@@ -881,6 +881,117 @@ const productController = {
         .json({ message: "Lỗi server", error: error?.message || String(error) });
     }
   },
+
+  // ✅ Kiểm tra combo availability (bao gồm child products)
+  checkComboAvailability: async (req, res) => {
+    try {
+      const { comboProductId, quantity = 1 } = req.body;
+      
+      if (!comboProductId) {
+        return res.status(400).json({ message: "Thiếu comboProductId" });
+      }
+
+      const combo = await productService.getProductById(comboProductId);
+      if (!combo) {
+        return res.status(404).json({ message: "Không tìm thấy combo" });
+      }
+
+      if (!(combo.type === "combo" || combo.isCombo === true)) {
+        return res.status(400).json({ message: "Sản phẩm không phải combo" });
+      }
+
+      const qty = Math.max(1, Number(quantity));
+
+      // 1) Kiểm tra combo stock chính
+      const comboStock = combo?.comboInventory?.stock || combo?.comboStock || 0;
+      if (comboStock < qty) {
+        return res.json({
+          available: false,
+          reason: "insufficient-combo-stock",
+          message: "Combo đã hết hàng",
+          comboStock,
+          requestedQty: qty
+        });
+      }
+
+      // 2) Kiểm tra stock của từng sản phẩm con
+      const comboItems = combo?.comboItems || [];
+      const childStockIssues = [];
+
+      for (const comboItem of comboItems) {
+        const childProduct = await productService.getProductById(comboItem.product);
+        if (!childProduct) {
+          childStockIssues.push({
+            productId: comboItem.product,
+            productName: "Sản phẩm không tồn tại",
+            issue: "product-not-found"
+          });
+          continue;
+        }
+
+        // Tìm variant của sản phẩm con theo weight + ripeness
+        const childVariant = (childProduct.variants || []).find(v => 
+          v.attributes?.weight === comboItem.weight && 
+          v.attributes?.ripeness === comboItem.ripeness
+        );
+
+        if (!childVariant) {
+          childStockIssues.push({
+            productId: comboItem.product,
+            productName: childProduct.name,
+            weight: comboItem.weight,
+            ripeness: comboItem.ripeness,
+            issue: "variant-not-found"
+          });
+          continue;
+        }
+
+        const requiredQty = (comboItem.qty || 1) * qty; // Số lượng trong combo * số combo mua
+        const availableStock = childVariant.stock || 0;
+
+        if (availableStock < requiredQty) {
+          childStockIssues.push({
+            productId: comboItem.product,
+            productName: childProduct.name,
+            weight: comboItem.weight,
+            ripeness: comboItem.ripeness,
+            requiredQty,
+            availableStock,
+            issue: "insufficient-stock"
+          });
+        }
+      }
+
+      if (childStockIssues.length > 0) {
+        return res.json({
+          available: false,
+          reason: "insufficient-child-stock",
+          message: "Một số sản phẩm trong combo đã hết hàng",
+          childStockIssues,
+          comboStock,
+          requestedQty: qty
+        });
+      }
+
+      // ✅ Tất cả đều available
+      return res.json({
+        available: true,
+        message: "Combo có thể mua",
+        comboStock,
+        requestedQty: qty,
+        childProducts: comboItems.map(item => ({
+          productId: item.product,
+          weight: item.weight,
+          ripeness: item.ripeness,
+          qty: item.qty
+        }))
+      });
+
+    } catch (error) {
+      console.error("[checkComboAvailability] Error:", error);
+      res.status(500).json({ message: "Lỗi server khi kiểm tra combo availability", error: error.message });
+    }
+  },
 };
 
 export default productController;
