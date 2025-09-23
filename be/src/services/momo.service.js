@@ -651,4 +651,7 @@ export default {
   createMomoPayment,
   confirmMomoOrder,
   cancelMomoOrder,
+  _restoreStockForMixItem,
+  _restoreStockForComboItem,
+  _restoreStockForVariantItem,
 };

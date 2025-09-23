@@ -119,7 +119,8 @@ export const CartProvider = ({ children }) => {
           setCartItems([]);
         }
       } else {
-        setCartItems(loadGuest());
+        // ✅ Xóa giỏ hàng khi đăng xuất
+        setCartItems([]);
       }
 
       setLoading(false);
@@ -128,10 +129,14 @@ export const CartProvider = ({ children }) => {
     fetchCart();
   }, [user]);
 
-  // ========== Sync guest cart ==========
+  // ✅ Xóa giỏ hàng khi user logout (từ đăng nhập thành chưa đăng nhập)
   useEffect(() => {
-    if (!user?._id) saveGuest(cartItems);
-  }, [cartItems, user]);
+    if (!user?._id) {
+      setCartItems([]);
+      // ✅ Xóa mix draft khi logout
+      setMixDraft({ items: [], note: "" });
+    }
+  }, [user?._id]);
 
   // ========== Actions ==========
   /**
@@ -139,6 +144,14 @@ export const CartProvider = ({ children }) => {
    * options: { quantity, variantId, items }  // items dùng cho combo nếu muốn override
    */
   const addToCart = async (product, options = {}) => {
+    // ✅ Bắt buộc đăng nhập để thêm vào giỏ hàng
+    if (!user?._id) {
+      // Redirect đến trang đăng nhập với returnUrl để quay lại sau khi đăng nhập
+      const currentPath = window.location.pathname + window.location.search;
+      window.location.href = `/login?returnUrl=${encodeURIComponent(currentPath)}`;
+      return;
+    }
+
     const quantity = Math.max(1, Number(options.quantity || 1));
     const combo = isComboProduct(product);
 

@@ -19,7 +19,7 @@ const statisticsController = {
         };
       }
 
-      // Tổng doanh thu từ đơn hàng đã thanh toán
+      // ✅ Tổng doanh thu từ đơn hàng đã thanh toán - tính từ items để nhất quán với category stats
       const revenueResult = await Order.aggregate([
         {
           $match: {
@@ -27,11 +27,18 @@ const statisticsController = {
             ...dateFilter
           }
         },
+        { $unwind: "$items" },
         {
           $group: {
             _id: null,
-            totalRevenue: { $sum: "$total" },
-            totalOrders: { $sum: 1 }
+            totalRevenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } },
+            totalOrders: { $addToSet: "$_id" }
+          }
+        },
+        {
+          $project: {
+            totalRevenue: 1,
+            totalOrders: { $size: "$totalOrders" }
           }
         }
       ]);
@@ -60,59 +67,11 @@ const statisticsController = {
         ...dateFilter
       });
 
-      // Tính tăng trưởng so với kỳ trước (tháng trước)
-      const currentMonth = new Date();
-      const lastMonth = new Date();
-      lastMonth.setMonth(currentMonth.getMonth() - 1);
-
-      const currentMonthRevenue = await Order.aggregate([
-        {
-          $match: {
-            paymentStatus: "paid",
-            createdAt: {
-              $gte: new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1),
-              $lt: new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
-            }
-          }
-        },
-        {
-          $group: {
-            _id: null,
-            revenue: { $sum: "$total" }
-          }
-        }
-      ]);
-
-      const lastMonthRevenue = await Order.aggregate([
-        {
-          $match: {
-            paymentStatus: "paid",
-            createdAt: {
-              $gte: new Date(lastMonth.getFullYear(), lastMonth.getMonth(), 1),
-              $lt: new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 1)
-            }
-          }
-        },
-        {
-          $group: {
-            _id: null,
-            revenue: { $sum: "$total" }
-          }
-        }
-      ]);
-
-      const currentRev = currentMonthRevenue[0]?.revenue || 0;
-      const lastRev = lastMonthRevenue[0]?.revenue || 0;
-      const growthRate = lastRev > 0 ? ((currentRev - lastRev) / lastRev * 100) : 0;
-
       const overview = {
         totalRevenue: revenueResult[0]?.totalRevenue || 0,
         totalProductsSold: quantityResult[0]?.totalQuantity || 0,
         successfulOrders: successfulOrders,
-        totalOrders: revenueResult[0]?.totalOrders || 0,
-        growthRate: Math.round(growthRate * 10) / 10, // làm tròn 1 chữ số thập phân
-        currentMonthRevenue: currentRev,
-        lastMonthRevenue: lastRev
+        totalOrders: revenueResult[0]?.totalOrders || 0
       };
 
       res.json({

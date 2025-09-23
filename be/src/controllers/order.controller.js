@@ -7,6 +7,7 @@ import Product from "../models/product.model.js";
 import mongoose from "mongoose";
 import { quoteShipping } from "../services/shipping.service.js";
 import { computeExpiryInfo } from "../utils/expiryHelpers.js";
+import momoService from "../services/momo.service.js";
 
 // ✅ DÙNG CHUNG logic tồn kho cho variant/combo + rollback
 import {
@@ -1187,6 +1188,80 @@ export const deleteOrder = async (req, res) => {
     res.json({ message: "Đã huỷ đơn hàng thành công" });
   } catch (err) {
     res.status(500).json({ message: "Lỗi server khi huỷ đơn hàng", error: err.message });
+  }
+};
+
+/* -----------------------------------------------------------
+ * Hủy đơn hàng (thay đổi trạng thái thành cancelled)
+ * ---------------------------------------------------------*/
+export const cancelOrder = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const isAdmin = req.user.role === "admin";
+    const { id } = req.params;
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+
+    if (!isAdmin && order.user.toString() !== userId.toString()) {
+      return res.status(403).json({ message: "Bạn không có quyền hủy đơn này" });
+    }
+
+    // Chỉ cho phép hủy khi đơn hàng đang pending hoặc confirmed
+    if (!["pending", "confirmed"].includes(order.status)) {
+      return res.status(400).json({
+        message: "Chỉ được hủy đơn khi đang chờ xác nhận hoặc đã xác nhận",
+      });
+    }
+
+    // Chỉ cho phép hủy khi chưa thanh toán
+    if (order.paymentStatus === "paid") {
+      return res.status(400).json({
+        message: "Không thể hủy đơn hàng đã thanh toán",
+      });
+    }
+
+    // ✅ HOÀN LẠI SỐ LƯỢNG SẢN PHẨM TRƯỚC KHI HỦY ĐƠN HÀNG
+    try {
+      console.log(`[cancelOrder] Bắt đầu hoàn lại stock cho đơn hàng ${order._id}`);
+      for (const item of order.items || []) {
+        console.log(`[cancelOrder] Xử lý item:`, {
+          isMix: item.isMix,
+          isCombo: item.isCombo,
+          productId: item.product,
+          quantity: item.quantity,
+          variantId: item.variantId
+        });
+        
+        if (item.isMix || (item.mix && Array.isArray(item.mix.items))) {
+          // Mix items: hoàn lại từng sản phẩm trong mix
+          console.log(`[cancelOrder] Hoàn lại stock cho mix item`);
+          await momoService._restoreStockForMixItem(item);
+        } else if (item.isCombo && item.combo) {
+          // Combo: hoàn lại stock combo
+          console.log(`[cancelOrder] Hoàn lại stock cho combo item`);
+          await momoService._restoreStockForComboItem(item);
+        } else {
+          // Sản phẩm thường: hoàn lại theo variant
+          console.log(`[cancelOrder] Hoàn lại stock cho variant item`);
+          await momoService._restoreStockForVariantItem(item);
+        }
+      }
+      console.log(`[cancelOrder] Hoàn thành hoàn lại stock cho đơn hàng ${order._id}`);
+    } catch (stockError) {
+      console.error("[cancelOrder] Lỗi hoàn lại stock:", stockError?.message || stockError);
+      // Không dừng việc hủy đơn hàng nếu lỗi hoàn stock
+    }
+
+    // Cập nhật trạng thái đơn hàng thành cancelled
+    order.status = "cancelled";
+    order.timeline = order.timeline || {};
+    order.timeline.cancelledAt = new Date();
+    await order.save();
+
+    res.json({ message: "Đã hủy đơn hàng thành công và hoàn lại số lượng sản phẩm" });
+  } catch (err) {
+    res.status(500).json({ message: "Lỗi server khi hủy đơn hàng", error: err.message });
   }
 };
 

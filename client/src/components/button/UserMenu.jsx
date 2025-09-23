@@ -1,13 +1,14 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/useAuth";
 
 const UserMenu = () => {
   const [showMenu, setShowMenu] = useState(false);
-  const user = JSON.parse(localStorage.getItem("user"));
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    localStorage.removeItem("user");
+    logout(); // ✅ Sử dụng logout function từ AuthContext để xóa đầy đủ dữ liệu
     navigate("/dang-nhap");
   };
 
